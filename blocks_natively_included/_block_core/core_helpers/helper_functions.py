@@ -1,0 +1,81 @@
+
+import bpy # type: ignore
+
+# --------------------------------------------------------------
+# Addon-level imports
+# --------------------------------------------------------------
+from .... import my_addon_config
+
+# --------------------------------------------------------------
+# Intra-block imports
+# --------------------------------------------------------------
+from .constants import  Core_Block_Loggers
+from .helper_uilayouts import ui_box_with_header
+from ..core_features.feature_logs import get_logger, _uilayout_draw_logger_settings
+from ..core_features.feature_block_manager import _uilayout_draw_block_manager_settings
+from ..core_features.feature_hooks  import _uilayout_draw_hooks_settings
+
+#=================================================================================
+# REGISTRATION HELPERS 
+# These should only be called during registration, unregistration, and post-init callbacks
+#=================================================================================
+
+def register_hotkeys():
+    
+    logger = get_logger(Core_Block_Loggers.REGISTRATE)
+    
+    # Add keymap entry
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        
+        km = kc.keymaps.new(name='Window', space_type='EMPTY')
+        
+        # kmi1 = km.keymap_items.new(op_name, type='T', value='PRESS', ctrl=True, shift=True)
+        # kmi1.active = True  
+        
+        for hotkey_data in my_addon_config.addon_hotkeys:
+            name = hotkey_data["OP_NAME"]
+            kmi2 = km.keymap_items.new(
+                    name, 
+                    type=hotkey_data["TYPE"], 
+                    value='PRESS', # Keypress event
+                    ctrl =hotkey_data["CTRL"],
+                    alt = hotkey_data["ALT"],
+                    shift = hotkey_data["SHIFT"],
+                    head=True)
+            kmi2.active = True    
+            logger.info(f"Added hotkey {name}")
+        
+def unregister_hotkeys():
+    
+    logger = get_logger(Core_Block_Loggers.REGISTRATE)
+    
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        km = kc.keymaps['Window']
+        for kmi in km.keymap_items:
+            if kmi.idname in [k["OP_NAME"] for k in my_addon_config.addon_hotkeys]:
+                logger.info(f"removing hotkey {kmi.idname}")
+                km.keymap_items.remove(kmi)
+
+#=================================================================================
+# DATA MANAGEMENT
+#=================================================================================
+
+def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.UILayout):
+    
+    core_scene_props = context.scene.dgblocks_core_props
+    
+    # UI & status 
+    box = ui_box_with_header(context, container, "Activation level")
+    grid = box.grid_flow(columns=2)
+    grid.prop(core_scene_props, "addon_is_active")
+    grid.prop(core_scene_props, "debug_mode_enabled")
+    box.prop(core_scene_props, "documentation_weblinks_enabled")
+    
+    # Draw management subpanels for blocks, hooks, & loggers
+    _uilayout_draw_block_manager_settings(context, container)
+    _uilayout_draw_hooks_settings(context, container)
+    _uilayout_draw_logger_settings(context, container)
