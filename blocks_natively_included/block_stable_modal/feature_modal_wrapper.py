@@ -7,12 +7,11 @@ import bpy  # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import sync_blender_propertygroup_and_raw_python
+from ...addon_data_structures import Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from .._block_core.core_data.data_structures import Abstract_Feature_Wrapper
 from .._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_logs import get_logger
@@ -88,7 +87,7 @@ class Modal_Wrapper(Abstract_Feature_Wrapper):
             return False
 
         data = Modal_Instance_Data(is_enabled=is_enabled)
-        _rtc_set_instance(data)
+        Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Members.MODAL_INSTANCE, data)
 
         logger.info(f"Created modal instance (enabled={is_enabled})")
         return True
@@ -162,7 +161,7 @@ class Modal_Wrapper(Abstract_Feature_Wrapper):
         return True
 
     @classmethod
-    def init_post_bpy(cls, scene) -> bool:
+    def init_post_bpy(cls) -> bool:
         """
         Called once bpy.context is available (post-register hook).
         Loads saved modal configuration from scene properties into RTC.
@@ -170,7 +169,8 @@ class Modal_Wrapper(Abstract_Feature_Wrapper):
         """
         logger = get_logger(Block_Logger_Definitions.MODAL_LIFECYCLE)
         logger.debug("Modal_Wrapper.init_post_bpy: syncing scene → RTC")
-        cls.update_BL_with_mirrored_RTC_data(scene)
+        scene = bpy.context.scene
+        # cls.update_BL_with_mirrored_RTC_data()
         
         # Register for automatic undo/redo/load sync
         Wrapper_Block_Management.register_sync_wrapper(
@@ -229,7 +229,7 @@ class Modal_Wrapper(Abstract_Feature_Wrapper):
         return cls._stop_modal_operator(data)
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, scene) -> None:
+    def update_BL_with_mirrored_RTC_data(cls) -> None:
         """
         Rebuild RTC from scene properties. Scene is the source of truth.
         Called by Wrapper_Block_Management on undo/redo/load, and by property update callbacks.
@@ -237,16 +237,18 @@ class Modal_Wrapper(Abstract_Feature_Wrapper):
         """
         logger = get_logger(Block_Logger_Definitions.MODAL_LIFECYCLE)
         logger.debug("Modal_Wrapper.update_BL_with_mirrored_RTC_data: starting")
+        scene = bpy.context.scene
 
         if not hasattr(scene, "dgblocks_modal_props"):
             logger.warning("update_BL_with_mirrored_RTC_data: scene has no 'dgblocks_modal_props'")
             return
 
-        scene_data = sync_blender_propertygroup_and_raw_python(
-            bl_propgroup_data=scene.dgblocks_modal_props,
-            py_raw_data={},
-            blender_as_truth_source=True
-        )
+        scene_data = None 
+        # scene_data = sync_blender_propertygroup_and_raw_python(
+        #     bl_propgroup_data=scene.dgblocks_modal_props,
+        #     py_raw_data={},
+        #     blender_as_truth_source=True
+        # )
         data = Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Members.MODAL_INSTANCE)
 
         if data is None:
@@ -257,13 +259,14 @@ class Modal_Wrapper(Abstract_Feature_Wrapper):
         logger.debug("Modal_Wrapper.update_BL_with_mirrored_RTC_data: done")
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, scene) -> None:
+    def update_RTC_with_mirrored_BL_data(cls) -> None:
         """
         Write RTC modal state back into scene properties. RTC is the source of truth.
         Implements Abstract_Feature_Wrapper.update_RTC_with_mirrored_BL_data.
         """
         logger = get_logger(Block_Logger_Definitions.MODAL_LIFECYCLE)
         logger.debug("Modal_Wrapper.update_RTC_with_mirrored_BL_data: starting")
+        scene = bpy.context.scene
 
         data = Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Members.MODAL_INSTANCE)
         if data is None:

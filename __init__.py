@@ -36,7 +36,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from .addon_helper_funcs import clear_console
-from .my_addon_native_blocks import _ordered_blocks_list
+from .my_activated_blocks import _ordered_blocks_list
 from .my_addon_config import addon_name
 blender_version = '.'.join(map(str, bpy.app.version[:2]))
 

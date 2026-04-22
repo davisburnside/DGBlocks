@@ -6,24 +6,18 @@ from bpy.props import BoolProperty, PointerProperty # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import should_draw_delevoper_panel
-from ...my_addon_config import (
-        addon_name, 
-        addon_title,
-        addon_bl_type_prefix,
-        should_show_developer_ui_panels,
-        default_disabled_icon,
-        Documentation_URLs)
+from ...addon_helper_funcs import should_draw_delevoper_panel, get_self_block_module
+from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import _block_core
-from .._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
-from .._block_core.core_features.feature_logs import get_logger
-from .._block_core.core_helpers.constants import Core_Block_Loggers
+from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
+from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -42,7 +36,7 @@ from .block_constants import (
 _BLOCK_ID = "block-stable-modal"
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [
-    _block_core._BLOCK_ID,
+    "block-core"
 ]
 
 #=================================================================================
@@ -317,14 +311,16 @@ def register_block():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
     
-    register_block_components(
-        block_id=_BLOCK_ID,
-        block_classes=_block_classes_to_register,
-        block_runtime_cache_members=Block_Runtime_Cache_Members,
-        block_hooks=Block_Hooks,
-        block_loggers=Block_Logger_Definitions
+    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
+    Wrapper_Block_Management.create_instance(
+        block_module = block_module,
+        block_bpy_types_classes = _block_classes_to_register,
+        block_feature_wrapper_classes = [Modal_Wrapper], 
+        block_hook_source_enums = Block_Hooks,
+        block_RTC_member_enums = Block_Runtime_Cache_Members, 
+        block_logger_enums = Block_Logger_Definitions 
     )
-    
+
     # Create Scene Property to hold modal configuration
     bpy.types.Scene.dgblocks_modal_props = PointerProperty(type=DGBLOCKS_PG_Modal_Props)
     
@@ -333,18 +329,13 @@ def register_block():
 def unregister_block():
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
+    logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
     
     # Stop modal before unregistering
     Modal_Wrapper.destroy_wrapper()
     
-    unregister_block_components(
-        block_id=_BLOCK_ID,
-        block_classes=_block_classes_to_register,
-        block_runtime_cache_members=Block_Runtime_Cache_Members,
-        block_hooks=Block_Hooks,
-        block_loggers=Block_Logger_Definitions
-    )
+    # Remove block components from RTC
+    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
     
     # Delete Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_modal_props"):

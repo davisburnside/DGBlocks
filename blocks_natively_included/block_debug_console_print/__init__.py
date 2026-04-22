@@ -31,23 +31,6 @@ _BLOCK_ID = "block-debug-console-print" # Defined in constants, To Prevent circu
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [_block_core.core_block_id] 
 
-
-
-
-
-
-
-
-# def hook_post_register_init(context):
-    
-#     print("hey it hooked")
-#     return True
-
-def my_example_hook1():
-    print("hey it hooked")
-    return True
-
-
 #=================================================================================
 # BLENDER DATA FOR BLOCK
 #=================================================================================
