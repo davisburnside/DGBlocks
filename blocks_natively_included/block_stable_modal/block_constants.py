@@ -40,8 +40,9 @@ class Block_Hooks(Enum):
 # name = RTC Member ID 
 # value[0] = actual RTC dict key / data structure
 # value[1] = default data for RTC key
-class Block_Runtime_Cache_Members(Enum):
-    MODAL_INSTANCE = ("modal-instance", None) # Unlike timers which can have multiple instances, the modal is singular.
+class Block_RTC_Members(Enum):
+    # MODAL_INSTANCE = ("modal-instance", None) # Unlike timers which can have multiple instances, the modal is singular.
+    MODALS_CACHE = ("modals-cache", [])
 
 #=================================================================================
 # OTHER

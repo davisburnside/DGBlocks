@@ -23,10 +23,11 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # Intra-block imports
 # --------------------------------------------------------------
 from .helper_functions import uilayout_draw_modal_panel, op_modal_toggle, op_modal_restart
-from .feature_modal_wrapper import Modal_Wrapper, Modal_Instance_Data
+# from .feature_modal_wrapper import Modal_Wrapper, Modal_Instance_Data
+from .test1 import ModalStackItem, MODAL_OT_Toggle,MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add
 from .block_constants import (
         Block_Logger_Definitions,
-        Block_Runtime_Cache_Members,
+        Block_RTC_Members,
         Block_Hooks)
 
 #=================================================================================
@@ -49,17 +50,17 @@ def hook_post_register_init(context):
     logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
     logger.debug("Starting post_register_init for block-stable-modal")
     
-    # Sync scene data with RTC on startup
-    Modal_Wrapper.init_post_bpy(context.scene)
+    # # Sync scene data with RTC on startup
+    # Modal_Wrapper.init_post_bpy()
     
-    # Auto-start modal if configured
-    modal_props = context.scene.dgblocks_modal_props
-    modal_data = Modal_Wrapper.get_instance()
+    # # Auto-start modal if configured
+    # modal_props = context.scene.dgblocks_modal_props
+    # modal_data = Modal_Wrapper.get_instance()
     
-    if modal_data and modal_props.should_be_activated_after_startup:
-        if not modal_data.is_running:
-            logger.info("Auto-starting modal on post-register init")
-            Modal_Wrapper.start_modal(context)
+    # if modal_data and modal_props.should_be_activated_after_startup:
+    #     if not modal_data.is_running:
+    #         logger.info("Auto-starting modal on post-register init")
+    #         Modal_Wrapper.start_modal(context)
     
     logger.info("Finished post_register_init for block-stable-modal")
     return True
@@ -258,52 +259,93 @@ class DGBLOCKS_OT_Modal_Restart(bpy.types.Operator):
 # UI - Panel for Modal Management
 #================================================================
 
-class DGBLOCKS_PT_Modal_Panel(bpy.types.Panel):
-    """Panel for managing the stable modal in the N-menu"""
-    bl_label = ""
-    bl_idname = f"{addon_bl_type_prefix}_PT_Modal_Panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = addon_title
-    bl_options = {'DEFAULT_CLOSED'}
+# class DGBLOCKS_PT_Modal_Panel(bpy.types.Panel):
+#     """Panel for managing the stable modal in the N-menu"""
+#     bl_label = ""
+#     bl_idname = f"{addon_bl_type_prefix}_PT_Modal_Panel"
+#     bl_space_type = 'VIEW_3D'
+#     bl_region_type = 'UI'
+#     bl_category = addon_title
+#     bl_options = {'DEFAULT_CLOSED'}
     
-    @classmethod
-    def poll(cls, context):
-        return should_draw_delevoper_panel(context)
+#     @classmethod
+#     def poll(cls, context):
+#         return should_draw_delevoper_panel(context)
     
-    def draw_header(self, context):
-        modal_data = Modal_Wrapper.get_instance()
-        is_enabled = (modal_data and modal_data.is_running)
-        status_str = "( On )" if is_enabled else "( Off )"
-        label = f"{_BLOCK_ID.upper()} {status_str}"
-        uilayout_draw_block_panel_header(
-            context, 
-            self.layout, 
-            label, 
-            Documentation_URLs.MY_PLACEHOLDER_URL_1, 
-            icon_name = "MOUSE_LMB_DRAG"
-        )
+#     def draw_header(self, context):
+#         modal_data = Modal_Wrapper.get_instance()
+#         is_enabled = (modal_data and modal_data.is_running)
+#         status_str = "( On )" if is_enabled else "( Off )"
+#         label = f"{_BLOCK_ID.upper()} {status_str}"
+#         uilayout_draw_block_panel_header(
+#             context, 
+#             self.layout, 
+#             label, 
+#             Documentation_URLs.MY_PLACEHOLDER_URL_1, 
+#             icon_name = "MOUSE_LMB_DRAG"
+#         )
     
-    def draw(self, context):
-        uilayout_draw_modal_panel(context, self.layout)
+#     def draw(self, context):
+#         uilayout_draw_modal_panel(context, self.layout)
         
-        # Add quick action buttons
-        box = self.layout.box()
-        box.label(text="Quick Actions")
-        row = box.row(align=True)
-        row.operator("dgblocks.modal_toggle", text="Toggle", icon='PLAY')
-        row.operator("dgblocks.modal_restart", text="Restart", icon='FILE_REFRESH')
+#         # Add quick action buttons
+#         box = self.layout.box()
+#         box.label(text="Quick Actions")
+#         row = box.row(align=True)
+#         row.operator("dgblocks.modal_toggle", text="Toggle", icon='PLAY')
+#         row.operator("dgblocks.modal_restart", text="Restart", icon='FILE_REFRESH')
 
 #================================================================
 # REGISTRATION EVENTS - Should only be called from the addon's main __init__.py
 #================================================================
+
+
+
+
+
+# _CLASSES = (
+#     ModalStackItem,
+#     MODAL_OT_Toggle,
+#     MODAL_OT_Delete,
+#     MODAL_UL_StackList,
+#     VIEW3D_PT_ModalStack,
+# )
+
+# def register():
+#     for cls in _CLASSES:
+#         bpy.utils.register_class(cls)
+#     bpy.types.Scene.modal_stack_items        = CollectionProperty(type=ModalStackItem)
+#     bpy.types.Scene.modal_stack_active_index = IntProperty()
+
+
+# def unregister():
+#     Wrapper_Modals_Manager.stop_all()
+#     _unregister_all_dynamic_classes()
+#     for cls in reversed(_CLASSES):
+#         bpy.utils.unregister_class(cls)
+#     del bpy.types.Scene.modal_stack_items
+#     del bpy.types.Scene.modal_stack_active_index
+
+
+# if __name__ == "__main__":
+#     register()
+
+
+
+
 
 _block_classes_to_register = [
     DGBLOCKS_PG_Modal_Props,
     DGBLOCKS_OT_StableModal,
     DGBLOCKS_OT_Modal_Toggle,
     DGBLOCKS_OT_Modal_Restart,
-    DGBLOCKS_PT_Modal_Panel
+    # DGBLOCKS_PT_Modal_Panel,
+    ModalStackItem,
+    MODAL_OT_Toggle,
+    MODAL_OT_Delete,
+    MODAL_OT_Add,
+    MODAL_UL_StackList,
+    VIEW3D_PT_ModalStack,
 ]
 
 def register_block():
@@ -315,14 +357,17 @@ def register_block():
     Wrapper_Block_Management.create_instance(
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
-        block_feature_wrapper_classes = [Modal_Wrapper], 
+        # block_feature_wrapper_classes = [Modal_Wrapper], 
         block_hook_source_enums = Block_Hooks,
-        block_RTC_member_enums = Block_Runtime_Cache_Members, 
+        block_RTC_member_enums = Block_RTC_Members, 
         block_logger_enums = Block_Logger_Definitions 
     )
 
     # Create Scene Property to hold modal configuration
-    bpy.types.Scene.dgblocks_modal_props = PointerProperty(type=DGBLOCKS_PG_Modal_Props)
+    bpy.types.Scene.dgblocks_modal_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Modal_Props)
+    
+    bpy.types.Scene.modal_stack_items = bpy.props.CollectionProperty(type=ModalStackItem)
+    bpy.types.Scene.modal_stack_active_index = bpy.props.IntProperty()
     
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
@@ -332,7 +377,7 @@ def unregister_block():
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
     
     # Stop modal before unregistering
-    Modal_Wrapper.destroy_wrapper()
+    # Modal_Wrapper.destroy_wrapper()
     
     # Remove block components from RTC
     Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
@@ -340,5 +385,8 @@ def unregister_block():
     # Delete Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_modal_props"):
         del bpy.types.Scene.dgblocks_modal_props
+        
+    del bpy.types.Scene.modal_stack_items
+    del bpy.types.Scene.modal_stack_active_index
     
     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")

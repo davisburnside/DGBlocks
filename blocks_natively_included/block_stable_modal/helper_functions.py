@@ -7,7 +7,7 @@ from .._block_core.core_helpers.helper_uilayouts import ui_box_with_header
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .feature_modal_wrapper import Modal_Wrapper
+# from .feature_modal_wrapper import Modal_Wrapper
 
 # =============================================================================
 # UI DRAWING

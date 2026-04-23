@@ -194,12 +194,13 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         return True
 
     @classmethod
-    def init_post_bpy(cls, scene) -> bool:
+    def init_post_bpy(cls) -> bool:
         """
         Called once bpy.context is available (post-register hook).
         Loads saved timer definitions from scene properties into RTC.
         Registers this wrapper with Wrapper_Block_Management for undo/redo/load sync.
         """
+        scene = bpy.context.scene
         logger = get_logger(Block_Logger_Definitions.TIMER_LIFECYCLE)
         logger.debug("Timer_Wrapper.init_post_bpy: syncing scene → RTC")
         cls.update_BL_with_mirrored_RTC_data(scene)
@@ -258,7 +259,8 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         Called by Wrapper_Block_Management on undo/redo/load, and by property update callbacks.
         Implements Abstract_Feature_Wrapper.update_BL_with_mirrored_RTC_data.
         """
-        cls._sync_scene_to_rtc_impl(scene)
+        pass
+        # cls._sync_scene_to_rtc_impl(scene)
 
     @classmethod
     def update_RTC_with_mirrored_BL_data(cls, scene) -> None:
@@ -266,37 +268,38 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         Write RTC timer state back into scene properties. RTC is the source of truth.
         Implements Abstract_Feature_Wrapper.update_RTC_with_mirrored_BL_data.
         """
-        logger = get_logger(Block_Logger_Definitions.TIMER_LIFECYCLE)
-        logger.debug("Timer_Wrapper.update_RTC_with_mirrored_BL_data: starting")
+        pass
+        # logger = get_logger(Block_Logger_Definitions.TIMER_LIFECYCLE)
+        # logger.debug("Timer_Wrapper.update_RTC_with_mirrored_BL_data: starting")
 
-        if not hasattr(scene, "dgblocks_timer_props"):
-            logger.warning("update_RTC_with_mirrored_BL_data: scene has no 'dgblocks_timer_props'")
-            return
+        # if not hasattr(scene, "dgblocks_timer_props"):
+        #     logger.warning("update_RTC_with_mirrored_BL_data: scene has no 'dgblocks_timer_props'")
+        #     return
 
-        all_timers = _rtc_get_all()
-        timer_props = scene.dgblocks_timer_props
+        # all_timers = _rtc_get_all()
+        # timer_props = scene.dgblocks_timer_props
 
-        # Build a lookup of existing scene items by name
-        scene_timer_names = {item.timer_name: idx for idx, item in enumerate(timer_props.timers)}
+        # # Build a lookup of existing scene items by name
+        # scene_timer_names = {item.timer_name: idx for idx, item in enumerate(timer_props.timers)}
 
-        # Update existing scene items and add new ones from RTC
-        for timer_name, data in all_timers.items():
-            if timer_name in scene_timer_names:
-                item = timer_props.timers[scene_timer_names[timer_name]]
-                item.frequency_ms = data.frequency_ms
-                item.is_enabled = data.is_enabled
-            else:
-                item = timer_props.timers.add()
-                item.timer_name = data.timer_name
-                item.frequency_ms = data.frequency_ms
-                item.is_enabled = data.is_enabled
+        # # Update existing scene items and add new ones from RTC
+        # for timer_name, data in all_timers.items():
+        #     if timer_name in scene_timer_names:
+        #         item = timer_props.timers[scene_timer_names[timer_name]]
+        #         item.frequency_ms = data.frequency_ms
+        #         item.is_enabled = data.is_enabled
+        #     else:
+        #         item = timer_props.timers.add()
+        #         item.timer_name = data.timer_name
+        #         item.frequency_ms = data.frequency_ms
+        #         item.is_enabled = data.is_enabled
 
-        # Remove scene items that no longer exist in RTC
-        for i in range(len(timer_props.timers) - 1, -1, -1):
-            if timer_props.timers[i].timer_name not in all_timers:
-                timer_props.timers.remove(i)
+        # # Remove scene items that no longer exist in RTC
+        # for i in range(len(timer_props.timers) - 1, -1, -1):
+        #     if timer_props.timers[i].timer_name not in all_timers:
+        #         timer_props.timers.remove(i)
 
-        logger.debug("Timer_Wrapper.update_RTC_with_mirrored_BL_data: done")
+        # logger.debug("Timer_Wrapper.update_RTC_with_mirrored_BL_data: done")
 
     @classmethod
     def sync_scene_to_rtc(cls, scene) -> None:
