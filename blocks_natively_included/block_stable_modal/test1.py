@@ -31,25 +31,30 @@ from .block_constants import Block_RTC_Members
 
 @dataclass
 class RTC_Modal_Instance:
+
+    # Mirrored fields of DGBLOCKS_PG_Hook_Reference
     uid:str
-    bl_idname: str
     label: str
-    timer_interval: Optional[float] = field(default=None)
-    on_event: Optional[Callable] = field(default=None, repr=False)
-    on_timer: Optional[Callable] = field(default=None, repr=False)
-    on_start: Optional[Callable] = field(default=None, repr=False)
-    on_kill:  Optional[Callable] = field(default=None, repr=False)
-    running: bool = field(default=False)
-    _op_ref: Optional[object] = field(default=None, repr=False, compare=False)
+    includes_timer: bool
+    timer_interval: Optional[float]
+
+    # Not present in mirror
+    created_timestamp: int
+    last_event_timestamp: int # updates on timer or key/mouse events
+    should_die: bool
+    _op_ref: Optional[object]
 
     def __post_init__(self):
-        if self.timer_interval is not None and self.on_timer is None:
-            raise ValueError(f"Modal {self.uid!r} has timer_interval but no on_timer.")
+        if self.includes_timer and self.timer_interval <= 0:
+            raise ValueError(f"Modal {self.uid} has invalid/0 timer interval")
 
 class BL_Modal_Instance(bpy.types.PropertyGroup):
+
+    # Mirrored fields of RTC_Modal_Instance
     uid: bpy.props.StringProperty() # type: ignore
     label: bpy.props.StringProperty() # type: ignore
-    running: bpy.props.BoolProperty() # type: ignore
+    includes_timer: bpy.props.BoolProperty() # type: ignore
+    timer_interval: bpy.props.FloatProperty() # type: ignore
 
 #=================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
@@ -84,56 +89,37 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
     def create_instance(
         cls,
         uid: str,
-        bl_idname:str,
         label: str = "",
-        on_event: Optional[Callable] = None,
-        on_timer: Optional[Callable] = None,
-        on_start: Optional[Callable] = None,
-        on_kill: Optional[Callable] = None,
+        includes_timer: bool = False,
         timer_interval: Optional[float] = None,
-        autostart: bool = False,
-        context: Optional[object]= None,
     ) -> RTC_Modal_Instance:
-        """
-        Create, register, and optionally start a new managed modal.
 
-        Callbacks:
-            on_start / on_kill  ->  (entry, context)
-            on_timer            ->  (entry, context)
-            on_event            ->  (entry, context, event) -> set | None
-        """
-
-        entry = RTC_Modal_Instance(
-            uid            = uid,
-            bl_idname      = bl_idname,
-            label          = label or uid,
-            on_event       = on_event,
-            on_timer       = on_timer,
-            on_start       = on_start,
-            on_kill        = on_kill,
-            timer_interval = timer_interval,
+        modal_instance = RTC_Modal_Instance(
+            uid = uid,
+            label = label,
+            includes_timer = includes_timer,
+            timer_interval= timer_interval,
         )
+        Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(Block_RTC_Members.MODALS_CACHE, "uid", modal_instance)
 
-        Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(Block_RTC_Members.MODALS_CACHE, "uid", entry)
+        add_modal_op_to_blender_stack(modal_instance)
 
-        if autostart:
-            if context is None:
-                raise ValueError("context is required when autostart=True")
-            cls.start(uid, context)
-
-        return entry
+        return modal_instance
 
     @classmethod
     def destroy_instance(cls, uid: str) -> None:
-        # Marks 
         
-        # Stop modal
+        # Get instance to remove
         _, modal_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
             member_key = Block_RTC_Members.MODALS_CACHE, 
             uniqueness_field = "uid", 
             uniqueness_field_value = uid,
         )
-        if modal_instance.running and modal_instance._op_ref is not None:
+
+        # Flag the modal associated with the instance to be stopped. Modal Finish/Cancel can only occur during a modal event, and not from this function
+        if modal_instance._op_ref is None:
+            raise Exception(f"Modal {uid} has no associated ")
+        else:
             modal_instance._op_ref._exit_requested = True
             
         # Remove from registry
@@ -144,7 +130,7 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         )
 
 # ---------------------------------------------------------------------------
-# UI
+# OPERATORS AND UI FOR FEATURE INTERACTION
 # ---------------------------------------------------------------------------
 
 class MODAL_OT_Add(bpy.types.Operator):
@@ -153,10 +139,9 @@ class MODAL_OT_Add(bpy.types.Operator):
     bl_label  = "Add Modal"
 
     uid: bpy.props.StringProperty(name="UID", default="") # type: ignore
-    bl_idname_prop: bpy.props.StringProperty(name="Operator",  default="wm.my_modal") # type: ignore
     label: bpy.props.StringProperty(name="Label",     default="New Modal") # type: ignore
     timer_interval: bpy.props.FloatProperty(min=0.0) # type: ignore
-    autostart: bpy.props.BoolProperty(name="Autostart",   default=True) # type: ignore
+    includes_timer: bpy.props.BoolProperty() # type: ignore
 
     def invoke(self, context, event):
 
@@ -169,9 +154,9 @@ class MODAL_OT_Add(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "uid")
-        layout.prop(self, "bl_idname_prop")
         layout.prop(self, "label")
         layout.prop(self, "timer_interval")
+        layout.prop(self, "includes_timer")
         layout.prop(self, "autostart")
 
     def execute(self, context):
@@ -182,8 +167,7 @@ class MODAL_OT_Add(bpy.types.Operator):
                 bl_idname = self.bl_idname_prop,
                 label = self.label,
                 timer_interval = interval,
-                autostart = self.autostart,
-                context = context if self.autostart else None,
+                includes_timer = self.includes_timer,
             )
         except (KeyError, ValueError) as e:
             self.report({'ERROR'}, str(e))
@@ -193,7 +177,8 @@ class MODAL_OT_Add(bpy.types.Operator):
 class MODAL_OT_Delete(bpy.types.Operator):
     bl_idname = "modal_stack.delete"
     bl_label  = "Delete Modal"
-    uid: StringProperty()
+
+    uid: bpy.props.StringProperty()# type: ignore
 
     def execute(self, context):
         Wrapper_Modals_Manager.destroy_instance(self.uid)
@@ -224,8 +209,22 @@ class VIEW3D_PT_ModalStack(bpy.types.Panel):
         # _sync_ui_list(context)
         layout.template_list(
             "MODAL_UL_stack_list", "",
-            context.scene, "modal_stack_items",
-            context.scene, "modal_stack_active_index",
-            rows=max(2, len(context.scene.modal_stack_items))
+            context.scene.dgblocks_modal_props, "modal_stack_items",
+            context.scene.dgblocks_modal_props, "modal_stack_active_index",
+            rows=max(2, len(context.scene.dgblocks_modal_props.modal_stack_items))
         )
-        layout.operator("modal_stack.add", icon='ADD')   # ← add this line
+        layout.operator("modal_stack.add", icon='ADD') 
+
+# =============================================================================
+# PRIVATE MODULE API — should not be used outside this file
+# =============================================================================
+
+def print_current_modals():
+    for op in bpy.context.window_manager.operators:
+        print("==========\n", op.bl_idname)      # e.g. 'TRANSFORM_OT_translate'
+        print(op.name)           # human label
+        print(op.properties)     # operator property values at time of execution
+
+def add_modal_op_to_blender_stack(modal_instance):
+    #TODO implement this. modal_instance._op_ref needs to be assigned.
+    pass

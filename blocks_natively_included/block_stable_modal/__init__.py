@@ -23,8 +23,7 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # Intra-block imports
 # --------------------------------------------------------------
 from .helper_functions import uilayout_draw_modal_panel, op_modal_toggle, op_modal_restart
-# from .feature_modal_wrapper import Modal_Wrapper, Modal_Instance_Data
-from .test1 import BL_Modal_Instance, MODAL_OT_Toggle,MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add
+from .test1 import BL_Modal_Instance,MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add
 from .block_constants import (
         Block_Logger_Definitions,
         Block_RTC_Members,
@@ -73,24 +72,8 @@ def hook_post_register_init(context):
 class DGBLOCKS_PG_Modal_Props(bpy.types.PropertyGroup):
     """Modal configuration stored in scene"""
     
-    is_enabled: BoolProperty(
-        name="Modal Enabled",
-        default=True,
-        description="Whether the modal is active",
-        update=lambda self, context: Modal_Wrapper.sync_scene_to_rtc(context.scene)
-    ) # type: ignore
-    
-    should_be_activated_after_startup: BoolProperty(
-        name="Auto-start on Load",
-        default=True,
-        description="Start modal automatically when addon loads"
-    ) # type: ignore
-    
-    should_restart_on_error: BoolProperty(
-        name="Auto-restart on Error",
-        default=True,
-        description="Automatically restart the modal if it crashes (the 'stable' feature)"
-    ) # type: ignore
+    managed_blocks: bpy.props.CollectionProperty(type=BL_Modal_Instance) # type: ignore
+    managed_blocks_selected_idx: bpy.props.IntProperty()  # type: ignore
 
 #================================================================
 # OPERATORS
@@ -299,49 +282,12 @@ class DGBLOCKS_OT_Modal_Restart(bpy.types.Operator):
 # REGISTRATION EVENTS - Should only be called from the addon's main __init__.py
 #================================================================
 
-
-
-
-
-# _CLASSES = (
-#     BL_Modal_Instance,
-#     MODAL_OT_Toggle,
-#     MODAL_OT_Delete,
-#     MODAL_UL_StackList,
-#     VIEW3D_PT_ModalStack,
-# )
-
-# def register():
-#     for cls in _CLASSES:
-#         bpy.utils.register_class(cls)
-#     bpy.types.Scene.modal_stack_items        = CollectionProperty(type=BL_Modal_Instance)
-#     bpy.types.Scene.modal_stack_active_index = IntProperty()
-
-
-# def unregister():
-#     Wrapper_Modals_Manager.stop_all()
-#     _unregister_all_dynamic_classes()
-#     for cls in reversed(_CLASSES):
-#         bpy.utils.unregister_class(cls)
-#     del bpy.types.Scene.modal_stack_items
-#     del bpy.types.Scene.modal_stack_active_index
-
-
-# if __name__ == "__main__":
-#     register()
-
-
-
-
-
 _block_classes_to_register = [
     DGBLOCKS_PG_Modal_Props,
     DGBLOCKS_OT_StableModal,
     DGBLOCKS_OT_Modal_Toggle,
     DGBLOCKS_OT_Modal_Restart,
-    # DGBLOCKS_PT_Modal_Panel,
     BL_Modal_Instance,
-    MODAL_OT_Toggle,
     MODAL_OT_Delete,
     MODAL_OT_Add,
     MODAL_UL_StackList,
@@ -366,9 +312,6 @@ def register_block():
     # Create Scene Property to hold modal configuration
     bpy.types.Scene.dgblocks_modal_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Modal_Props)
     
-    bpy.types.Scene.modal_stack_items = bpy.props.CollectionProperty(type=BL_Modal_Instance)
-    bpy.types.Scene.modal_stack_active_index = bpy.props.IntProperty()
-    
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
 def unregister_block():
@@ -385,8 +328,5 @@ def unregister_block():
     # Delete Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_modal_props"):
         del bpy.types.Scene.dgblocks_modal_props
-        
-    del bpy.types.Scene.modal_stack_items
-    del bpy.types.Scene.modal_stack_active_index
-    
+
     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")
