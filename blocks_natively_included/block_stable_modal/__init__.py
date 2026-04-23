@@ -24,7 +24,7 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # --------------------------------------------------------------
 from .helper_functions import uilayout_draw_modal_panel, op_modal_toggle, op_modal_restart
 # from .feature_modal_wrapper import Modal_Wrapper, Modal_Instance_Data
-from .test1 import ModalStackItem, MODAL_OT_Toggle,MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add
+from .test1 import BL_Modal_Instance, MODAL_OT_Toggle,MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add
 from .block_constants import (
         Block_Logger_Definitions,
         Block_RTC_Members,
@@ -304,7 +304,7 @@ class DGBLOCKS_OT_Modal_Restart(bpy.types.Operator):
 
 
 # _CLASSES = (
-#     ModalStackItem,
+#     BL_Modal_Instance,
 #     MODAL_OT_Toggle,
 #     MODAL_OT_Delete,
 #     MODAL_UL_StackList,
@@ -314,7 +314,7 @@ class DGBLOCKS_OT_Modal_Restart(bpy.types.Operator):
 # def register():
 #     for cls in _CLASSES:
 #         bpy.utils.register_class(cls)
-#     bpy.types.Scene.modal_stack_items        = CollectionProperty(type=ModalStackItem)
+#     bpy.types.Scene.modal_stack_items        = CollectionProperty(type=BL_Modal_Instance)
 #     bpy.types.Scene.modal_stack_active_index = IntProperty()
 
 
@@ -340,7 +340,7 @@ _block_classes_to_register = [
     DGBLOCKS_OT_Modal_Toggle,
     DGBLOCKS_OT_Modal_Restart,
     # DGBLOCKS_PT_Modal_Panel,
-    ModalStackItem,
+    BL_Modal_Instance,
     MODAL_OT_Toggle,
     MODAL_OT_Delete,
     MODAL_OT_Add,
@@ -366,7 +366,7 @@ def register_block():
     # Create Scene Property to hold modal configuration
     bpy.types.Scene.dgblocks_modal_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Modal_Props)
     
-    bpy.types.Scene.modal_stack_items = bpy.props.CollectionProperty(type=ModalStackItem)
+    bpy.types.Scene.modal_stack_items = bpy.props.CollectionProperty(type=BL_Modal_Instance)
     bpy.types.Scene.modal_stack_active_index = bpy.props.IntProperty()
     
     logger.info(f"Finished registration for '{_BLOCK_ID}'")

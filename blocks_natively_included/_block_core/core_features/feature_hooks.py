@@ -15,7 +15,7 @@ from bpy.app.handlers import persistent # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helper_funcs import  is_bpy_ready, py_dicty_get_field_value, find_blocks_owning_func_with_name
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager
+from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -126,7 +126,7 @@ class RTC_Hook_Downstream_Instance:
 # MODULE MAIN FEATURE WRAPPER CLASS
 #=================================================================================
 
-class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager):
+class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer):
     # Manager — classmethods only, no instance state
     # Manages hook registrations and src->downstream propagation between blocks
     # All data managed by this wrapper is stored in RTC
@@ -156,6 +156,10 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def destroy_wrapper(cls) -> None:
         "no-op"
         return True
+
+    # --------------------------------------------------------------
+    # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
+    # --------------------------------------------------------------
 
     @classmethod
     def update_RTC_with_mirrored_BL_data(cls, skip_downstream_sync = False):
