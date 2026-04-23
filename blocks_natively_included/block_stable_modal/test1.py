@@ -44,10 +44,6 @@ class RTC_Modal_Instance:
     should_die: bool
     _op_ref: Optional[object]
 
-    def __post_init__(self):
-        if self.includes_timer and self.timer_interval <= 0:
-            raise ValueError(f"Modal {self.uid} has invalid/0 timer interval")
-
 class BL_Modal_Instance(bpy.types.PropertyGroup):
 
     # Mirrored fields of RTC_Modal_Instance
@@ -129,6 +125,51 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
             uniqueness_field_value = uid,
         )
 
+    @classmethod
+    def get_instance(cls):
+        pass
+    @classmethod
+    def set_instance(cls, data):
+        pass
+
+
+        # --------------------------------------------------------------
+    # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
+    # --------------------------------------------------------------
+
+    # @classmethod
+    # def update_RTC_with_mirrored_BL_data(cls, skip_downstream_sync = False):
+
+    #     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+    #     logger.debug(f"Updating hooks cache with mirrored Blender data")
+        
+    #     rtc_all_modalops = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+    #     scene_modalops_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
+    #     update_dataclasses_to_match_collectionprop(
+    #         source = scene_hooks_collection,
+    #         target = registry_all_downstream_hooks,
+    #         dataclass_type = Wrapper_Hooks,
+    #         key_fields = rtc_sync_key_fields,
+    #         data_fields = rtc_sync_data_fields
+    #     )
+    #     if not skip_downstream_sync:
+    #         cls.rebuild_RTC_downstreams_from_sources()
+
+    # @classmethod
+    # def update_BL_with_mirrored_RTC_data(cls):
+
+    #     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+    #     logger.debug(f"Updating Blender data with mirrored hooks cache")
+        
+    #     registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+    #     scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
+    #     update_collectionprop_to_match_dataclasses(
+    #         source = registry_all_downstream_hooks,
+    #         target = scene_hooks_collection,
+    #         key_fields = rtc_sync_key_fields,
+    #         data_fields = rtc_sync_data_fields
+    #     )
+
 # ---------------------------------------------------------------------------
 # OPERATORS AND UI FOR FEATURE INTERACTION
 # ---------------------------------------------------------------------------
@@ -157,14 +198,12 @@ class MODAL_OT_Add(bpy.types.Operator):
         layout.prop(self, "label")
         layout.prop(self, "timer_interval")
         layout.prop(self, "includes_timer")
-        layout.prop(self, "autostart")
 
     def execute(self, context):
         interval = self.timer_interval if self.timer_interval > 0.0 else None
         try:
             Wrapper_Modals_Manager.create_instance(
                 uid = self.uid,
-                bl_idname = self.bl_idname_prop,
                 label = self.label,
                 timer_interval = interval,
                 includes_timer = self.includes_timer,
@@ -190,7 +229,6 @@ class MODAL_UL_StackList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
 
         row = layout.row(align=True)
-        row.label(text="", icon='HIDE_OFF' if item.running else 'HIDE_ON')
         row.label(text=item.label)
         row.separator_spacer()
         
@@ -209,9 +247,9 @@ class VIEW3D_PT_ModalStack(bpy.types.Panel):
         # _sync_ui_list(context)
         layout.template_list(
             "MODAL_UL_stack_list", "",
-            context.scene.dgblocks_modal_props, "modal_stack_items",
-            context.scene.dgblocks_modal_props, "modal_stack_active_index",
-            rows=max(2, len(context.scene.dgblocks_modal_props.modal_stack_items))
+            context.scene.dgblocks_modal_props, "managed_modals",
+            context.scene.dgblocks_modal_props, "managed_modals_selected_idx",
+            rows=max(2, len(context.scene.dgblocks_modal_props.managed_modals))
         )
         layout.operator("modal_stack.add", icon='ADD') 
 
