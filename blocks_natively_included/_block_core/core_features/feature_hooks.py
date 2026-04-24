@@ -301,7 +301,10 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Remove hook data from Blender file
         if is_bpy_ready() and not skip_BL_sync:
+            Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
             cls.update_BL_with_mirrored_RTC_data()
+            Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
+
 
     # --------------------------------------------------------------
     # Public funcs specific to this class
@@ -351,7 +354,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             block_module = instance.downstream_block_module
             block_id = block_module._BLOCK_ID
             if not instance.is_hook_enabled:
-                logger.warning(f"Downstream Hook '{hook_func_name}' of block '{block_id}' is disabled")
+                # logger.warning(f"Downstream Hook '{hook_func_name}' of block '{block_id}' is disabled")
                 continue
             
             # 1. Filter by downstream block if specified

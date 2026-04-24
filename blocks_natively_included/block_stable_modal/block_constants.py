@@ -13,26 +13,29 @@ import bpy # type: ignore
 # value[1] = expected function arguments & types
 class Block_Logger_Definitions(Enum):    
     MODAL_LIFECYCLE = ("modal-lifecycle", "INFO")
-    MODAL_EVENTS = ("modal-events", "DEBUG")
+    MODAL_EVENTS = ("modal-events", "INFO")
 
 # name = logger ID
 # value[0] = logger display name & default level
 # value[1] = logger display name & default level
 class Block_Hooks(Enum):
     
-    KEY_OR_MOUSE_EVENT = ("hook_modal_key_event", {
+    KEY_OR_MOUSE_EVENT = ("hook_modal_key_or_mouse_event", {
         "context": bpy.types.Context, 
-        "event": bpy.types.Event
+        "event": bpy.types.Event,
+        "modal_instance": any
     })
     
-    TIMER_EVENT = ("hook_modal_mouse_event", {
+    TIMER_EVENT = ("hook_modal_timer_event", {
         "context": bpy.types.Context,
-        "event": bpy.types.Event
+        "event": bpy.types.Event,
+        "modal_instance": any
     })
     
     AREA_CHANGE_EVENT = ("hook_modal_area_change", {
         "context": bpy.types.Context,
         "event": bpy.types.Event,
+        "modal_instance": any,
         "old_area": bpy.types.Area,
         "new_area": bpy.types.Area
     })

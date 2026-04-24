@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 import bpy
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -7,6 +8,7 @@ from typing import Callable, Optional
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager
+
 from ...addon_helper_funcs import should_draw_delevoper_panel, get_self_block_module
 from ...my_addon_config import addon_name, addon_title
 
@@ -14,6 +16,7 @@ from ...my_addon_config import addon_name, addon_title
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import _block_core
+from .._block_core.core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses
 from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
@@ -23,40 +26,37 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .block_constants import Block_RTC_Members
+from .block_constants import Block_RTC_Members, Block_Logger_Definitions, Block_Hooks
 
-# ---------------------------------------------------------------------------
+#=================================================================================
 # MIRRORED DATA STRUCTURES OF FEATURE
-# ---------------------------------------------------------------------------
+#=================================================================================
 
 @dataclass
 class RTC_Modal_Instance:
 
     # Mirrored fields of DGBLOCKS_PG_Hook_Reference
     uid:str
+
+    # Not present in mirror
     label: str
     includes_timer: bool
     timer_interval: Optional[float]
-
-    # Not present in mirror
-    created_timestamp: int
-    last_event_timestamp: int # updates on timer or key/mouse events
-    should_die: bool
-    _op_ref: Optional[object]
+    created_timestamp: int = -1
+    last_event_timestamp: int = -1 # updates on timer or key/mouse events
+    should_die: bool = False
+    # _op_ref: Optional[object] = None
 
 class BL_Modal_Instance(bpy.types.PropertyGroup):
 
     # Mirrored fields of RTC_Modal_Instance
     uid: bpy.props.StringProperty() # type: ignore
-    label: bpy.props.StringProperty() # type: ignore
-    includes_timer: bpy.props.BoolProperty() # type: ignore
-    timer_interval: bpy.props.FloatProperty() # type: ignore
 
 #=================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
 #=================================================================================
 
-class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager):
+class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer):
     # Manager — classmethods only, no instance state
 
     # --------------------------------------------------------------
@@ -100,30 +100,34 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
 
         add_modal_op_to_blender_stack(modal_instance)
 
+        cls.update_BL_with_mirrored_RTC_data()
+
         return modal_instance
 
     @classmethod
     def destroy_instance(cls, uid: str) -> None:
+        # Unlike most destroy_instance functions, this one only flags a record for deletion
+
+        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+        logger.debug(f"Removing modal '{uid}'")
         
         # Get instance to remove
-        _, modal_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-            member_key = Block_RTC_Members.MODALS_CACHE, 
-            uniqueness_field = "uid", 
-            uniqueness_field_value = uid,
-        )
+        # _, modal_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+        #     member_key = Block_RTC_Members.MODALS_CACHE, 
+        #     uniqueness_field = "uid", 
+        #     uniqueness_field_value = uid,
+        # )
 
-        # Flag the modal associated with the instance to be stopped. Modal Finish/Cancel can only occur during a modal event, and not from this function
-        if modal_instance._op_ref is None:
-            raise Exception(f"Modal {uid} has no associated ")
+        all_rtc_modals = Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)
+        modal_instance = next((m for m in all_rtc_modals if m.uid == uid), None)
+        if modal_instance:
+            modal_instance.should_die = True
+            Wrapper_Runtime_Cache.set_instance(Block_RTC_Members.MODALS_CACHE, all_rtc_modals)
         else:
-            modal_instance._op_ref._exit_requested = True
-            
-        # Remove from registry
-        Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
-            member_key = Block_RTC_Members.MODALS_CACHE, 
-            uniqueness_field = "uid", 
-            uniqueness_field_value = uid,
-        )
+            logger.debug(f"Modal '{uid}' not present in RTC")
+            return
+
+        
 
     @classmethod
     def get_instance(cls):
@@ -134,45 +138,173 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
 
 
         # --------------------------------------------------------------
+    
     # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
     # --------------------------------------------------------------
 
-    # @classmethod
-    # def update_RTC_with_mirrored_BL_data(cls, skip_downstream_sync = False):
+    @classmethod
+    def update_RTC_with_mirrored_BL_data(cls):
 
-    #     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-    #     logger.debug(f"Updating hooks cache with mirrored Blender data")
+        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+        logger.debug(f"Updating modals cache with mirrored Blender data")
         
-    #     rtc_all_modalops = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
-    #     scene_modalops_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
-    #     update_dataclasses_to_match_collectionprop(
-    #         source = scene_hooks_collection,
-    #         target = registry_all_downstream_hooks,
-    #         dataclass_type = Wrapper_Hooks,
-    #         key_fields = rtc_sync_key_fields,
-    #         data_fields = rtc_sync_data_fields
-    #     )
-    #     if not skip_downstream_sync:
-    #         cls.rebuild_RTC_downstreams_from_sources()
+        rtc_all_modals = Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)
+        scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
 
-    # @classmethod
-    # def update_BL_with_mirrored_RTC_data(cls):
+        intended_modal_uids = set([m.uid for m in scene_modals_collection])
+        actual_modal_uids = set([m.uid for m in rtc_all_modals])
 
-    #     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-    #     logger.debug(f"Updating Blender data with mirrored hooks cache")
+        if intended_modal_uids != actual_modal_uids:
+            raise Exception("adukashdu")
+
+
+    @classmethod
+    def update_BL_with_mirrored_RTC_data(cls):
+
+        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+        logger.debug(f"Updating Blender data with mirrored modals cache")
         
-    #     registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
-    #     scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
-    #     update_collectionprop_to_match_dataclasses(
-    #         source = registry_all_downstream_hooks,
-    #         target = scene_hooks_collection,
-    #         key_fields = rtc_sync_key_fields,
-    #         data_fields = rtc_sync_data_fields
-    #     )
+        rtc_all_modals = Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)
+        scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
 
-# ---------------------------------------------------------------------------
+        update_collectionprop_to_match_dataclasses(
+            source = rtc_all_modals,
+            target = scene_modals_collection,
+            key_fields = ["uid"],
+            data_fields = []
+        )
+
+#=================================================================================
+# BASE MODAL OPERATOR - Can be instanced many times
+#=================================================================================
+
+class DGBLOCKS_OT_StableModal(bpy.types.Operator):
+    """Stable modal operator that intercepts timer/mouse/keyboard events before passing them to downstream hooks"""
+    bl_idname = "dgblocks.stable_modal_base"
+    bl_label = ""
+    bl_options = {'INTERNAL'}
+
+    # ID of the modal, matches keys found in BL_Modal_Instances & RTC_Modal_Instances
+    uid: bpy.props.StringProperty(default="") # type: ignore
+
+    # Optional viewport area targeting — empty means "pick one automatically"
+    target_area_key: bpy.props.StringProperty(default="") # type: ignore
+    
+    def invoke(self, context, event):
+        """
+        Start the modal operator. 
+        This should only be called with 'bpy.ops.dgblocks.stable_modal_base', and never directly from the UI
+        This operator is started immediately after 'Wrapper_Modals_Manager.create_instance' stores a new RTC_Modal_Instance in the RTC
+        """
+        logger = get_logger(Block_Logger_Definitions.MODAL_LIFECYCLE)
+        
+        # Get modal instance data
+        _, modal_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+            member_key = Block_RTC_Members.MODALS_CACHE, 
+            uniqueness_field = "uid", 
+            uniqueness_field_value = self.uid,
+        )
+        if modal_instance is None:
+            all_rtc_modal_uids = [m.uid for m in Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)]
+            all_rtc_modal_uids_str = "'" + ",".join(all_rtc_modal_uids) + "'"
+            logger.error(f"Modal '{self.uid}' not found in modals cache {all_rtc_modal_uids_str}")
+            return {'CANCELLED'}
+
+        # Store operator instance inside RTC instance. Without this, a reference to this operator instance is lost
+        modal_instance._op_ref = self
+
+        # Resolve the area: use requested one if valid, else find a new one
+        # area = _resolve_area(context, self.target_area_key)
+        # if area is None:
+        #     self.report({'WARNING'}, "No suitable 3D viewport found")
+        #     return {'CANCELLED'}
+        
+        # # Store the key, not the area reference
+        # self.target_area_key = self._make_area_key(context.window, area)
+        
+        # Register modal handler
+        context.window_manager.modal_handler_add(self)
+        logger.info("Modal operator started")
+        
+        return {'RUNNING_MODAL'}
+    
+    def modal(self, context, event):
+        """Handle events and route to hooks"""
+
+        try:
+            uid = self.uid
+            logger = get_logger(Block_Logger_Definitions.MODAL_EVENTS)
+            logger.debug(f"modal {uid} : event {event.type} : {event.value}")
+
+            # Get modal instance data
+            _, modal_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+                member_key = Block_RTC_Members.MODALS_CACHE, 
+                uniqueness_field = "uid", 
+                uniqueness_field_value = uid,
+            )
+
+            if modal_instance is None:
+                logger = get_logger(Block_Logger_Definitions.MODAL_LIFECYCLE)
+                logger.warning(f"No modal operator instance with uid '{uid}', removing from RTC")
+                return {"FINISHED"}
+            
+            if modal_instance.should_die:
+                logger.info(f"Modal operator '{uid}' flagged for removal, removing from RTC")
+                Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
+                    member_key = Block_RTC_Members.MODALS_CACHE, 
+                    uniqueness_field = "uid", 
+                    uniqueness_field_value = uid,
+                )
+                return {"FINISHED"}
+       
+            # Update timestamp
+            modal_instance.timestamp_ms_last_event = int(time.time() * 1000)
+            
+            # Route mouse & keyboard events
+            if event.type != "TIMER":
+                Wrapper_Hooks.run_hooked_funcs(
+                    hook_func_name = Block_Hooks.KEY_OR_MOUSE_EVENT,
+                    should_halt_on_exception=False,
+                    context = context,
+                    event = event,
+                    modal_instance = modal_instance,
+                )
+
+            # Route mouse events
+            if event.type == "TIMER:":
+                Wrapper_Hooks.run_hooked_funcs(
+                    hook_func_name = Block_Hooks.TIMER_EVENT,
+                    should_halt_on_exception=False,
+                    context = context,
+                    event = event,
+                    modal_instance = modal_instance,
+                )
+                
+            # Detect area changes
+            # current_area = context.area
+            # if current_area != modal_instance.last_area and modal_instance.last_area is not None:
+            #     logger.debug(f"Area change detected")
+            #     Wrapper_Hooks.run_hooked_funcs(
+            #         hook_func_name=Block_Hooks.AREA_CHANGE_EVENT,
+            #         should_halt_on_exception=False,
+            #         context=context,
+            #         event=event,
+            #         modal_instance = modal_instance,
+            #         old_area=modal_instance.last_area,
+            #         new_area=current_area
+            #     )
+                
+            # # update mouse area
+            # modal_instance.last_area = current_area
+            
+        except Exception as e:
+            logger.error(f"Exception in modal operator '{self.uid}'", exc_info=True)
+        
+        return {"PASS_THROUGH"}
+
+#=================================================================================
 # OPERATORS AND UI FOR FEATURE INTERACTION
-# ---------------------------------------------------------------------------
+#=================================================================================
 
 class MODAL_OT_Add(bpy.types.Operator):
     """Add a new modal to the stack with default parameters."""
@@ -229,7 +361,7 @@ class MODAL_UL_StackList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
 
         row = layout.row(align=True)
-        row.label(text=item.label)
+        row.label(text=item.uid)
         row.separator_spacer()
         
         kill = row.operator("modal_stack.delete", text="", icon='X')
@@ -253,9 +385,9 @@ class VIEW3D_PT_ModalStack(bpy.types.Panel):
         )
         layout.operator("modal_stack.add", icon='ADD') 
 
-# =============================================================================
+#=================================================================================
 # PRIVATE MODULE API — should not be used outside this file
-# =============================================================================
+#=================================================================================
 
 def print_current_modals():
     for op in bpy.context.window_manager.operators:
@@ -264,5 +396,45 @@ def print_current_modals():
         print(op.properties)     # operator property values at time of execution
 
 def add_modal_op_to_blender_stack(modal_instance):
+
+    
+    bpy.ops.dgblocks.stable_modal_base("INVOKE_DEFAULT", uid = modal_instance.uid)
+
     #TODO implement this. modal_instance._op_ref needs to be assigned.
     pass
+
+def _make_area_key(window, area):
+    """Build a stable-ish key identifying this area within this window."""
+    win_idx = list(bpy.context.window_manager.windows).index(window)
+    # x,y of the area within the screen is stable until user drags splits
+    return f"{win_idx}:{area.x},{area.y}:{area.type}"
+
+def _resolve_area(context, area_key):
+    """Try to find the area matching area_key; fall back to any VIEW_3D."""
+    wm = context.window_manager
+    
+    # First try to match the stored key
+    if area_key:
+        try:
+            win_idx_str, coords, area_type = area_key.split(":")
+            win_idx = int(win_idx_str)
+            x_str, y_str = coords.split(",")
+            x, y = int(x_str), int(y_str)
+            
+            if 0 <= win_idx < len(wm.windows):
+                window = wm.windows[win_idx]
+                for area in window.screen.areas:
+                    if (area.type == area_type 
+                        and area.x == x 
+                        and area.y == y):
+                        return area
+        except (ValueError, IndexError):
+            pass  # malformed or stale key
+    
+    # Fallback: first VIEW_3D in any window
+    for window in wm.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                return area
+    return None
+

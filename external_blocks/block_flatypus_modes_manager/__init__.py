@@ -5,7 +5,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helper_funcs import get_self_block_module, clear_console
-from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
+from ...my_addon_config import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -32,7 +32,7 @@ from .helper_unittests import run_operator_in_headless_blender, _sample_unittest
 _BLOCK_ID = "block-flatypus-assembly-mode" 
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [
-    "core-block",
+    "block-core",
     "block-stable-modal",
 ] 
 
@@ -51,6 +51,21 @@ _default_modal_options_for_keymouse_input = {
     "label": "keymouse_input",
     "includes_timer": False,
 }
+
+#=================================================================================
+# DOWNSTREAM HOOKS
+#=================================================================================
+
+def hook_modal_key_or_mouse_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
+    pass
+    # print("downstream mousekey")
+    # print(modal_instance, event)
+
+def hook_modal_timer_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
+    pass
+    print("downstream timer")
+    # print(modal_instance, event)
+
 
 #=================================================================================
 # Operators

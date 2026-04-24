@@ -1,5 +1,6 @@
  
 from .blocks_natively_included import _block_core, block_debug_console_print, block_stable_modal
+from .external_blocks import block_flatypus_modes_manager
 # from .blocks_cloned_from_git import block_example_simple, block_example_complex_A
 
 # Each folder/package is a "block": a swappable, standardized unit. 
@@ -7,9 +8,10 @@ from .blocks_natively_included import _block_core, block_debug_console_print, bl
 # Block folder names are arbitrary, but I recommend you follow the existing name standard
 _ordered_blocks_list = [
     _block_core,
-    block_debug_console_print,
+    # block_debug_console_print,
     # block_example_simple,
     # block_example_complex_A,
-    block_stable_modal,
+    # block_stable_modal,
+    # block_flatypus_modes_manager,
     # ... Add other block defininions here
 ]

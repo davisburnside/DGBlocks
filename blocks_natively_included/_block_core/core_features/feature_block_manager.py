@@ -323,11 +323,13 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                     feature_name = fwc.__name__,
                     feature_wrapper_class = fwc,
                 )
+                
                 Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
                     member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS, 
                     uniqueness_field = "feature_name", 
                     new_instance = FWC_instance,
                 )
+                pass
 
             # ----------------------------------------------------------------------------------------------------------------------------
             # 3: Add block module to global block registry in RTC
@@ -627,7 +629,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         return block_instance
 
     @classmethod
-    def resync_all_FWC_RTC_after_undo_or_redo(cls, event_type: str = "unknown") -> None:
+    def update_FWC_RTC_caches_to_match_BL_data(cls, event_type: str = "unknown") -> None:
         """
         Iterate through all registered Feature_Wrapper_References and call their
         update_RTC_with_mirrored_BL_data(scene) method.
@@ -637,22 +639,8 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             event_type: One of "undo", "redo", "load" — used for toggle checking and logging
         """
         
-
-
-
-        # import sys
-        # registry_all_fwcs = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS)
-        # for instance_fwc in registry_all_fwcs:
-        #     class_instance = instance_fwc.feature_wrapper_class
-        #     print([cls.__name__ for cls in class_instance.__mro__])
-        # return
-
-
-
-
-
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Starting resync_all_FWC_RTC_after_undo_or_redo for event='{event_type}'")
+        logger.debug(f"Starting update_FWC_RTC_caches_to_match_BL_data for event='{event_type}'")
         
         registry_all_fwcs = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS)
         for instance_fwc in registry_all_fwcs:
@@ -673,7 +661,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             except Exception:
                 logger.error(f"Exception syncing '{src_block_id}'", exc_info=True)
 
-        logger.info(f"Finished resync_all_FWC_RTC_after_undo_or_redo for event='{event_type}")
+        logger.info(f"Finished update_FWC_RTC_caches_to_match_BL_data for event='{event_type}")
 
 #=================================================================================
 # UI
@@ -814,7 +802,7 @@ def _callback_undo_post(dummy):
         return
     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
     logger.debug("_callback_undo_post: triggered")
-    Wrapper_Block_Management.resync_all_FWC_RTC_after_undo_or_redo(event_type = "undo")
+    Wrapper_Block_Management.update_FWC_RTC_caches_to_match_BL_data(event_type = "undo")
 
 @persistent
 def _callback_redo_post(dummy):
@@ -827,4 +815,4 @@ def _callback_redo_post(dummy):
         return
     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
     logger.debug("_callback_redo_post: triggered")
-    Wrapper_Block_Management.resync_all_FWC_RTC_after_undo_or_redo(event_type = "redo")
+    Wrapper_Block_Management.update_FWC_RTC_caches_to_match_BL_data(event_type = "redo")
