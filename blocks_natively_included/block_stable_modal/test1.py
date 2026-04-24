@@ -16,7 +16,7 @@ from ...my_addon_config import addon_name, addon_title
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import _block_core
-from .._block_core.core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses
+from .._block_core.core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
@@ -127,11 +127,10 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
             logger.debug(f"Modal '{uid}' not present in RTC")
             return
 
-        
-
     @classmethod
     def get_instance(cls):
         pass
+    
     @classmethod
     def set_instance(cls, data):
         pass
@@ -155,24 +154,36 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         actual_modal_uids = set([m.uid for m in rtc_all_modals])
 
         if intended_modal_uids != actual_modal_uids:
-            raise Exception("adukashdu")
-
+            raise Exception("modal's dont match")
+        
+        update_dataclasses_to_match_collectionprop(
+            dataclass_type = RTC_Modal_Instance,
+            source = rtc_all_modals,
+            target = scene_modals_collection,
+            key_fields = ["uid"],
+            data_fields = []
+        )
 
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls):
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored modals cache")
-        
+
         rtc_all_modals = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
-
-        update_collectionprop_to_match_dataclasses(
+        
+        rtc_all_modals = update_collectionprop_to_match_dataclasses(
             source = rtc_all_modals,
             target = scene_modals_collection,
             key_fields = ["uid"],
             data_fields = []
         )
+        
+        # per_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
+        # scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
+
+        
 
 #=================================================================================
 # BASE MODAL OPERATOR - Can be instanced many times

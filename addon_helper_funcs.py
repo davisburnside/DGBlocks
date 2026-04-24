@@ -56,10 +56,6 @@ def force_redraw_ui(context:bpy.context):
 # Logging tools, multipurpose & useful when logger-FWC status is unknown
 # --------------------------------------------------------------
 
-def log_or_print(message:str, level:str, logger:logging.Logger = None):
-    level_int = getattr(logging, level.upper(), logging.INFO)
-    logger.log(level_int, message) if logger else print(message)
-
 def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
     print("\033[2J\033[H", end="")

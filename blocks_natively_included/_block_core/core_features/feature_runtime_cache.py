@@ -233,6 +233,9 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         for idx in reversed(idxs_to_delete):
             del current_data[idx]
 
+    def cache_list_contains_member(cache_list: list, key_field_name: str, key_field_value: str):
+        return any(getattr(item, key_field_name) == key_field_value for item in cache_list)
+
     @classmethod
     def is_cache_flagged_as_syncing(cls, member_key: str):
         

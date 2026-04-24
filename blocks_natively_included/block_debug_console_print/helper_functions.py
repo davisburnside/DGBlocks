@@ -951,10 +951,13 @@ def extract_core_block_data_to_print(context, other_input):
         print_section_separator(f"All Scene-Owned Addon data")
         data_to_return = get_members_and_values_of_propertygroup_with_name_prefix(context.scene, "dgblock")
         
-    elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_BL_PREFERENCES_PROPS:
-        print_section_separator(f"All Scene-Owned Addon data")
-        prefs = get_addon_preferences(context)
-        data_to_return = get_members_and_values_of_propertygroup_with_name_prefix(prefs, "dgblock")
+    # elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_BL_PREFERENCES_PROPS:
+    #     print_section_separator(f"All Scene-Owned Addon data")
+    #     prefs = get_addon_preferences(context)
+    #     data_to_return = get_members_and_values_of_propertygroup_with_name_prefix(prefs, "dgblock")
+
+    else:
+        data_to_return = ""
 
     return data_to_return
 

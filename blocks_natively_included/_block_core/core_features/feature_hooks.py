@@ -29,6 +29,9 @@ from .feature_runtime_cache import Wrapper_Runtime_Cache
 # MODULE VARS & CONSTANTS
 #=================================================================================
 
+rtc_hook_sources_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
+rtc_hook_downstreams_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS
+
 # Variable names of DGBLOCKS_PG_Debug_Block_Reference & RTC_Block_Instance
 rtc_sync_key_fields = ["hook_func_name"]
 rtc_sync_data_fields = [
@@ -213,27 +216,26 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         
         # Get hook func name from str/enum input
         hook_func_name = cls._get_func_name_from_hook_id(new_hook_func_id)
-        
-        # Validate source block
-        _, src_block_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-            member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, 
-            uniqueness_field = "block_id", 
-            uniqueness_field_value = src_block_id,
-        )
-        if src_block_instance is None:
-            raise Exception(f"Block {src_block_id} is not registered, unable to create hook {hook_func_name}")
+        all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(rtc_hook_sources_key)
 
+        # Validate uniquness. Return with no action upon duplication attempt
+        if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_hook_sources, "hook_func_name", hook_func_name):
+            logger.debug(f"Hook Source '{hook_func_name}' already exists in RTC. Returning with no action")
+            return
+        
         # Create new hook source instance & update runtime cache. Uniqueness is validated inside 'add_unique_'
         new_hook_source_instance = RTC_Hook_Source_Instance(
             src_block_id,
             hook_func_name,
             new_hook_func_named_args,
         )
-        Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
-            member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES,
-            uniqueness_field = "hook_func_name",
-            new_instance = new_hook_source_instance,
-        )
+        all_cached_hook_sources.append(new_hook_source_instance)
+        Wrapper_Runtime_Cache.set_cache(rtc_hook_sources_key, all_cached_hook_sources)
+        # Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
+        #     member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES,
+        #     uniqueness_field = "hook_func_name",
+        #     new_instance = new_hook_source_instance,
+        # )
 
         # Update downstreams
         if not skip_downstream_sync:

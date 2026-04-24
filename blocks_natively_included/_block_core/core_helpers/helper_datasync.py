@@ -94,9 +94,9 @@ def update_collectionprop_to_match_dataclasses(
             _copy_fields(src_item, target[desired_idx], data_fields)
 
 def update_dataclasses_to_match_collectionprop(
+    actual_FWC: type[T], # The actual Feature Wrapper Class that contains 
     source,  # CollectionProperty
-    target: list[T],
-    dataclass_type: type[T],
+    target: list[T], # Python list of same-type @dataclass instances
     key_fields: list[str],
     data_fields: list[str],
 ) -> None:
@@ -151,7 +151,7 @@ def update_dataclasses_to_match_collectionprop(
                 for name in key_fields + data_fields
             }
             kwargs["skip_BL_sync"] = True # BL data is already correct. Prevent unneeded BL->RTC->BL sync
-            new_instance = dataclass_type.create_instance(**kwargs)
+            new_instance = actual_FWC.create_instance(**kwargs)
             target.append(new_instance)
 
 

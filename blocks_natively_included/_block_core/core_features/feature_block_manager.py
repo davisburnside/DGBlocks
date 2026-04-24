@@ -314,6 +314,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             # For core-block, these FWCs were already init'd in main addon register(). 'Wrapper_Hooks' is the only one needing init
             core_FWC_already_init = [cls, Wrapper_Loggers, Wrapper_Runtime_Cache] 
             for fwc in block_feature_wrapper_classes:
+                feature_name= fwc.__name__ # The feature's name = the feature's wrapper class name
 
                 # Validate presence of required abstract func implementations of wrapper classes
                 if fwc not in core_FWC_already_init:
@@ -324,21 +325,19 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                         missing_func_str = "'" + "', '".join(missing_abstract_funcs) + "'"
                         raise Exception(f"Feature Wrapper Class {fwc} is missing required class functions: {missing_func_str}")
                     
+                
+                all_cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+                if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_FWCs, "feature_name", feature_name):
+                    logger.debug(f"FWC '{feature_name}' already exists in RTC. Skipping duplication")
+                    continue
+
                 FWC_instance = RTC_FWC_Instance(
                     src_block_id = block_id,
                     feature_name = fwc.__name__,
                     feature_wrapper_class = fwc,
                 )
-                all_cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
                 all_cached_FWCs.append(FWC_instance)
                 Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, all_cached_FWCs)
-                
-                # Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
-                #     member_key = cache_key_FWCs, 
-                #     uniqueness_field = "feature_name", 
-                #     new_instance = FWC_instance,
-                # )
-                pass
 
             # ----------------------------------------------------------------------------------------------------------------------------
             # 3: Add block module to global block registry in RTC
@@ -664,11 +663,10 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             # Call sync function in class
             try:
                 src_block_id = FWC_instance.src_block_id
-                logger.debug(f"Syncing '{src_block_id}' feature: ({actual_class_ref.__name__}.update_RTC_with_mirrored_BL_data)")
-                print(f"\n\n--------------Syncing '{src_block_id}' feature: ({actual_class_ref.__name__}.update_RTC_with_mirrored_BL_data)")
+                logger.debug(f"Syncing RTC cache for feature '{actual_class_ref.__name__}' with BL data")
                 actual_class_ref.update_RTC_with_mirrored_BL_data()
             except Exception:
-                logger.error(f"Exception syncing '{src_block_id}'", exc_info=True)
+                logger.error(f"Exception during RTC sync '{src_block_id}'", exc_info=True)
 
         logger.info(f"Finished update_all_FWC_RTC_caches_to_match_BL_data for event='{event_type}")
 

@@ -62,7 +62,6 @@ def _callback_log_level_changed(self, context):
     # Log the change event (using INFO so it shows in most cases)
     new_level_int = logging.getLevelNamesMapping()[new_level_name]
     if old_level_int != new_level_int:
-        print(old_level_int, new_level_int)
         logger.log(new_level_int, f"Log level changed to: {new_level_name}")
 
     Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, False)
@@ -215,12 +214,15 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
     @classmethod
     def create_instance(cls, src_block_id:str, logger_name:Enum, level_name:str, skip_BL_sync:bool = False):
         
-        true_logger_id = get_actual_rtc_key(logger_name)
-        core_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
+        action_logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
 
-        # Validate new logger name
-        if true_logger_id in core_loggers:
-            raise Exception(f"Block Logger with name '{true_logger_id}' already defined")
+        true_logger_id = get_actual_rtc_key(logger_name)
+        all_cached_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
+
+        # Validate uniquness. Return with no result upon duplication attempt
+        if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_loggers, "logger_name", logger_name):
+            action_logger.debug(f"Logger '{true_logger_id}' already exists in RTC. Returning with no action")
+            return
         
         # Makes new python logger if not present
         new_logger = logging.getLogger(true_logger_id)
@@ -238,8 +240,9 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         )
 
         # Update runtime cache
-        core_loggers.append(RTC_logger_instance)
-        Wrapper_Runtime_Cache.set_cache(rtc_loggers_key, core_loggers)
+        all_cached_loggers.append(RTC_logger_instance)
+        Wrapper_Runtime_Cache.set_cache(rtc_loggers_key, all_cached_loggers)
+        action_logger.debug(f"Created Logger '{true_logger_id}'")
 
         if is_bpy_ready() and not skip_BL_sync:
             Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, True)
@@ -302,7 +305,6 @@ def get_logger(logger_id: Enum):
         
     except Exception as e:
 
-        # print(f"Unable to get logger with ID '{true_logger_id}', reverting to fallback logger")
         fallback_logger = logging.getLogger("_fallback_logger")
         if fallback_logger is None:
             fallback_logger = Wrapper_Loggers.setup_fallback_logger()

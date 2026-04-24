@@ -34,14 +34,19 @@ _BLOCK_DEPENDENCIES = [] # Core block depends on no others
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     
     # The "lights-off switch". When false, all addon features should be disabled. The only available action should be to toggle this value
-    addon_is_active: bpy.props.BoolProperty(default = False, name = "Addon is Enabled?")  # type: ignore
+    addon_is_active: bpy.props.BoolProperty(default = False, name = "Addon is Enabled?") # type: ignore
     
     # General settings
     documentation_weblinks_enabled: bpy.props.BoolProperty(default = True, name = "Enable [ ? ] Webpage Links") # type: ignore  
     
     # Enables extra UI options for debugging. Most properties & functions that begin with "debug_" are not used when this value is false
-    debug_mode_enabled: bpy.props.BoolProperty(default = False, name = "Is in Debug Mode?")  # type: ignore
+    debug_mode_enabled: bpy.props.BoolProperty(default = False, name = "Is in Debug Mode?") # type: ignore
     
+    # When true, all create/edit/move/remove actions are console printed for:
+    # - update_dataclasses_to_match_collectionprop
+    # - update_collectionprop_to_match_dataclasses
+    debug_log_all_RTC_BL_sync_actions: bpy.props.BoolProperty()# type: ignore
+
     # --------------------------------------------------------------
     # Persistent, undo/redo-enabled Scene data for each feature-wrapper's mirrored  RTC data
     # More info for structure/metadata is found inside each DGBLOCKS_* class
