@@ -7,7 +7,7 @@ import bpy
 
 from ..addon_config import addon_name
 
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_instance, Wrapper_Runtime_Cache.set_instance
+from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache, Wrapper_Runtime_Cache.set_cache
 from ..blocks_natively_included._block_core.core_feature_logs import get_logger
 
 from ..block_data_enforcement.feature_library_import.library_installation_wrapper import Library_Installation_Wrapper
@@ -95,7 +95,7 @@ def get_numba_imports():
                 # ...
     """
     # Check if already cached
-    imports = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.NUMBA_MODULE_IMPORTS)
+    imports = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.NUMBA_MODULE_IMPORTS)
     if imports is not None:
         return imports
     
@@ -115,7 +115,7 @@ def get_numba_imports():
     }
     
     # Cache and return
-    Wrapper_Runtime_Cache.set_instance(Enum_Runtime_Cache_Keys.NUMBA_MODULE_IMPORTS, imports)
+    Wrapper_Runtime_Cache.set_cache(Enum_Runtime_Cache_Keys.NUMBA_MODULE_IMPORTS, imports)
     return imports
 
 #================================================================
@@ -220,10 +220,10 @@ def _register_numba_function(func_name, original_func, compiled_func=None):
         compiled_func: Compiled numba function (if available)
     """
     # Get or create the registry
-    registry = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY)
+    registry = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY)
     if registry is None:
         registry = {}
-        Wrapper_Runtime_Cache.set_instance(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY, registry)
+        Wrapper_Runtime_Cache.set_cache(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY, registry)
     
     # Register the function
     registry[func_name] = {
@@ -250,7 +250,7 @@ def _get_or_create_compiled_func(func, numba_kwargs):
         return None
     
     # Check registry for existing compiled version
-    registry = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY)
+    registry = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY)
     if registry and func.__name__ in registry and registry[func.__name__].get('compiled'):
         return registry[func.__name__]['compiled']
     

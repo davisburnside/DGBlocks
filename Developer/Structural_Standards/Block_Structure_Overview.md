@@ -570,11 +570,11 @@ def _factory_property_update_func(listener_def: Enum) -> Callable:
 ```python
 def _rtc_get_all() -> Dict[str, Timer_Instance_Data]:
     """Return live dict from RTC."""
-    return Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Members.TIMER_INSTANCES)
+    return Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Members.TIMER_INSTANCES)
 
 def _rtc_set_all(data: Dict[str, Timer_Instance_Data]) -> None:
     """Write dict to RTC."""
-    Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Members.TIMER_INSTANCES, data)
+    Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Members.TIMER_INSTANCES, data)
 ```
 
 ---
@@ -637,9 +637,6 @@ def _aggregate_hook_returns(self, results: dict, default: set) -> set:
 ```python
 def diff_collections(old_keys, new_keys):
     """Returns (to_add, to_remove, to_update)"""
-    
-def sync_blender_propertygroup_and_raw_python(pg):
-    """Convert Blender PropertyGroup to dict & vice versa. Used to sync RTC and Blender data"""
     
 def merge_dataclass_with_dict(dataclass_instance, update_dict):
     """Update dataclass fields from dict, preserve others"""

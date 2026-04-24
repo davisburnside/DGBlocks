@@ -154,7 +154,7 @@ class DGBLOCKS_OT_Debug_Print_Event_Listener_Wrapper_Cache(bpy.types.Operator):
         
         event_listener_props = context.scene.dgblocks_event_listener_props
         
-        all_listener_wrappers = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE)
+        all_listener_wrappers = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE)
         
         data_to_show = {}
         for listener_wrapper in all_listener_wrappers:

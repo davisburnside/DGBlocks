@@ -887,7 +887,7 @@ def extract_core_block_data_to_print(context, other_input):
     def get_data_for_downstream_hook_table(column_rename_map):
         
         reformatted_hooks_data = {}
-        all_downstream_hooks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+        all_downstream_hooks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
         for hook_func_name in all_downstream_hooks:
             reformatted_hooks_data[hook_func_name] = {}
             for bhm in all_downstream_hooks[hook_func_name]:
@@ -915,7 +915,7 @@ def extract_core_block_data_to_print(context, other_input):
     
     def get_data_for_unused_hooks_list():
         
-        all_hook_downstreams = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+        all_hook_downstreams = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
         unused_hooks = [h for h in all_hook_downstreams if len(all_hook_downstreams[h]) == 0]
         if len(unused_hooks) == 0:
             return "No Unused Hooks"

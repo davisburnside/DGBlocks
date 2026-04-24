@@ -48,11 +48,11 @@ uilist_col_width_D = 3
 def _callback_update_hook_enabled(self, context):
 
     # Skip further action if a sync is already in progress
-    if Wrapper_Runtime_Cache.is_registry_being_synced(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS):
         return
-    Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
+    Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
     Wrapper_Hooks.update_RTC_with_mirrored_BL_data()
-    Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
+    Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
 
 class DGBLOCKS_PG_Hook_Reference(bpy.types.PropertyGroup):
     # RTC Mirror = 'RTC_Hook_Downstream_Instance'
@@ -146,10 +146,10 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
 
-        Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
         cls.rebuild_RTC_downstreams_from_sources()
         cls.update_BL_with_mirrored_RTC_data()
-        Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
         return True
     
     @classmethod
@@ -167,7 +167,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating hooks cache with mirrored Blender data")
         
-        registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+        registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
         scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
         update_dataclasses_to_match_collectionprop(
             source = scene_hooks_collection,
@@ -185,7 +185,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored hooks cache")
         
-        registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+        registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
         scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
         update_collectionprop_to_match_dataclasses(
             source = registry_all_downstream_hooks,
@@ -241,9 +241,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Add hook data from Blender file
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
             cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
 
     @classmethod
     def get_instance(
@@ -262,7 +262,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             return None
         
         # Get registered downstream hooks for a func name
-        all_downstream_instances = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+        all_downstream_instances = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
         if hook_func_name not in all_downstream_instances:
             return []
         instances_to_return = all_downstream_instances[hook_func_name]
@@ -274,7 +274,8 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             single_instance = next((i for i in instances_to_return if i.downstream_block_module._BLOCK_ID == downstream_block_id), None)
             return [single_instance]
 
-    def set_instance(cls,) -> None:
+    @classmethod
+    def set_instance(cls) -> None:
         raise Exception("set_instance is not used for Hooks Wrapper. Use create_instance and destroy_instance")
 
     @classmethod
@@ -288,12 +289,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Remove source hook from registry
         hook_func_name = cls._get_func_name_from_hook_id(hook_func_name)
-        all_source_instances = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES)
+        all_source_instances = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES)
         instances_to_destroy = (i for i in all_source_instances if i.hook_func_name == hook_func_name)
         for instance in instances_to_destroy:
             list_idx = all_source_instances.index(instance)
             del all_source_instances[list_idx]
-        Wrapper_Runtime_Cache.set_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES, all_source_instances)
+        Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES, all_source_instances)
 
         # Update downstreams
         if not skip_downstream_sync:
@@ -301,9 +302,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Remove hook data from Blender file
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, True)
             cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
 
 
     # --------------------------------------------------------------
@@ -459,9 +460,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug("Rebuilding RTC Hook downstreams")
         
-        registry_all_blocks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
-        registry_all_hook_sources = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES)
-        registry_all_hook_downstreams = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, should_copy = True)
+        registry_all_blocks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+        registry_all_hook_sources = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES)
+        registry_all_hook_downstreams = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, should_copy = True)
 
         remapped_block_registry = { b.block_id : b for b in registry_all_blocks}
         remapped_hook_source_registry = { s.src_block_id : s for s in registry_all_hook_sources}
@@ -526,7 +527,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger.debug(actions_str)
 
         # Write updates back to registry
-        Wrapper_Runtime_Cache.set_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, registry_all_hook_downstreams)
+        Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, registry_all_hook_downstreams)
 
     @classmethod
     def _get_func_name_from_hook_id(cls, hook_func):

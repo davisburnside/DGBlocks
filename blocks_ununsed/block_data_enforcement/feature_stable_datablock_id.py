@@ -30,8 +30,8 @@ def _sync_caches(stable_id, block_name):
     This prevents redundant writes to the global cache on every 'get' call.
     """
     # 1. Pull current state
-    normal = Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS)
-    inverted = Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED)
+    normal = Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS)
+    inverted = Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED)
     
     needs_update = False
 
@@ -45,8 +45,8 @@ def _sync_caches(stable_id, block_name):
 
     # 2. Only write back to global storage if a change actually occurred
     if needs_update:
-        Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS, normal)
-        Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED, inverted)
+        Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS, normal)
+        Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED, inverted)
         
     return needs_update
 
@@ -61,7 +61,7 @@ def ensure_stable_id_is_unique(block, stable_id):
     Checks if the given stable_id is already claimed by another bl_datablock of the same bpy.types.* class
     Returns the stable_id if safe, or a brand new one if a conflict is found.
     """
-    normal = Wrapper_Runtime_Cache.get_instance(CACHE_KNOWN_OBJECT_IDS)
+    normal = Wrapper_Runtime_Cache.get_cache(CACHE_KNOWN_OBJECT_IDS)
     
     # If the ID exists in cache but is registered to a DIFFERENT name
     if stable_id in normal and normal[stable_id] != block.name:
@@ -108,7 +108,7 @@ def ensure_stable_id(bl_datablock):
     # Check for empty string or conflicts
     if not current_stable_id:
         current_stable_id = generate_new_id()
-        while current_stable_id in Wrapper_Runtime_Cache.get_instance(CACHE_KNOWN_OBJECT_IDS):
+        while current_stable_id in Wrapper_Runtime_Cache.get_cache(CACHE_KNOWN_OBJECT_IDS):
             current_stable_id = generate_new_id()
     else:
         # Validate that this ID isn't already owned by someone else
@@ -133,8 +133,8 @@ def event_callback(context, depsgraph):
     if not collection: return
     
     # Get caches of known names & ids
-    cached_bl_datablocks_dict = Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS, should_copy = True) # stable-id : name
-    cached_bl_datablocks_dict_inverted = Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED, should_copy = True) # name : stable-id
+    cached_bl_datablocks_dict = Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS, should_copy = True) # stable-id : name
+    cached_bl_datablocks_dict_inverted = Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED, should_copy = True) # name : stable-id
     
     # Create Generator with a filter
     needs_processing = (
@@ -165,8 +165,8 @@ def event_callback(context, depsgraph):
 def rebuild_full_cache():
     """Wipes and resyncs all tracked types, fixing duplicates and missing IDs."""
     # Start fresh to ensure we don't have dead names from previous files
-    Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS, {})
-    Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED, {})
+    Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS, {})
+    Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Member_Definitions.CACHE_KNOWN_OBJECT_IDS_INVERTED, {})
 
     for cls in my_stable_id_target_list:
         coll_attr = cls.__name__.lower() + "s"

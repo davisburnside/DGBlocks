@@ -33,8 +33,8 @@ Provides core functionality and infrastructure for all blocks in the addon, incl
 
 ## Public API
 - `get_logger(logger)`: Access the logging system
-- `Wrapper_Runtime_Cache.get_instance(key)`: Retrieve data from cache
-- `Wrapper_Runtime_Cache.set_instance(key, value)`: Store data in cache
+- `Wrapper_Runtime_Cache.get_cache(key)`: Retrieve data from cache
+- `Wrapper_Runtime_Cache.set_cache(key, value)`: Store data in cache
 - `register_block_components(classes)`: Register block components
 - `unregister_block_components(classes)`: Unregister block components
 

@@ -11,7 +11,7 @@ from ..addon_config import (
         Documentation_URLs)
 
 from ...blocks_natively_included import _block_core
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import delete_from_addon_runtime_cache, Wrapper_Runtime_Cache.set_instance
+from ..blocks_natively_included._block_core.core_feature_runtime_cache import delete_from_addon_runtime_cache, Wrapper_Runtime_Cache.set_cache
 from ..blocks_natively_included._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header
 from ..blocks_natively_included._block_core.core_helper_functions import register_block_components, unregister_block_components
 from ..blocks_natively_included._block_core.core_feature_logs import get_logger

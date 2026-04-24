@@ -180,15 +180,15 @@ def uilayout_section_separator(container, lines_count:int = 2, extra_space:float
 
 def _ensure_word_widths(text, font_id=0, scale=1.0):
     """Ensure the word widths for a given string are computed and cached."""
-    cache = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS)
+    cache = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS)
     if cache is None:
         cache = {}
-        Wrapper_Runtime_Cache.set_instance(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS, cache)
+        Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS, cache)
 
     if text not in cache:
         blf.size(font_id, 11 * scale)
         cache[text] = [blf.dimensions(font_id, w)[0] for w in text.split(' ')]
-        Wrapper_Runtime_Cache.set_instance(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS, cache)
+        Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS, cache)
 
     return cache[text]
 

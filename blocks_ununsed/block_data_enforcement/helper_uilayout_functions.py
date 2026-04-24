@@ -1,5 +1,5 @@
 from ..blocks_natively_included._block_core.core_helper_uilayouts import ui_box_with_header
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_instance
+from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache
 
 from .block_constants import CACHE_KNOWN_OBJECT_IDS
 from .feature_library_import.library_installation_wrapper import Python_Library_Dependencies, Library_Installation_Wrapper
@@ -56,7 +56,7 @@ def uilayout_draw_libraries_panel(context, container):
 def uilayout_draw_stable_ids_panel(context, container):
     
     # Get the stable ID cache
-    id_cache = Wrapper_Runtime_Cache.get_instance(CACHE_KNOWN_OBJECT_IDS, default={})
+    id_cache = Wrapper_Runtime_Cache.get_cache(CACHE_KNOWN_OBJECT_IDS, default={})
     
     # Display header
     box = container.box()

@@ -118,11 +118,11 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         #     uniqueness_field_value = uid,
         # )
 
-        all_rtc_modals = Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)
+        all_rtc_modals = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         modal_instance = next((m for m in all_rtc_modals if m.uid == uid), None)
         if modal_instance:
             modal_instance.should_die = True
-            Wrapper_Runtime_Cache.set_instance(Block_RTC_Members.MODALS_CACHE, all_rtc_modals)
+            Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MODALS_CACHE, all_rtc_modals)
         else:
             logger.debug(f"Modal '{uid}' not present in RTC")
             return
@@ -148,7 +148,7 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating modals cache with mirrored Blender data")
         
-        rtc_all_modals = Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)
+        rtc_all_modals = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
 
         intended_modal_uids = set([m.uid for m in scene_modals_collection])
@@ -164,7 +164,7 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored modals cache")
         
-        rtc_all_modals = Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)
+        rtc_all_modals = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
 
         update_collectionprop_to_match_dataclasses(
@@ -205,7 +205,7 @@ class DGBLOCKS_OT_StableModal(bpy.types.Operator):
             uniqueness_field_value = self.uid,
         )
         if modal_instance is None:
-            all_rtc_modal_uids = [m.uid for m in Wrapper_Runtime_Cache.get_instance(Block_RTC_Members.MODALS_CACHE)]
+            all_rtc_modal_uids = [m.uid for m in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)]
             all_rtc_modal_uids_str = "'" + ",".join(all_rtc_modal_uids) + "'"
             logger.error(f"Modal '{self.uid}' not found in modals cache {all_rtc_modal_uids_str}")
             return {'CANCELLED'}

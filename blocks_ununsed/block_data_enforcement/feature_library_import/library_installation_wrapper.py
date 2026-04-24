@@ -14,8 +14,8 @@ import bpy
 from ...addon_config import Documentation_URLs, addon_name
 
 from ...blocks_natively_included._block_core.core_feature_runtime_cache import (
-        Wrapper_Runtime_Cache.get_instance, 
-        Wrapper_Runtime_Cache.set_instance)
+        Wrapper_Runtime_Cache.get_cache, 
+        Wrapper_Runtime_Cache.set_cache)
 from ...blocks_natively_included._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header
 from ...blocks_natively_included._block_core.core_helper_functions import force_redraw_ui
 from ...blocks_natively_included._block_core.core_feature_logs import get_logger
@@ -33,10 +33,10 @@ from ..block_constants import (
 
 def _get_install_registry():
     """Get the install registry from cache, creating if needed."""
-    registry = Wrapper_Runtime_Cache.get_instance(CACHE_KEY_LIBRARY_INSTALL_REGISTRY)
+    registry = Wrapper_Runtime_Cache.get_cache(CACHE_KEY_LIBRARY_INSTALL_REGISTRY)
     if registry is None:
         registry = {}
-        Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_INSTALL_REGISTRY, registry)
+        Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_INSTALL_REGISTRY, registry)
     return registry
 
 def _get_library_data(library_name):
@@ -48,7 +48,7 @@ def _set_library_data(library_name, data):
     """Set data for a specific library in the registry."""
     registry = _get_install_registry()
     registry[library_name] = data
-    Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_INSTALL_REGISTRY, registry)
+    Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_INSTALL_REGISTRY, registry)
 
 def _update_library_data(library_name, **kwargs):
     """Update specific fields in library data."""
@@ -59,10 +59,10 @@ def _update_library_data(library_name, **kwargs):
 
 def _get_module_cache():
     """Get the module cache from runtime cache."""
-    cache = Wrapper_Runtime_Cache.get_instance(CACHE_KEY_LIBRARY_MODULE_CACHE)
+    cache = Wrapper_Runtime_Cache.get_cache(CACHE_KEY_LIBRARY_MODULE_CACHE)
     if cache is None:
         cache = {}
-        Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_MODULE_CACHE, cache)
+        Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_MODULE_CACHE, cache)
     return cache
 
 #================================================================
@@ -92,12 +92,12 @@ class Library_Installation_Wrapper:
     @classmethod
     def _is_path_registered(cls):
         """Check if custom path has been registered."""
-        return Wrapper_Runtime_Cache.get_instance(CACHE_KEY_LIBRARY_PATH_REGISTERED) or False
+        return Wrapper_Runtime_Cache.get_cache(CACHE_KEY_LIBRARY_PATH_REGISTERED) or False
 
     @classmethod
     def _set_path_registered(cls, value):
         """Set the path registered flag."""
-        Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_PATH_REGISTERED, value)
+        Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_PATH_REGISTERED, value)
 
     @classmethod
     def _ensure_library_home_path(cls):
@@ -128,11 +128,11 @@ class Library_Installation_Wrapper:
         try:
             module = importlib.import_module(lib_name)
             module_cache[lib_name] = module
-            Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_MODULE_CACHE, module_cache)
+            Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_MODULE_CACHE, module_cache)
             return module
         except ImportError:
             module_cache[lib_name] = None
-            Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_MODULE_CACHE, module_cache)
+            Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_MODULE_CACHE, module_cache)
             return None
 
     @classmethod
@@ -157,7 +157,7 @@ class Library_Installation_Wrapper:
         else:
             module_cache.clear()
         
-        Wrapper_Runtime_Cache.set_instance(CACHE_KEY_LIBRARY_MODULE_CACHE, module_cache)
+        Wrapper_Runtime_Cache.set_cache(CACHE_KEY_LIBRARY_MODULE_CACHE, module_cache)
         
         # Reset path registration so it re-checks on next import attempt
         cls._set_path_registered(False)

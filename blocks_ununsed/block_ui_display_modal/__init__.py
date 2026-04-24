@@ -66,8 +66,8 @@ def register_block():
     bpy.types.Scene.dgblocks_display_modal_props = bpy.props.PointerProperty(type=DGBLOCKS_DISPLAY_MODAL_PROPS)
     
     # Initialize empty render & animations structs
-    Wrapper_Runtime_Cache.set_instance("render", {})
-    Wrapper_Runtime_Cache.set_instance("animations", {})
+    Wrapper_Runtime_Cache.set_cache("render", {})
+    Wrapper_Runtime_Cache.set_cache("animations", {})
     
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
@@ -77,8 +77,8 @@ def unregister_block():
     logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
     
     # Clear runtime cache data
-    Wrapper_Runtime_Cache.set_instance("render", {})
-    Wrapper_Runtime_Cache.set_instance("animations", {})
+    Wrapper_Runtime_Cache.set_cache("render", {})
+    Wrapper_Runtime_Cache.set_cache("animations", {})
     
     # Force shutdown of operator
     # DGBLOCKS_OT_DisplayModal.kill_display_modal(bpy.context)

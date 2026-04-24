@@ -76,7 +76,7 @@ class Abstract_BL_and_RTC_Data_Syncronizer(ABC):
     def update_RTC_with_mirrored_BL_data(cls):
         # Used by Wrapper_Block_Management on undo/redo/load, and by certain property update callbacks
         # Rebuild RTC from scene/obj/datablock properties. Blender is the source of truth
-        # Should use 'sync_blender_propertygroup_and_raw_python(blender_as_truth_source=True)' for convenience
+        # Should use 'update_dataclasses_to_match_collectionprop' for convenience
         # Must have no extra arguments, returns are ignored
         pass
 
@@ -84,8 +84,8 @@ class Abstract_BL_and_RTC_Data_Syncronizer(ABC):
     @abstractmethod
     def update_BL_with_mirrored_RTC_data(cls): 
         # Used when RTC data need to be persisted into Blender
-        # Write RTC state back into scene/obj/datablock properties. RTC is the source of truth
-        # Should use 'sync_blender_propertygroup_and_raw_python(blender_as_truth_source=False)' for convenience
+        # RTC data overwries scene/obj/datablock properties. Data is reused/modified instead of recreated, when possible
+        # Should use 'update_collectionprop_to_match_dataclasses' for convenience
         # Must have no extra arguments, returns are ignored
         pass
 

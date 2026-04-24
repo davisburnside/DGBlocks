@@ -103,7 +103,7 @@ class Event_Listener_Wrapper:
 def _get_listener(handler_type: Enum_Event_Listener_Definitions) -> Event_Listener_Wrapper | None:
     """Retrieve a listener listener_wrapper from cache."""
 
-    all_listener_wrappers = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE, default = {})
+    all_listener_wrappers = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE, default = {})
     listener_wrapper = all_listener_wrappers.get(handler_type.handler_attr)
     return listener_wrapper
 
@@ -119,11 +119,11 @@ def _add_listener(listener_definition: Enum_Event_Listener_Definitions) -> Event
     new_listener_wrapper = Event_Listener_Wrapper(handler_type=listener_definition, logger=logger)
 
     # Store in cache
-    all_listener_wrappers = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE)
+    all_listener_wrappers = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE)
     if all_listener_wrappers is None:
         all_listener_wrappers = {}
     all_listener_wrappers[new_listener_wrapper.cache_key] = new_listener_wrapper
-    Wrapper_Runtime_Cache.set_instance(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE, all_listener_wrappers)
+    Wrapper_Runtime_Cache.set_cache(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE, all_listener_wrappers)
 
     # Register the instance itself as the handler callback
     bpy_app_handlers = listener_definition.bpy_app_handlers_collection_of_listener
@@ -146,7 +146,7 @@ def _remove_listener(listener_definition: Enum_Event_Listener_Definitions, keep_
         logger.info(f"Event listener '{listener_definition.handler_attr}' is not present in bpy.app.handlers, nothing to remove")
         return False
     
-    all_listener_wrappers = Wrapper_Runtime_Cache.get_instance(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE)
+    all_listener_wrappers = Wrapper_Runtime_Cache.get_cache(Enum_Runtime_Cache_Keys.EVENT_LISTENER_WRAPPER_CACHE)
     if not keep_bpy_app_handler_callback:
         if (c := all_listener_wrappers.get(listener_wrapper.cache_key)) and c in bpy_app_handlers:
             logger.info(f"Removing event listener wrapper '{listener_definition.handler_attr}' to bpy.app.handlers: ")

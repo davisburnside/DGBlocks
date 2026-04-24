@@ -46,6 +46,10 @@ uilist_col_width_B = 10
 uilist_col_width_C = 3
 uilist_col_width_D = 3
 
+cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS
+cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
+cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
+
 #=================================================================================
 # BLENDER DATA FOR FEATURE - Stored in Scene
 #=================================================================================
@@ -55,9 +59,9 @@ def _callback_update_block_enabled(self, context):
     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
 
     # Skip further action if a sync is already in progress
-    if Wrapper_Runtime_Cache.is_registry_being_synced(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks):
         return
-    Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, True)
+    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, True)
     
     try:
 
@@ -65,7 +69,7 @@ def _callback_update_block_enabled(self, context):
         Wrapper_Block_Management.update_RTC_with_mirrored_BL_data()
 
         # Update enabled/disabled status for all block instances, depending on the status of their dependencies
-        registry_all_blocks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+        registry_all_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         blocks_to_enable, blocks_to_disable = Wrapper_Block_Management.evaluate_block_dependency_tree(registry_all_blocks)
 
         for block in blocks_to_enable:
@@ -83,7 +87,7 @@ def _callback_update_block_enabled(self, context):
     finally:
 
         # Reset sync status
-        Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, False)
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, False)
 
 
 class DGBLOCKS_PG_Debug_Block_Reference(bpy.types.PropertyGroup):
@@ -187,7 +191,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug("Running post-bpy init for Wrapper_Block_Management")
 
-        addon_metadata = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.ADDON_METADATA)
+        addon_metadata = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.ADDON_METADATA)
         if addon_metadata["POST_REG_INIT_HAS_RUN"]:
             logger.info("Already completed post-bpy init for Wrapper_Block_Management, returning early")
             return
@@ -195,14 +199,14 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # Step 1: Update Blender Scene with block metadata from RTC
         # It's not always necessary to set the sync-status flag when updating RTC registries. 
         # But in this case, it is necessary because of field-update-listeners in DGBLOCKS_PG_Debug_Block_Reference
-        Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, True)
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, True)
         cls.update_BL_with_mirrored_RTC_data()
-        Wrapper_Runtime_Cache.set_registry_sync_status(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, False)
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, False)
 
         # Step 2: run post_bpy_init() of all feature wrapper classes, of all blocks
         # Some FWCs need to sync a feature's RTC data with it's supporting Blender data using 'update_RTC_with_mirrored_BL_data' function
         # This sync action can happen either in 'post_bpy_init', or the post-bpy-init-hook function of the next step. Developer's preference
-        all_feature_wrappers = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS)
+        all_feature_wrappers = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
         for fwc_instance in all_feature_wrappers:
             if fwc_instance.feature_wrapper_class == cls: # Already inside init_post_bpy for this FWC, avoid recursion
                 continue
@@ -220,9 +224,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         
         # Update addon metadata
         finally:
-            addon_metadata = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.ADDON_METADATA)
+            addon_metadata = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.ADDON_METADATA)
             addon_metadata["POST_REG_INIT_HAS_RUN"] = True
-            Wrapper_Runtime_Cache.set_instance(Core_Runtime_Cache_Members.ADDON_METADATA, addon_metadata)
+            Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.ADDON_METADATA, addon_metadata)
         
         force_redraw_ui(bpy.context)
         logger.info(f"Finished all post-register init actions. The addon is ready to use")
@@ -258,7 +262,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
 
         # Clear the RTC of feature wrappers
-        Wrapper_Runtime_Cache.set_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS, {})
+        Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, {})
         return True
 
     # --------------------------------------------------------------
@@ -306,7 +310,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
             # ----------------------------------------------------------------------------------------------------------------------------
             # 2: Register the new block's feature-wrapper classes
-            core_FWC_already_init = [cls, Wrapper_Loggers, Wrapper_Hooks] # These FWCs were already init'd in main addon register()
+
+            # For core-block, these FWCs were already init'd in main addon register(). 'Wrapper_Hooks' is the only one needing init
+            core_FWC_already_init = [cls, Wrapper_Loggers, Wrapper_Runtime_Cache] 
             for fwc in block_feature_wrapper_classes:
 
                 # Validate presence of required abstract func implementations of wrapper classes
@@ -323,19 +329,22 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                     feature_name = fwc.__name__,
                     feature_wrapper_class = fwc,
                 )
+                all_cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+                all_cached_FWCs.append(FWC_instance)
+                Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, all_cached_FWCs)
                 
-                Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
-                    member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS, 
-                    uniqueness_field = "feature_name", 
-                    new_instance = FWC_instance,
-                )
+                # Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
+                #     member_key = cache_key_FWCs, 
+                #     uniqueness_field = "feature_name", 
+                #     new_instance = FWC_instance,
+                # )
                 pass
 
             # ----------------------------------------------------------------------------------------------------------------------------
             # 3: Add block module to global block registry in RTC
             # This structure partially mirrors DGBLOCKS_PG_Debug_Block_Reference. Only the first 3 fields exist in the BL Data
             _, exising_block_record = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-                member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, 
+                member_key = cache_key_blocks, 
                 uniqueness_field = "block_id", 
                 uniqueness_field_value = block_id,
             )
@@ -356,7 +365,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                     block_RTC_member_names = [m.name for m in block_RTC_member_enums],
                 )
                 Wrapper_Runtime_Cache.add_unique_instance_to_registry_list(
-                    member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, 
+                    member_key = cache_key_blocks, 
                     uniqueness_field = "block_id", 
                     new_instance = block_instance,
                 )
@@ -368,7 +377,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
             # RTC Registries - initialized with empty data containers, commonly an dict or list
             for enum_rcm in block_RTC_member_enums:
-                Wrapper_Runtime_Cache.create_instance(
+                Wrapper_Runtime_Cache.create_cache(
                     new_key = enum_rcm.name, 
                     new_value = fast_deepcopy_with_fallback(enum_rcm.value[1]),
                 )
@@ -411,7 +420,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         logger.debug(f"Starting removal of block '{block_id}'")
 
         _, block_to_remove = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-            member_key = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS, 
+            member_key = cache_key_blocks, 
             uniqueness_field = "block_id", 
             uniqueness_field_value = block_id,
         )
@@ -431,7 +440,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                 skip_BL_sync = not is_last,
             )
         for rtc_registry_name in reversed(block_to_remove.block_RTC_member_names):
-            Wrapper_Runtime_Cache.destroy_instance(rtc_registry_name)
+            Wrapper_Runtime_Cache.remove_cache(rtc_registry_name)
 
         # Next, destroy FWCs. Only core-block skips this step
         if block_id != core_block_id:
@@ -461,7 +470,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating block-mgmt cache with mirrored Blender data")
         
-        registry_all_blocks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+        registry_all_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         scene_collectionprop = bpy.context.scene.dgblocks_core_props.managed_blocks
 
         update_dataclasses_to_match_collectionprop(
@@ -478,7 +487,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored block-mgmt cache")
         
-        registry_all_blocks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+        registry_all_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         scene_collectionprop = bpy.context.scene.dgblocks_core_props.managed_blocks
         update_collectionprop_to_match_dataclasses(
             source = registry_all_blocks,
@@ -621,7 +630,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
     @classmethod
     def get_block_instance(cls, block_id: str):
 
-        registry_all_blocks = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+        registry_all_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         block_instance = next((b for b in registry_all_blocks if b.block_id == block_id), None)
         if block_instance is None:
             known_blocks_str = str([b._BLOCK_ID for b in registry_all_blocks])
@@ -629,7 +638,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         return block_instance
 
     @classmethod
-    def update_FWC_RTC_caches_to_match_BL_data(cls, event_type: str = "unknown") -> None:
+    def update_all_FWC_RTC_caches_to_match_BL_data(cls, event_type: str = "unknown") -> None:
         """
         Iterate through all registered Feature_Wrapper_References and call their
         update_RTC_with_mirrored_BL_data(scene) method.
@@ -640,28 +649,28 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         """
         
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Starting update_FWC_RTC_caches_to_match_BL_data for event='{event_type}'")
+        logger.debug(f"Starting update_all_FWC_RTC_caches_to_match_BL_data for event='{event_type}'")
         
-        registry_all_fwcs = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS)
-        for instance_fwc in registry_all_fwcs:
+        cache_all_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+        for FWC_instance in cache_all_FWCs:
 
-            actual_fwc = instance_fwc.feature_wrapper_class
+            actual_class_ref = FWC_instance.feature_wrapper_class
 
             # Ignore feature wrapper classes without BL<-->RTC sync capability
-            all_parent_classes = get_names_of_parent_classes(actual_fwc)
+            all_parent_classes = get_names_of_parent_classes(actual_class_ref)
             if Abstract_BL_and_RTC_Data_Syncronizer.__name__ not in all_parent_classes:
                 continue
             
             # Call sync function in class
             try:
-                src_block_id = instance_fwc.src_block_id
-                logger.debug(f"Syncing '{src_block_id}' feature: ({actual_fwc.__name__}.update_RTC_with_mirrored_BL_data)")
-                print(f"\n\n--------------Syncing '{src_block_id}' feature: ({actual_fwc.__name__}.update_RTC_with_mirrored_BL_data)")
-                actual_fwc.update_RTC_with_mirrored_BL_data()
+                src_block_id = FWC_instance.src_block_id
+                logger.debug(f"Syncing '{src_block_id}' feature: ({actual_class_ref.__name__}.update_RTC_with_mirrored_BL_data)")
+                print(f"\n\n--------------Syncing '{src_block_id}' feature: ({actual_class_ref.__name__}.update_RTC_with_mirrored_BL_data)")
+                actual_class_ref.update_RTC_with_mirrored_BL_data()
             except Exception:
                 logger.error(f"Exception syncing '{src_block_id}'", exc_info=True)
 
-        logger.info(f"Finished update_FWC_RTC_caches_to_match_BL_data for event='{event_type}")
+        logger.info(f"Finished update_all_FWC_RTC_caches_to_match_BL_data for event='{event_type}")
 
 #=================================================================================
 # UI
@@ -703,8 +712,8 @@ def _uilayout_draw_block_manager_settings(context, container):
     all_block_mgmt_props = context.scene.dgblocks_core_props.managed_blocks
     box = container.box()
 
-    all_downstream_instances = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
-    all_rtc_block_instances = Wrapper_Runtime_Cache.get_instance(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+    all_downstream_instances = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+    all_rtc_block_instances = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
     core_props = context.scene.dgblocks_core_props
     
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_block_mgmt", default_closed=True)
@@ -801,8 +810,8 @@ def _callback_undo_post(dummy):
     if not is_bpy_ready():
         return
     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-    logger.debug("_callback_undo_post: triggered")
-    Wrapper_Block_Management.update_FWC_RTC_caches_to_match_BL_data(event_type = "undo")
+    logger.debug("'Undo' event")
+    Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "undo")
 
 @persistent
 def _callback_redo_post(dummy):
@@ -814,5 +823,5 @@ def _callback_redo_post(dummy):
     if not is_bpy_ready():
         return
     logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-    logger.debug("_callback_redo_post: triggered")
-    Wrapper_Block_Management.update_FWC_RTC_caches_to_match_BL_data(event_type = "redo")
+    logger.debug("'Redo' event")
+    Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "redo")

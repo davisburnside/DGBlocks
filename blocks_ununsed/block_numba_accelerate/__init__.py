@@ -49,7 +49,7 @@ def hook_post_register_init(context):
     logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
     
     # Initialize function registry in runtime cache
-    Wrapper_Runtime_Cache.set_instance(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY, {})
+    Wrapper_Runtime_Cache.set_cache(Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY, {})
     
     # Ensure numba cache directory exists if base folder is valid
     feature_numba_function_wrapper._ensure_numba_cache_dir()
@@ -190,7 +190,7 @@ def uilayout_draw_main_panel(context, layout):
         cache_box.label(text="Set addon_saved_data_folder in preferences")
     
     # Function registry
-    registry = feature_numba_function_wrapper.Wrapper_Runtime_Cache.get_instance(
+    registry = feature_numba_function_wrapper.Wrapper_Runtime_Cache.get_cache(
         Enum_Runtime_Cache_Keys.NUMBA_FUNCTION_REGISTRY
     )
     

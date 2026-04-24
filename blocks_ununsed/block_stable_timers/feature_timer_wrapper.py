@@ -467,8 +467,8 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
 def _rtc_get_all() -> Dict[str, Timer_Instance_Data]:
     """Return the live dict of all Timer_Instance_Data records from RTC."""
-    return Wrapper_Runtime_Cache.get_instance(Block_Runtime_Cache_Members.TIMER_INSTANCES)
+    return Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Members.TIMER_INSTANCES)
 
 def _rtc_set_all(data: Dict[str, Timer_Instance_Data]) -> None:
     """Write the full Timer_Instance_Data dict back to RTC."""
-    Wrapper_Runtime_Cache.set_instance(Block_Runtime_Cache_Members.TIMER_INSTANCES, data)
+    Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Members.TIMER_INSTANCES, data)
