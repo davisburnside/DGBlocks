@@ -473,9 +473,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         scene_collectionprop = bpy.context.scene.dgblocks_core_props.managed_blocks
 
         update_dataclasses_to_match_collectionprop(
+            actual_FWC = Wrapper_Block_Management,
             source = scene_collectionprop,
             target = registry_all_blocks,
-            dataclass_type = Wrapper_Block_Management,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields
         )

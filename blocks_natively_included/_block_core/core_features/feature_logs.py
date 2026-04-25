@@ -165,16 +165,16 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         Synchronizes RTC with the Blender Logger info
         """
         #TODO finish
-        return
+        
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating loggers cache with mirrored Blender data")
 
         all_RTC_logger_instances = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
         loggers_collectionprop = bpy.context.scene.dgblocks_core_props.scene_RTC_mirror_for_loggers
         update_dataclasses_to_match_collectionprop(
+            dataclass_type = Wrapper_Loggers,
             source = loggers_collectionprop,
             target = all_RTC_logger_instances,
-            dataclass_type = Wrapper_Loggers,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields
         )

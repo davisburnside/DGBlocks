@@ -173,9 +173,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         registry_all_downstream_hooks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
         scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
         update_dataclasses_to_match_collectionprop(
+            actual_FWC = Wrapper_Hooks,
             source = scene_hooks_collection,
             target = registry_all_downstream_hooks,
-            dataclass_type = Wrapper_Hooks,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields
         )

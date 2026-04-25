@@ -68,12 +68,22 @@ def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.U
     
     core_scene_props = context.scene.dgblocks_core_props
     
-    # UI & status 
-    box = ui_box_with_header(context, container, "Activation level")
-    grid = box.grid_flow(columns=2)
-    grid.prop(core_scene_props, "addon_is_active")
-    grid.prop(core_scene_props, "debug_mode_enabled")
-    box.prop(core_scene_props, "documentation_weblinks_enabled")
+    # General settings
+    box = container.box()
+    panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_general", default_closed=True)
+    panel_header.label(text = "General")
+    if panel_body is not None: 
+        grid = panel_body.grid_flow(columns=2)
+        grid.prop(core_scene_props, "addon_is_active")
+        grid.prop(core_scene_props, "debug_mode_enabled")
+        grid.prop(core_scene_props, "documentation_weblinks_enabled")
+        op_rtc_clear = grid.operator("dgblocks.debug_force_reload_scipts", text = "Clear RTC")
+        op_rtc_clear.target = "RTC"
+        op_rtc_clear.action = "CLEAR"
+        op_rtc_restore = grid.operator("dgblocks.debug_force_reload_scipts", text = "Restore RTC")
+        op_rtc_restore.target = "RTC"
+        op_rtc_restore.action = "RESTORE"
+        
     
     # Draw management subpanels for blocks, hooks, & loggers
     _uilayout_draw_block_manager_settings(context, container)

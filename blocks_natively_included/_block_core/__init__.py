@@ -4,8 +4,8 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_data_structures import DGBLOCKS_PG_General_Purpose_Tag
-from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module
+from ...addon_data_structures import DGBLOCKS_PG_General_Purpose_Tag, Abstract_BL_and_RTC_Data_Syncronizer
+from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module, get_names_of_parent_classes
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -105,6 +105,50 @@ class DGBLOCKS_OT_Force_Reload_Scripts(bpy.types.Operator):
         force_reload_all_scripts(context)
             
         return {"FINISHED"}
+    
+class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
+    bl_idname = "dgblocks.debug_force_reload_scipts"
+    bl_label = "Reload scripts"
+    bl_options = {"REGISTER"}
+    
+    action: bpy.props.StringProperty() # type: ignore 
+    target: bpy.props.StringProperty() # type: ignore 
+
+    def execute(self, context):
+
+        # Clearing these would prevent restore-action
+        rtc_members_to_skip = ["REGISTRY_ALL_BLOCKS", "REGISTRY_ALL_FEATURE_WRAPPERS"]
+        
+        # Clear or restore the RTC, Blender data is unaffected
+        if self.target == "RTC":
+
+            # Clearing data does not use destroy_instance function. It directly updates the RTC's _cache. This should not be done in a production setting
+            if self.action == "CLEAR":
+                for cache_key, cache_data in Wrapper_Runtime_Cache._cache.items():
+                    if cache_key in rtc_members_to_skip:
+                        continue
+                    if isinstance(cache_data, list):
+                        print(f"Clearing RTC list {cache_key}")
+                        Wrapper_Runtime_Cache.set_cache(cache_key, [])
+
+            # Use Block-mgmt FWC's native restoration feature
+            elif self.action == "RESTORE":
+                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "debug-restore") 
+
+        # Clear or restore Blender data, RTC is unaffected
+        if self.target == "BL":
+            if self.action == "CLEAR":
+                for cache_key, cache_data in Wrapper_Runtime_Cache._cache.items():
+                    if cache_key in rtc_members_to_skip:
+                        continue
+                    if isinstance(cache_data, list):
+                        print(f"Clearing RTC list {cache_key}")
+                        Wrapper_Runtime_Cache.set_cache(cache_key, [])
+            elif self.action == "RESTORE":
+                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "debug-restore") 
+
+        return {"FINISHED"}
+
 
 #=================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
@@ -172,6 +216,7 @@ _block_classes_to_register = [
     DGBLOCKS_OT_Open_Help_Page,
     DGBLOCKS_OT_Copy_To_Clipboard,
     DGBLOCKS_OT_Force_Reload_Scripts,
+    DGBLOCKS_OT_Debug_Clear_And_Restore_Caches,
     DGBLOCKS_PT_Core_Block_Panel,
     DGBLOCKS_UL_Blocks,
     DGBLOCKS_UL_Hooks,
