@@ -307,7 +307,6 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             cls.update_BL_with_mirrored_RTC_data()
             Wrapper_Runtime_Cache.flag_cache_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS, False)
 
-
     # --------------------------------------------------------------
     # Public funcs specific to this class
     # --------------------------------------------------------------

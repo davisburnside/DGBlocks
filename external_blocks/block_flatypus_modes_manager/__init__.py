@@ -1,5 +1,7 @@
 import os
+import gpu # type: ignore
 import bpy # type: ignore
+from gpu_extras.batch import batch_for_shader # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -18,12 +20,13 @@ from ...blocks_natively_included._block_core.core_features.feature_runtime_cache
 from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
 
 from ...blocks_natively_included.block_stable_modal.test1 import Wrapper_Modals_Manager
+from ...blocks_natively_included.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
+from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
 from .constants import Block_Logger_Definitions, Block_RTC_Members
-from .helper_unittests import run_operator_in_headless_blender, _sample_unittest, launch_headless_operator
 
 #=================================================================================
 # BLOCK DEFINITION
@@ -34,6 +37,7 @@ _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [
     "block-core",
     "block-stable-modal",
+    "block-onscreen-drawing"
 ] 
 
 #=================================================================================
@@ -66,23 +70,59 @@ def hook_modal_timer_event(context: bpy.types.Context, event: bpy.types.Event, m
     print("downstream timer")
     # print(modal_instance, event)
 
+def hook_draw_event(draw_handler_instance):
+    
+    print("Draw event from hook")
+    return True
+
 
 #=================================================================================
 # Operators
 #=================================================================================
 
+def _my_draw_callback(draw_handler_instance):
+
+    print("draw event from callback", draw_handler_instance)
+
+    vertices = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0),
+    (0.0, 0.0, 0.0), (0.0, 1.0, 0.0),
+    (0.0, 0.0, 0.0), (0.0, 0.0, 1.0)]
+    shader = gpu.shader.from_builtin('SMOOTH_COLOR')
+    col = [(1.0, 0.0, 0.0, 1.0), (1.0, 0.0, 0.0, 1.0),
+        (0.0, 1.0, 0.0, 1.0), (0.0, 1.0, 0.0, 1.0),
+        (0.0, 0.0, 1.0, 1.0), (0.0, 0.0, 1.0, 1.0)]
+    batch = batch_for_shader(shader, 'LINES', {"pos": vertices, "color": col})
+    shader.bind()
+    batch.draw(shader)
+
 class DGBLOCKS_OT_Toggle_Assembly_Mode(bpy.types.Operator):
     bl_idname = "dgblocks.toggle_assembly_mode"
     bl_label = "Toggle Assmbly Mode"
     bl_options = {"REGISTER"}
+
+    test_action_1: bpy.props.StringProperty() # type: ignore 
+    test_action_2: bpy.props.StringProperty() # type: ignore 
     
     # This operator can always be executed, even when add
     def execute(self, context):
 
         
+        # modal_op_for_keymouse_input = Wrapper_Modals_Manager.create_instance(**_default_modal_options_for_keymouse_input)
+        if self.test_action_1 == "POST_VIEW":
+            
+            draw_phase_name = "POST_VIEW"
 
-        modal_op_for_viewport_display = Wrapper_Modals_Manager.create_instance(**_default_modal_options_for_3dview_display)
-        modal_op_for_keymouse_input = Wrapper_Modals_Manager.create_instance(**_default_modal_options_for_keymouse_input)
+            # (Defined by a different block) get the draw handler instance
+            draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Onscreen_Draw_Block_RTC_Members.DRAW_PHASES)[draw_phase_name]
+            if draw_handler_instance._generated_handle is None:
+                Wrapper_Draw_Handlers.enable_draw_handler(draw_phase_name, draw_callback = _my_draw_callback)
+            else:
+                Wrapper_Draw_Handlers.disable_draw_handler(draw_phase_name)
+
+            
+        for area in bpy.context.window.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
 
         return {"FINISHED"}
 
@@ -111,6 +151,7 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
         
         layout = self.layout
         layout.operator("dgblocks.toggle_assembly_mode", text = "run 'em")
+        op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "test drawers").test_action_1 = "POST_VIEW"
 
 #=================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py

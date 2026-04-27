@@ -1,244 +1,150 @@
-"""
-TEMPLATE: Fixed-List Feature Wrapper
-=====================================
-Copy this file and modify it for each fixed-list feature.
 
-Architecture:
-- A StrEnum defines all members at dev time (single source of truth)
-- A @dataclass mirrors each member's state in the Runtime Cache (RTC)
-- A PropertyGroup with hardcoded PointerProperties mirrors each member in Blender data
-- Two-way sync functions keep BL and RTC in agreement
-- A UI helper draws all members as label + toggle rows
-
-Copy checklist:
-  1. Rename the enum, dataclass, PropertyGroup, and wrapper class
-  2. Replace member entries in the enum
-  3. Update the PropertyGroup PointerProperties to match
-  4. Update the RTC cache key
-  5. Add any feature-specific fields to the dataclass + PropertyGroup
-  6. Wire the PropertyGroup into your addon's scene/object props
-  7. Wire the UI helper into your panel's draw()
-"""
-
-import bpy
-from enum import auto
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Callable, Optional
+import bpy # type: ignore
 
-# --- Replace these with your actual imports ---
-# from .your_cache_module import Wrapper_Runtime_Cache, Core_Runtime_Cache_Members
-# from .your_logger_module import get_logger
-# from .your_utils import is_bpy_ready
-
-from ...addon_helper_funcs import is_bpy_ready
 from ...addon_data_structures import Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Feature_Wrapper
 from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_logs import get_logger
 
-from .constants import Draw_Phase_Types
+from .constants import Block_Logger_Definitions, Draw_Phase_Types, Block_RTC_Members
 
-
-# RTC cache key — one flat dict, not a list
-rtc_feature_key = "REGISTRY_TEMPLATE_FEATURE"  # Replace with Core_Runtime_Cache_Members.YOUR_KEY
-
-
-# =================================================================================
-# RTC DATA — @dataclass per member
-# =================================================================================
+#=================================================================================
+# RTC DATA FOR FEATURE
+#=================================================================================
 
 @dataclass
-class RTC_Template_Member:
-    """
-    Runtime state for a single fixed-list member.
-    Add feature-specific fields here (they won't sync to BL
-    unless you also add them to the PropertyGroup + sync funcs).
-    """
-    uid: str
-    is_enabled: bool = False
+class RTC_Draw_Handler_Instance:
 
+    draw_phase_name: str # Unique, always a Draw_Phase_Types value
+    region_name: str  # Draw_Handler_Region_Types value
 
-# =================================================================================
-# BLENDER DATA — PropertyGroup with hardcoded PointerProperties
-# =================================================================================
+    # Relations to other data structures
+    associated_shaders: list = field(default_factory=lambda: [])
 
-def _callback_member_toggled(self, context):
-    """
-    Fires when any member's is_enabled changes in BL data.
-    Pushes the new value into RTC.
-    """
-    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(rtc_feature_key):
-        return
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, True)
+    # Callables
+    _optional_draw_callback: Callable = field(default=None, repr=False)  # The actual draw function. If None, a hook is triggered instead
+    _generated_handle: Callable = field(init=False, default=None, repr=False) # Opaque handle returned from draw_handler_add
 
-    all_members = Wrapper_Runtime_Cache.get_cache(rtc_feature_key)
-    if all_members and self.uid in all_members:
-        all_members[self.uid].is_enabled = self.is_enabled
-
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, False)
-
-
-class DGBLOCKS_PG_DrawHandler_Instance(bpy.types.PropertyGroup):
-    """
-    Single member's Blender-side data.
-    Must contain the same syncable fields as RTC_Template_Member.
-    """
-
-    uid: bpy.props.StringProperty()  # type: ignore
-    is_enabled: bpy.props.BoolProperty(update=_callback_member_toggled)  # type: ignore
 
 # =================================================================================
 # WRAPPER CLASS
 # =================================================================================
 
-class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer):
+def _placeholder_draw_callback(draw_handler_instance: RTC_Draw_Handler_Instance):
+
+    print(draw_handler_instance.draw_phase_name)
+    if draw_handler_instance._optional_draw_callback is None:
+        Wrapper_Hooks.run_hooked_funcs(draw_handler_instance = draw_handler_instance)
+    else:
+        draw_handler_instance._optional_draw_callback(draw_handler_instance = draw_handler_instance)
+
+class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     """
     Manages a fixed set of toggleable members with BL ↔ RTC sync.
     No instance creation/destruction — all members exist at dev time.
     """
 
-    # ----------------------------------------------------------
-    # Lifecycle
-    # ----------------------------------------------------------
+    # --------------------------------------------------------------
+    # Implemented from Abstract_Feature_Wrapper
+    # --------------------------------------------------------------
 
     @classmethod
     def init_pre_bpy(cls) -> bool:
-        # """
-        # Called before bpy is available.
-        # Populates RTC with default state for every member.
-        # """
-        # initial_members = {}
-        # for member in Draw_Phase_Types:
-        #     initial_members[member.name] = RTC_Template_Member(
-        #         uid=member.name,
-        #        is_enabled = False,
-        #     )
+        "Define draw-handlers cache structure at startup. The dict will be populated during later init step"
 
-        # Wrapper_Runtime_Cache.set_cache(rtc_feature_key, initial_members)
+        logger = logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
+        logger.debug("Running pre-bpy init for 'Wrapper_Draw_Handlers'")
+
+        # Unlike most RTC members, draw_handlers is fully populated with instances at startup
+        # Member count of Block_RTC_Members.DRAW_PHASES never changes, but instance values will be updated as draw_handlers are disabled/enabled
+        initial_rtc_data = {}
+        for enum_value in Draw_Phase_Types:
+            draw_phase_name = enum_value.name
+            draw_handler_instance = RTC_Draw_Handler_Instance(
+                    draw_phase_name = draw_phase_name,
+                    region_name = None,
+                    # _optional_draw_callback = None,
+                    # _generated_handle = None,
+            )
+            initial_rtc_data[draw_phase_name] = draw_handler_instance
+
+        all_handler_names = "'" + "', '".join(list(initial_rtc_data.keys())) + "'"
+        logger.debug(f"Created empty draw-handler instances for {all_handler_names}")
+
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, initial_rtc_data)
         return True
 
     @classmethod
     def init_post_bpy(cls) -> bool:
-        """
-        Called after bpy is available.
-        BL data may contain saved values from a previous session.
-        Pull BL → RTC so saved user prefs overwrite defaults.
-        """
-        cls.update_RTC_with_mirrored_BL_data()
+        "no-op"
         return True
 
     @classmethod
     def destroy_wrapper(cls) -> bool:
-        """
-        Called during addon unregister. Clean up RTC.
-        """
-        Wrapper_Runtime_Cache.remove_cache(rtc_feature_key)
+
+        logger = logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
+        logger.debug("Removing Wrapper 'Wrapper_Draw_Handlers'")
+        
+        # Shaders and groups are automatically removed
+        all_rtc_draw_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
+        for draw_phase_name in all_rtc_draw_handlers.keys():
+            cls.disable_handler(draw_phase_name)
+
         return True
+    
+    # --------------------------------------------------------------
+    # Funcs specific to this class
+    # --------------------------------------------------------------
+            
+    @classmethod
+    def enable_draw_handler(
+        cls, 
+        draw_phase_name: str,
+        region_name: str = "WINDOW",
+        draw_callback: Optional[Callable] = None,
+        ):
 
-    # ----------------------------------------------------------
-    # Two-way sync
-    # ----------------------------------------------------------
+        logger = logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
+        logger.debug(f"Enabling Draw Handler Phase '{draw_phase_name}'")
+
+        draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)[draw_phase_name]
+
+        # Validate status
+        if draw_handler_instance._generated_handle is not None:
+            logger.warning("Draw Handler '{draw_phase_name}' is already enabled, returning with no action")
+            return
+        
+        # set optional callback
+        draw_handler_instance._optional_draw_callback = draw_callback
+        draw_handler_instance.region_name = region_name
+
+        # Finally, generate the actual handle. This is necessary to allow proper handler shutdown later, preventing unwanted lingering draws
+        draw_handler_instance._generated_handle = bpy.types.SpaceView3D.draw_handler_add(
+            _placeholder_draw_callback,
+            (draw_handler_instance,), # args tuple passed to the callback. The self-reference is wonky-adjacent but ok
+            region_name, 
+            draw_phase_name,
+        )
+        logger.debug(f"Added draw handler '{draw_phase_name}' to bpy.types.SpaceView3D")
 
     @classmethod
-    def _get_bl_root(cls) -> DGBLOCKS_PG_DrawHandler_Instance:
-        """
-        Returns the parent PropertyGroup from the scene.
-        Replace the attribute path with your actual wiring.
-        """
-        return bpy.context.scene.your_addon_props.template_feature
+    def disable_draw_handler(cls, draw_phase_name: str) -> None:
+        
+        logger = logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
+        logger.debug(f"Disabling Draw Handler '{draw_phase_name}'")
 
-    @classmethod
-    def update_RTC_with_mirrored_BL_data(cls):
-        """
-        BL → RTC: Overwrites RTC state with whatever is saved in the .blend.
-        Called on startup, file load, undo/redo (via your external handler).
-        """
-        # Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, True)
+        draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)[draw_phase_name]
 
-        # bl_root = cls._get_bl_root()
-        # all_members = Wrapper_Runtime_Cache.get_cache(rtc_feature_key)
-
-        # for member in Draw_Phase_Types:
-        #     bl_pg = getattr(bl_root, member.name, None)
-        #     if bl_pg is None:
-        #         continue
-        #     if member.name in all_members:
-        #         all_members[member.name].is_enabled = bl_pg.is_enabled
-        #         # Sync additional fields here as needed
-
-        # Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, False)
-        pass
-
-    @classmethod
-    def update_BL_with_mirrored_RTC_data(cls):
-        """
-        RTC → BL: Pushes current RTC state into the PropertyGroup.
-        Called when RTC is the authority (e.g. after programmatic changes).
-        """
-        # Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, True)
-
-        # bl_root = cls._get_bl_root()
-        # all_members = Wrapper_Runtime_Cache.get_cache(rtc_feature_key)
-
-        # for member in Draw_Phase_Types:
-        #     rtc_entry = all_members.get(member.name)
-        #     if rtc_entry is None:
-        #         continue
-        #     bl_pg = getattr(bl_root, member.name, None)
-        #     if bl_pg is None:
-        #         continue
-
-        #     bl_pg.uid = rtc_entry.uid
-        #     bl_pg.is_enabled = rtc_entry.is_enabled
-        #     # Sync additional fields here as needed
-
-        # Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, False)
-        pass
-
-    # ----------------------------------------------------------
-    # Public API
-    # ----------------------------------------------------------
-
-    @classmethod
-    def is_enabled(cls, member: Draw_Phase_Types) -> bool:
-        all_members = Wrapper_Runtime_Cache.get_cache(rtc_feature_key)
-        if all_members is None or member.name not in all_members:
-            return False
-        return all_members[member.name].is_enabled
-
-    @classmethod
-    def set_enabled(cls, member: Draw_Phase_Types, enabled: bool):
-        """
-        Programmatic toggle. Updates RTC then pushes to BL.
-        """
-        all_members = Wrapper_Runtime_Cache.get_cache(rtc_feature_key)
-        if all_members is None or member.name not in all_members:
+        # Validate status
+        if draw_handler_instance._generated_handle is None:
+            logger.warning("Draw Handler '{draw_phase_name}' is already disabled, returning with no action")
             return
 
-        all_members[member.name].is_enabled = enabled
+        bpy.types.SpaceView3D.draw_handler_remove(draw_handler_instance._generated_handle, draw_handler_instance.region_name)
+        draw_handler_instance._generated_handle = None
+        draw_handler_instance._optional_draw_callback = None
+        draw_handler_instance.region_name = None
 
-        if is_bpy_ready():
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, True)
-            cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_feature_key, False)
-
-# ----------------------------------------------------------
-# UI Drawing Helper
-# ----------------------------------------------------------
-
-def _draw_panel(layout: bpy.types.UILayout):
-    """
-    Draws all members as rows with a label and toggle.
-    Call from your panel's draw():
-        Wrapper_Draw_Handlers.draw_panel(layout)
-    """
-    bl_root = Wrapper_Draw_Handlers._get_bl_root()
-
-    for member in Draw_Phase_Types:
-        bl_pg = getattr(bl_root, member.name, None)
-        if bl_pg is None:
-            continue
-
-        row = layout.row(align=True)
-        row.label(text=member.uid)
-        row.prop(bl_pg, "is_enabled", text="", toggle=True)
-
+        logger.debug(f"Removed draw handler '{draw_phase_name}' from bpy.types.SpaceView3D")

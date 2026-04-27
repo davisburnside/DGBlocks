@@ -32,8 +32,8 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_RTC_Members, Block_Logger_Definitions
-from .feature_draw_handler_manager import Wrapper_Draw_Handlers, DGBLOCKS_PG_DrawHandler_Instance
+from .constants import Block_RTC_Members, Block_Logger_Definitions, Block_Hook_Sources
+from .feature_draw_handler_manager import Wrapper_Draw_Handlers
 
 
 #=================================================================================
@@ -55,40 +55,6 @@ def hook_post_register_init(context):
     return True
 
 
-
-
-def _callback_sample_shader_toggle(self, context):
-
-    if not is_bpy_ready():
-        return
-    
-    print("-------------_callback_sample_shader_toggle------------")
-    draw_handler_props = context.scene.onscreen_drawing_props
-    if draw_handler_props.POST_PIXEL.is_enabled != self.is_sample_1_enabled:
-        draw_handler_props.POST_PIXEL.is_enabled = True
-        # if self.is_sample_1_enabled:
-        #     Wrapper_Draw_Handlers.set_enabled("POST_PIXEL", True)
-        # else:
-        #     Wrapper_Draw_Handlers.set_enabled("POST_PIXEL", False)
-
-
-class DGBLOCKS_PG_Debug_Sample_Shaders(bpy.types.PropertyGroup):
- 
-    is_sample_1_enabled: bpy.props.BoolProperty(update = _callback_sample_shader_toggle) # type: ignore
-    is_sample_2_enabled: bpy.props.BoolProperty(update = _callback_sample_shader_toggle) # type: ignore
-
-class DGBLOCKS_PG_Stable_Drawing_Props(bpy.types.PropertyGroup):
-
-    POST_PIXEL: bpy.props.PointerProperty(type = DGBLOCKS_PG_DrawHandler_Instance, name = "POST_PIXEL") # type: ignore
-    POST_VIEW:  bpy.props.PointerProperty(type = DGBLOCKS_PG_DrawHandler_Instance, name = "POST_VIEW") # type: ignore
- 
-    debug_sample_shaders: bpy.props.PointerProperty(type = DGBLOCKS_PG_Debug_Sample_Shaders) # type: ignore
-
-
-
-
-
-
 class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     bl_label       = "Modal Stack"
     bl_idname      = "VIEW3D_PT_Debug_Drawing_Panel"
@@ -104,26 +70,15 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     def draw(self, context):
 
         layout = self.layout
-        drawing_props = context.scene.onscreen_drawing_props
 
-        draw_handler_phases = [
-            drawing_props.POST_PIXEL,
-            drawing_props.POST_VIEW
-        ]
+        all_rtc_draw_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
 
-        for phase in draw_handler_phases:
-            split = layout.split()
-            split.label(text = phase.name)
-            layout.prop(phase, "is_enabled")
-        
-
-        box = layout.box()
-        panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_onscreen_drawing", default_closed=True)
-        panel_header.label(text = "All Blocks")
-        if panel_body is not None:     
-            panel_body.prop(drawing_props.debug_sample_shaders, "is_sample_1_enabled")
-            panel_body.prop(drawing_props.debug_sample_shaders, "is_sample_2_enabled")
-
+        for draw_handler_instance in all_rtc_draw_handlers.values():
+            name = draw_handler_instance.draw_phase_name
+            is_enabled = draw_handler_instance._generated_handle is not None
+            row = layout.row(align=True)
+            row.label(text = name)
+            row.label(text = str(is_enabled))
 
 #=================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py
@@ -131,12 +86,7 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [    
-    # DGBLOCKS_DISPLAY_MODAL_PROPS,
-    # DGBLOCKS_PT_Modal_Display,
-    # DGBLOCKS_OT_DisplayModal]
-    DGBLOCKS_PG_DrawHandler_Instance,
-    DGBLOCKS_PG_Debug_Sample_Shaders,
-    DGBLOCKS_PG_Stable_Drawing_Props,
+
     DGBLOCKS_PT_Debug_Drawing_Panel,
 ]
 
@@ -151,11 +101,12 @@ def register_block():
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = [Wrapper_Draw_Handlers], 
         block_RTC_member_enums = Block_RTC_Members, 
-        block_logger_enums = Block_Logger_Definitions 
+        block_logger_enums = Block_Logger_Definitions,
+        block_hook_source_enums = Block_Hook_Sources,
     )
 
     # Create Scene Property to hold modal configuration
-    bpy.types.Scene.onscreen_drawing_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Stable_Drawing_Props)
+    # bpy.types.Scene.onscreen_drawing_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Stable_Drawing_Props)
     
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
@@ -170,7 +121,7 @@ def unregister_block():
     Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
     
     # Delete Scene Properties
-    if hasattr(bpy.types.Scene, "onscreen_drawing_props"):
-        del bpy.types.Scene.onscreen_drawing_props
+    # if hasattr(bpy.types.Scene, "onscreen_drawing_props"):
+    #     del bpy.types.Scene.onscreen_drawing_props
 
     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")
