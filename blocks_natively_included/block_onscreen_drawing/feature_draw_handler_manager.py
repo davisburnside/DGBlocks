@@ -1,5 +1,6 @@
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Callable, Optional
 import bpy # type: ignore
 
@@ -9,6 +10,7 @@ from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_logs import get_logger
 
 from .constants import Block_Logger_Definitions, Draw_Phase_Types, Block_RTC_Members
+from .feature_shader import Shader_Instance
 
 #=================================================================================
 # RTC DATA FOR FEATURE
@@ -97,7 +99,38 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
     # Funcs specific to this class
     # --------------------------------------------------------------
-            
+    
+    def add_shader(shader_enum: Enum, shader_group_id: str):
+        
+        shader_uid = shader_enum.name
+        shader_type = shader_enum.value[0]
+        shader_builtin_name = shader_enum.value[1] if isinstance(shader_enum.value[1], str) else None
+        is_custom_shader = shader_builtin_name is None
+        logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
+        logger.debug(f"Creating shader '{shader_enum.name}' for group '{shader_group_id}'")
+
+        all_rtc_shaders = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
+        if shader_uid in all_rtc_shaders.keys():
+            raise Exception(f"Shader with ID {shader_uid} already exists")
+
+        if is_custom_shader:
+            Shader_Class_To_Use = shader_enum.value[1]
+            if not isinstance(Shader_Class_To_Use, Shader_Instance):
+                raise Exception("Expected child class of Shader_Instance")
+
+        else:
+            Shader_Class_To_Use = Shader_Instance
+
+        # Create the shader, either with 'Shader_Instance' class, or (for custom shaders) something that inherits from it
+        shader_instance = Shader_Class_To_Use(
+            shader_uid = shader_uid,
+            shader_type = shader_type,
+            builtin_shader_name = shader_builtin_name,
+            shader_group_id = shader_group_id
+        )
+        all_rtc_shaders[shader_uid] = shader_instance
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, all_rtc_shaders)
+
     @classmethod
     def enable_draw_handler(
         cls, 

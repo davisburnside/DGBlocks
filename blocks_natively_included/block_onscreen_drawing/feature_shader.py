@@ -1,17 +1,13 @@
 
-# from dataclasses import dataclass, field
-# from enum import Enum, StrEnum, auto
-# import logging
-# from typing import Any, Optional, Dict, List
-# import numpy as np
-# import bpy
-# from mathutils import Matrix, Vector
-# import gpu
-# from gpu_extras.batch import batch_for_shader
-
-# from ..blocks_natively_included._block_core.core_feature_logs import get_logger
-# from .shaders.my_custom_shaders import create_grid_tri_shader
-
+from dataclasses import dataclass, field
+from enum import Enum, StrEnum, auto
+import logging
+from typing import Any, Optional, Dict, List
+import numpy as np
+import bpy # type: ignore
+import gpu # type: ignore
+from mathutils import Matrix, Vector # type: ignore
+from gpu_extras.batch import batch_for_shader # type: ignore
 
 #================================================================
 # CONSTANTS
@@ -36,9 +32,11 @@ class Shader_Types(StrEnum):
     TRIS = auto()
 
 #================================================================
-# SHADER WRAPPER
+# SHADER INSTANCE
 #================================================================
 
+# Wrapper_Shader differs from most other wrapper classes. It is not a subclass of Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, or Abstract_Datawrapper_Instance_Manager
+# Each shader's lifecycle is 100% managed though Wrapper_Draw_Handlers, so Wrapper_Shader does not need any instance-mgmt funcs 
 @dataclass
 class Shader_Instance:
     
@@ -50,64 +48,38 @@ class Shader_Instance:
     # Required fields
     shader_type: str
     shader_uid: str
+    shader_group_id: str
     
     # Shader wrappers must have a either a builtin or custom builder callback, not both
     builtin_shader_name: Optional[str] = None
-    callback_build_custom_shader: callable = None
 
-    # Group is an optional field, used for getting/killing several shaders at once
-    shader_group_id: Optional[str] = None
-    
     # Internal State
     _batch: gpu.types.GPUBatch = field(init=False, default=None) # Expensive to update, should only update if _points or _colors change
     _shader_actual: Any = field(init=False, default=None) # Actual gpu.shader
     _texture: Any = field(init=False, default=None) # Only used for Images
     _points: np.ndarray = field(init=False, default=None)
-    _indices: np.ndarray = field(init=False, default=None) # Only used for TRIS-type shaders
     _colors: np.ndarray = field(init=False, default=None) # Only used for SMOOTH_COLOR, not UNIF9RM_COLOR Shaders
-    
+    _indices: np.ndarray = field(init=False, default=None) # Only used for TRIS-type shaders
+    _highest_index: int = -1 # used when dynamically updating a batch with new tris
     _needs_new_batch: bool = True
-
-
-class Wrapper_Shader_Manager:
-
-    #==========================================
-    # CALLED DURING SHADER INITIALIZATION
 
     def __post_init__(self):
         
         self._setup_shader()
 
     def _setup_shader(self):
-        
-        self.logger = get_logger()
-        
-        # Input validation
-        if self.builtin_shader_name is None and self.custom_shader_name is None:
-            raise Exception("Basic and Custom Shader names are both None, unable to create Shader")
-        if self.builtin_shader_name is not None and self.custom_shader_name is not None:
-            raise Exception("Basic and Custom Shader names are both not None, you must create either one or the other")
-        
-        # Create a custom Shader
-        if self.callback_build_custom_shader is None: 
+
+        if self.shader_type not in list(Shader_Types):
+            raise Exception(f"Invalid Shader type '{self.shader_type }', must be {list(Shader_Types)}")
+                
+        if self.builtin_shader_name is not None:
+            
+            if self.builtin_shader_name not in list(Basic_Builtin_Shader_Names):
+                raise Exception(f"Invalid Shader bulitin name '{self.builtin_shader_name }', must be {list(Basic_Builtin_Shader_Names)}")
+            
+            # Create a custom Shader. If the builtin name is None, the custom shader must be created manually
             self._shader_actual = gpu.shader.from_builtin(self.builtin_shader_name)
 
-        # Create a basic builtin Shader
-        else: 
-            self._shader_actual = self.callback_build_custom_shader()
-
-    #==========================================
-    # CALLED AFTER SHADER INITIALIZATION
-
-    @_points.setter
-    def points(self, value):
-        self._points = np.array(value, dtype=np.float32) if not isinstance(value, np.ndarray) else value
-        self._needs_new_batch = True
-
-    @_colors.setter
-    def colors(self, value):
-        self._colors = np.array(value, dtype=np.float32) if not isinstance(value, np.ndarray) else value
-        self._needs_new_batch = True
 
     #==========================================
     # CALLED BEFORE SHADER DRAW - Causes expensive batch update.

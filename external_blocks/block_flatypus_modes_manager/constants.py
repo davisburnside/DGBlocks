@@ -2,6 +2,8 @@
 from enum import Enum
 import bpy # type: ignore
 
+from .custom_shaders.billboard_image_shader import Billboard_Shader
+
 #=================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
 # Enum classes are used to allow typing & autocomplete, minimizing "magic-strings" antipattern
@@ -14,16 +16,6 @@ import bpy # type: ignore
 class Block_Logger_Definitions(Enum):    
     ASSEMBLY_MODE_LIFECYCLE = ("assembly-mode-lifecycle", "INFO")
 
-# name = logger ID
-# value[0] = logger display name & default level
-# value[1] = logger display name & default level
-# class Block_Hooks(Enum):
-#     ASSEMBLY_MODE_BEFORE_ACTIVATION = ("hook_modal_key_event", {
-#         "context": bpy.types.Context, 
-#         "event": bpy.types.Event
-#     })
-    
-
 # name = RTC Member ID 
 # value[0] = actual RTC dict key / data structure
 # value[1] = default data for RTC key
@@ -33,3 +25,8 @@ class Block_RTC_Members(Enum):
 #=================================================================================
 # OTHER
 #=================================================================================
+
+class Assembly_Mode_Shader_Definitions(Enum):
+    TRIS_DEFAULT = ('POLYLINE_SMOOTH_COLOR', 'LINES')
+    DEBUG_DOT = ('POLYLINE_UNIFORM_COLOR', 'POINTS')
+    BILLBOARD = (Billboard_Shader, 'TRIS')

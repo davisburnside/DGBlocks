@@ -26,7 +26,7 @@ from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_man
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_Logger_Definitions, Block_RTC_Members
+from .constants import Block_Logger_Definitions, Block_RTC_Members, Assembly_Mode_Shader_Definitions
 
 #=================================================================================
 # BLOCK DEFINITION
@@ -114,12 +114,18 @@ class DGBLOCKS_OT_Toggle_Assembly_Mode(bpy.types.Operator):
 
             # (Defined by a different block) get the draw handler instance
             draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Onscreen_Draw_Block_RTC_Members.DRAW_PHASES)[draw_phase_name]
-            if draw_handler_instance._generated_handle is None:
+            
+            should_enable = draw_handler_instance._generated_handle is None
+            if should_enable:
                 Wrapper_Draw_Handlers.enable_draw_handler(draw_phase_name, draw_callback = _my_draw_callback)
+                for shader_enum in Assembly_Mode_Shader_Definitions:
+                    Wrapper_Draw_Handlers.add_shader(shader_enum, "ASSY")
             else:
                 Wrapper_Draw_Handlers.disable_draw_handler(draw_phase_name)
 
             
+
+
         for area in bpy.context.window.screen.areas:
             if area.type == 'VIEW_3D':
                 area.tag_redraw()

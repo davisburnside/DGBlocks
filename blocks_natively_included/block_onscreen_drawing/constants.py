@@ -32,3 +32,4 @@ class Block_Logger_Definitions(Enum):
 # value[1] = default data for RTC key
 class Block_RTC_Members(Enum):
     DRAW_PHASES = ("draw_phases", {})
+    SHADERS = ("shader", {})
