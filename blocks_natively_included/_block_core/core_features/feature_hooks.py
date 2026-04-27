@@ -33,10 +33,9 @@ rtc_hook_sources_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
 rtc_hook_downstreams_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS
 
 # Variable names of DGBLOCKS_PG_Debug_Block_Reference & RTC_Block_Instance
-rtc_sync_key_fields = ["hook_func_name"]
+rtc_sync_key_fields = ["hook_func_name", "downstream_block_id"]
 rtc_sync_data_fields = [
     "src_block_id",
-    "downstream_block_id", 
     "is_hook_enabled",
 ]
 uilist_col_width_A = 1.5

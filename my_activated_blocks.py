@@ -1,5 +1,5 @@
  
-from .blocks_natively_included import _block_core, block_debug_console_print, block_stable_modal
+from .blocks_natively_included import _block_core, block_debug_console_print, block_stable_modal, block_onscreen_drawing
 from .external_blocks import block_flatypus_modes_manager
 # from .blocks_cloned_from_git import block_example_simple, block_example_complex_A
 
@@ -12,6 +12,7 @@ _ordered_blocks_list = [
     # block_example_simple,
     # block_example_complex_A,
     block_stable_modal,
+    block_onscreen_drawing,
     # block_flatypus_modes_manager,
     # ... Add other block defininions here
 ]
