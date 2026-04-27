@@ -424,7 +424,18 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             uniqueness_field_value = block_id,
         )
 
-        # Delete the Block's Hooks, Loggers, and RTC Registries first. Only Sync to Blender on the last iteration
+        # 1: Unregister bpy classes
+        for bpy_class in reversed(block_to_remove.block_bpy_types_classes):
+            if bpy_class.is_registered:
+                logger.debug(f"Unregistering BPY class '{bpy_class.__name__}'")
+                bpy.utils.unregister_class(bpy_class)
+
+        # 2: Remove FWCs. Only core-block skips this step
+        if block_id != core_block_id:
+            for fwc in reversed(block_to_remove.block_feature_wrapper_classes):
+                fwc.destroy_wrapper()
+
+        # 3: Delete the Block's Hooks, Loggers, and RTC Registries first. Only Sync to Blender on the last iteration
         for idx, hook_func_name in enumerate(reversed(block_to_remove.block_hook_source_names)):
             is_last = idx + 1 == len(block_to_remove.block_hook_source_names)
             Wrapper_Hooks.destroy_instance(
@@ -441,16 +452,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         for rtc_registry_name in reversed(block_to_remove.block_RTC_member_names):
             Wrapper_Runtime_Cache.remove_cache(rtc_registry_name)
 
-        # Next, destroy FWCs. Only core-block skips this step
-        if block_id != core_block_id:
-            for fwc in reversed(block_to_remove.block_feature_wrapper_classes):
-                fwc.destroy_wrapper()
 
-        # Finally, unregister bpy classes
-        for bpy_class in reversed(block_to_remove.block_bpy_types_classes):
-            if bpy_class.is_registered:
-                logger.debug(f"Unregistering BPY class '{bpy_class.__name__}'")
-                bpy.utils.unregister_class(bpy_class)
 
         logger.info(f"Finished removal of block '{block_id}'")
 

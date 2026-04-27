@@ -90,7 +90,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         # Shaders and groups are automatically removed
         all_rtc_draw_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
         for draw_phase_name in all_rtc_draw_handlers.keys():
-            cls.disable_handler(draw_phase_name)
+            cls.disable_draw_handler(draw_phase_name)
 
         return True
     
