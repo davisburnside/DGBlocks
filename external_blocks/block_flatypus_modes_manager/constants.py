@@ -32,6 +32,6 @@ class Block_RTC_Members(Enum):
 # value[1] (When using custom shader) = Class reference of Shader, must inherit from 'Shader_Instance'
 # value[2] (Only when using custom shader) = Additional kwargs for custom shader
 class Assembly_Mode_Shader_Definitions(Enum):
-    TRIS_DEFAULT = ('LINES', 'POLYLINE_SMOOTH_COLOR')
+    LINES_T1 = ('LINES', 'POLYLINE_SMOOTH_COLOR')
     DEBUG_DOT = ('POINTS', 'POLYLINE_UNIFORM_COLOR')
     BILLBOARD = ('TRIS', Billboard_Shader, {"image_name" : "img"})
