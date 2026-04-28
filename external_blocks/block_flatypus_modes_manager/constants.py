@@ -1,5 +1,5 @@
 
-from enum import Enum
+from enum import Enum, StrEnum, auto
 import bpy # type: ignore
 
 from .custom_shaders.billboard_image_shader import Billboard_Shader
@@ -23,10 +23,15 @@ class Block_RTC_Members(Enum):
     IS_ASSEMBLY_MODE_ACTIVE = ("flatypus-assembly-mode-active", False)
 
 #=================================================================================
-# OTHER
+# BLOCK-SPECIFIC CONSTANTS
 #=================================================================================
 
+# name = Shader UID
+# value[0] = Shader type: always a value from 'Shader_Types'
+# value[1] (When using builtin shader) = Always a value from 'Builtin_Shader_Names'
+# value[1] (When using custom shader) = Class reference of Shader, must inherit from 'Shader_Instance'
+# value[2] (Only when using custom shader) = Additional kwargs for custom shader
 class Assembly_Mode_Shader_Definitions(Enum):
-    TRIS_DEFAULT = ('POLYLINE_SMOOTH_COLOR', 'LINES')
-    DEBUG_DOT = ('POLYLINE_UNIFORM_COLOR', 'POINTS')
-    BILLBOARD = (Billboard_Shader, 'TRIS')
+    TRIS_DEFAULT = ('LINES', 'POLYLINE_SMOOTH_COLOR')
+    DEBUG_DOT = ('POINTS', 'POLYLINE_UNIFORM_COLOR')
+    BILLBOARD = ('TRIS', Billboard_Shader, {"image_name" : "img"})

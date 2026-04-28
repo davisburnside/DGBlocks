@@ -9,6 +9,25 @@ import bpy
 class Draw_Phase_Types(StrEnum):
     POST_PIXEL = auto()
     POST_VIEW  = auto()
+    
+# Defined by Blender's gpu module, not DGBlocks
+# This is a non-exhaustive list. You can update it to suite your addon's needs
+# More info: https://docs.blender.org/api/current/gpu.shader.html  
+class Builtin_Shader_Names(StrEnum):
+    SMOOTH_COLOR = auto()
+    UNIFORM_COLOR = auto()
+    POLYLINE_UNIFORM_COLOR = auto()
+    POLYLINE_SMOOTH_COLOR = auto()
+    POINT_UNIFORM_COLOR = auto()
+    
+# Defined by Blender's gpu module, not DGBlocks
+# This is a non-exhaustive list. You can update it to suite your addon's needs
+# More info: https://docs.blender.org/api/current/gpu_extras.batch.html
+class Shader_Types(StrEnum):
+    POINTS = auto()
+    LINES = auto()
+    TRIS = auto()
+
 
 #=================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members

@@ -9,27 +9,10 @@ import gpu # type: ignore
 from mathutils import Matrix, Vector # type: ignore
 from gpu_extras.batch import batch_for_shader # type: ignore
 
-#================================================================
-# CONSTANTS
-#================================================================
-
-# Defined by Blender's gpu module, not DGBlocks
-# This is a non-exhaustive list. You can update it to suite your addon's needs
-# More info: https://docs.blender.org/api/current/gpu.shader.html  
-class Basic_Builtin_Shader_Names(StrEnum):
-    SMOOTH_COLOR = auto()
-    UNIFORM_COLOR = auto()
-    POLYLINE_UNIFORM_COLOR = auto()
-    POLYLINE_SMOOTH_COLOR = auto()
-    POINT_UNIFORM_COLOR = auto()
-    
-# Defined by Blender's gpu module, not DGBlocks
-# This is a non-exhaustive list. You can update it to suite your addon's needs
-# More info: https://docs.blender.org/api/current/gpu_extras.batch.html
-class Shader_Types(StrEnum):
-    POINTS = auto()
-    LINES = auto()
-    TRIS = auto()
+# --------------------------------------------------------------
+# Intra-block imports
+# --------------------------------------------------------------
+from .constants import Shader_Types, Builtin_Shader_Names
 
 #================================================================
 # SHADER INSTANCE
@@ -39,11 +22,6 @@ class Shader_Types(StrEnum):
 # Each shader's lifecycle is 100% managed though Wrapper_Draw_Handlers, so Wrapper_Shader does not need any instance-mgmt funcs 
 @dataclass
 class Shader_Instance:
-    
-    # Reason for @dataclass shader-wrapper structure:
-    # The methods operate on the instance's own data
-    # The shader wrapper class represents a cohesive "thing" with both state and behavior
-    # Boilerplate reduction 
     
     # Required fields
     shader_type: str
@@ -65,21 +43,18 @@ class Shader_Instance:
 
     def __post_init__(self):
         
-        self._setup_shader()
-
-    def _setup_shader(self):
-
-        if self.shader_type not in list(Shader_Types):
-            raise Exception(f"Invalid Shader type '{self.shader_type }', must be {list(Shader_Types)}")
+        shader_types_list = [i.name for i in list(Shader_Types)]
+        if self.shader_type not in shader_types_list:
+            raise Exception(f"Invalid Shader type '{self.shader_type }', must be {shader_types_list}")
                 
         if self.builtin_shader_name is not None:
             
-            if self.builtin_shader_name not in list(Basic_Builtin_Shader_Names):
-                raise Exception(f"Invalid Shader bulitin name '{self.builtin_shader_name }', must be {list(Basic_Builtin_Shader_Names)}")
+            bulitin_shaders_list =  [i.name for i in list(Builtin_Shader_Names)]
+            if self.builtin_shader_name not in bulitin_shaders_list:
+                raise Exception(f"Invalid Shader bulitin name '{self.builtin_shader_name }', must be {bulitin_shaders_list}")
             
             # Create a custom Shader. If the builtin name is None, the custom shader must be created manually
             self._shader_actual = gpu.shader.from_builtin(self.builtin_shader_name)
-
 
     #==========================================
     # CALLED BEFORE SHADER DRAW - Causes expensive batch update.

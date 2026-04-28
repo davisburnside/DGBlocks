@@ -1,6 +1,15 @@
+from dataclasses import dataclass, field
 import bpy
 import gpu 
+
+# --------------------------------------------------------------
+# Inter-block imports
+# --------------------------------------------------------------
 from ....blocks_natively_included.block_onscreen_drawing.feature_shader import Shader_Instance
+
+# =================================================================================
+# SHADER CONSTANTS
+# =================================================================================
 
 vertex_source = """
 void main()
@@ -55,9 +64,14 @@ void main()
 }
 """
 
+# =================================================================================
+# SHADER INIT
+# =================================================================================
+
+@dataclass
 class Billboard_Shader(Shader_Instance):
 
-    image_name: str
+    image_name: str = field(default="")
         
     def __post_init__(self):
 
@@ -66,7 +80,7 @@ class Billboard_Shader(Shader_Instance):
         # Validate Image & create texture from it
         image_base = bpy.data.images.get(self.image_name)
         if image_base is None:
-            raise Exception(f"Image missing from .blend file: {self.image_name}")
+            raise Exception(f"Image '{self.image_name}' missing from .blend file. Unable to create shader {self.shader_uid}")
         icon_texture = gpu.texture.from_image(image_base)
         self._texture = icon_texture
 
@@ -93,6 +107,4 @@ class Billboard_Shader(Shader_Instance):
         shader_info.vertex_source(vertex_source)
         shader_info.fragment_source(fragment_source)
 
-        # del vert_out
-        # del shader_info
         self._shader_actual  = gpu.shader.create_from_info(shader_info)

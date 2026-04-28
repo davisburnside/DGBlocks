@@ -119,7 +119,7 @@ class DGBLOCKS_OT_Toggle_Assembly_Mode(bpy.types.Operator):
             if should_enable:
                 Wrapper_Draw_Handlers.enable_draw_handler(draw_phase_name, draw_callback = _my_draw_callback)
                 for shader_enum in Assembly_Mode_Shader_Definitions:
-                    Wrapper_Draw_Handlers.add_shader(shader_enum, "ASSY")
+                    Wrapper_Draw_Handlers.add_shader(draw_phase_name, shader_enum, "ASSY")
             else:
                 Wrapper_Draw_Handlers.disable_draw_handler(draw_phase_name)
 
