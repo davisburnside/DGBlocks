@@ -7,12 +7,7 @@ import textwrap
 import bpy # type: ignore
 import blf # type: ignore
 
-from ....my_addon_config import (
-        addon_name,
-        separator_width_factor,
-        weblink_button_width_factor,
-        min_width_for_weblink_btn_spawn)
-
+from ....my_addon_config import (separator_width_factor,weblink_button_width_factor, min_width_for_weblink_btn_spawn)
 from .constants import Core_Runtime_Cache_Members
 from ..core_features.feature_runtime_cache import Wrapper_Runtime_Cache
 

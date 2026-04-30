@@ -14,7 +14,7 @@ from bpy.app.handlers import persistent  # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer
-from ....addon_helper_funcs import is_bpy_ready, force_redraw_ui, fast_deepcopy_with_fallback, get_names_of_parent_classes
+from ....addon_helper_funcs import is_bpy_ready, force_redraw_ui, fast_deepcopy_with_fallback, get_names_of_parent_classes, ui_draw_list_headers
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -41,10 +41,9 @@ rtc_sync_data_fields = [
     "is_block_dependencies_valid_and_enabled",
     "block_disabled_reason",
 ]
-uilist_col_width_A = 1.5
-uilist_col_width_B = 10
+uilist_col_width_A = 6
+uilist_col_width_B = 3
 uilist_col_width_C = 3
-uilist_col_width_D = 3
 
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FEATURE_WRAPPERS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
@@ -684,57 +683,49 @@ class DGBLOCKS_UL_Blocks(bpy.types.UIList):
         is_alert = item.should_block_be_enabled and not item.is_block_enabled
         if is_alert:
             container.alert = True
-        row = container.row(align=True)
-        row.enabled = item.block_id != core_block_id
-        
-        # Alert icon - match header ui_units_x
-        sub = row.row()
-        sub.ui_units_x = uilist_col_width_A
-        sub.label(text="", icon='ERROR' if is_alert else 'BLANK1')
-        
+        row = container.row()
+        row.enabled = item.block_id != core_block_id # Prevent core block from being disabled
+
         # Block name
         sub = row.row()
-        sub.ui_units_x = uilist_col_width_B
+        sub.ui_units_x = uilist_col_width_A
         sub.label(text=item.block_id)
         
         # Should enable toggle
         sub = row.row()
-        sub.ui_units_x = uilist_col_width_C
+        sub.ui_units_x = uilist_col_width_B
         sub.prop(item, "should_block_be_enabled", text="", icon='CHECKBOX_HLT' if item.should_block_be_enabled else 'CHECKBOX_DEHLT')
         
         # Is enabled status
         sub = row.row()
-        sub.ui_units_x = uilist_col_width_D
+        sub.ui_units_x = uilist_col_width_C
         sub.label(text="", icon='CHECKMARK' if item.is_block_enabled else 'X')
+
+def _uilayout_draw_block_uilist_selection_detail(context, container):
+    
+    # Show disabled reason for selected alert row
+    core_props = context.scene.dgblocks_core_props
+    is_anything_selected = 0 <= core_props.managed_blocks_selected_idx < len(core_props.managed_blocks)
+    if core_props.managed_blocks and is_anything_selected:
+        active_block = core_props.managed_blocks[core_props.managed_blocks_selected_idx]
+        is_alert = active_block.should_block_be_enabled and not active_block.is_block_enabled
+        if is_alert and active_block.block_disabled_reason:
+            box = container.box()
+            box.alert = True
+            box.label(text=f"Reason: {active_block.block_disabled_reason}", icon='INFO')
 
 def _uilayout_draw_block_manager_settings(context, container):
 
-    all_block_mgmt_props = context.scene.dgblocks_core_props.managed_blocks
     box = container.box()
-
-    all_downstream_instances = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
-    all_rtc_block_instances = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
     core_props = context.scene.dgblocks_core_props
-    
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_block_mgmt", default_closed=True)
-    panel_header.label(text = "All Blocks")
+    panel_header.label(text = f"All Blocks ({len(context.scene.dgblocks_core_props.managed_blocks)})")
     if panel_body is not None:        
 
-        # Draw column headers - must match draw_item layout exactly
-        header = panel_body.row()
-        header.separator(factor=0.5)  # Account for UIList left padding
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_A
-        sub.label(text="")  # Alert icon
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_B
-        sub.label(text="Name")
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_C
-        sub.label(text="Should Enable?")
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_D
-        sub.label(text="Is Enabled?")
+        # Draw column headers - should match draw_item layout exactly
+        col_names = ("Name", "Should Enable?", "Is Enabled?")
+        col_widths = (uilist_col_width_A, uilist_col_width_B, uilist_col_width_C)
+        ui_draw_list_headers(panel_body, col_names, col_widths)
 
         # Draw the UIList
         row = panel_body.row()
@@ -746,20 +737,12 @@ def _uilayout_draw_block_manager_settings(context, container):
             core_props, "managed_blocks_selected_idx",     # Active index property
             rows = row_count,
             maxrows = row_count,
-            columns = 3, 
+            columns = row_count, 
         )
         
         # Show disabled reason for selected alert row
-        if core_props.managed_blocks and 0 <= core_props.managed_blocks_selected_idx < len(core_props.managed_blocks):
-            active_block = core_props.managed_blocks[core_props.managed_blocks_selected_idx]
-            is_alert = active_block.should_block_be_enabled and not active_block.is_block_enabled
-            
-            if is_alert and active_block.block_disabled_reason:
-                box = panel_body.box()
-                box.alert = True
-                box.label(text=f"Reason: {active_block.block_disabled_reason}", icon='INFO')
-
-    
+        _uilayout_draw_block_uilist_selection_detail(context, container)
+ 
 # =============================================================================
 # PRIVATE API — init/load/undo/redo callbacks 
 # =============================================================================

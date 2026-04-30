@@ -274,6 +274,18 @@ def get_names_of_parent_classes(python_obj: any):
     parent_classes = [cls.__name__ for cls in python_obj.__mro__]
     return parent_classes
 
-
 def should_draw_delevoper_panel(context):
     return should_show_developer_ui_panels and context.scene.dgblocks_core_props.addon_is_active
+
+def ui_draw_list_headers(container, col_names: set, col_widths: set):
+    
+    if len(col_names) != len(col_widths):
+        raise Exception(f"lists must match length {len(col_names)} : {len(col_widths)}")
+    
+    header = container.row()
+    header.separator(factor=0.5)  # Account for UIList left padding
+    
+    for i in range(len(col_names)):
+        sub = header.row()    
+        sub.ui_units_x = col_widths[i]
+        sub.label(text = col_names[i])  

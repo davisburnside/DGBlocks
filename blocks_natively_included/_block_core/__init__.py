@@ -5,14 +5,14 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_data_structures import DGBLOCKS_PG_General_Purpose_Tag, Abstract_BL_and_RTC_Data_Syncronizer
-from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module, get_names_of_parent_classes
+from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module, force_redraw_ui
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Core block imports
 # --------------------------------------------------------------
 from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
-from .core_features.feature_logs import DGBLOCKS_PG_Logger_Instance, Wrapper_Loggers, get_logger
+from .core_features.feature_logs import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL_Loggers, Wrapper_Loggers, get_logger
 from .core_features.feature_block_manager import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
 from .core_features.feature_hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
 from .core_features.feature_runtime_cache import Wrapper_Runtime_Cache
@@ -53,9 +53,10 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     # --------------------------------------------------------------
     managed_blocks: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Debug_Block_Reference) # type: ignore
     managed_blocks_selected_idx: bpy.props.IntProperty()  # type: ignore
-    scene_RTC_mirror_for_loggers: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Logger_Instance) # type: ignore
     managed_hooks: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Hook_Reference)  # type: ignore
     managed_hooks_selected_idx: bpy.props.IntProperty()  # type: ignore
+    managed_loggers_selected_idx: bpy.props.IntProperty()  # type: ignore
+    managed_loggers: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Logger_Instance) # type: ignore
 
 #=================================================================================
 # OPERATORS - used by all blocks
@@ -105,7 +106,17 @@ class DGBLOCKS_OT_Force_Reload_Scripts(bpy.types.Operator):
         force_reload_all_scripts(context)
             
         return {"FINISHED"}
+
+class DGBLOCKS_OT_Force_Reload_Refresh_UI(bpy.types.Operator):
+    bl_idname = "dgblocks.debug_force_refresh_ui"
+    bl_label = "Refresh UI"
+    bl_options = {"REGISTER"}
     
+    def execute(self, context):
+        
+        force_redraw_ui(context)
+        return {"FINISHED"}
+   
 class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
     bl_idname = "dgblocks.debug_force_reload_scipts"
     bl_label = "Reload scripts"
@@ -148,7 +159,6 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
                 Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "debug-restore") 
 
         return {"FINISHED"}
-
 
 #=================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
@@ -195,14 +205,6 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         uilayout_draw_core_block_settings(context, self.layout)
 
 #=================================================================================
-# DOWNSTREAM HOOKS
-#=================================================================================
-
-# def hook_debug_uilayout_draw_console_print_settings(context, container):
-    
-#     container.label(text = "asdasad")
-
-#=================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py
 #=================================================================================
 
@@ -215,11 +217,13 @@ _block_classes_to_register = [
     DGBLOCKS_PG_Core_Props,
     DGBLOCKS_OT_Open_Help_Page,
     DGBLOCKS_OT_Copy_To_Clipboard,
+    DGBLOCKS_OT_Force_Reload_Refresh_UI,
     DGBLOCKS_OT_Force_Reload_Scripts,
     DGBLOCKS_OT_Debug_Clear_And_Restore_Caches,
     DGBLOCKS_PT_Core_Block_Panel,
     DGBLOCKS_UL_Blocks,
     DGBLOCKS_UL_Hooks,
+    DGBLOCKS_UL_Loggers,
     DGBLOCKS_UP_Core_Preferences
 ]
 

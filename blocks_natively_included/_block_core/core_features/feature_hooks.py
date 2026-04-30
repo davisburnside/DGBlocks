@@ -3,7 +3,7 @@ from collections import Counter
 from types import ModuleType
 from typing import Any, Callable, Dict, Optional
 from enum import Enum
-import logging
+from datetime import datetime
 import inspect
 import time
 from types import ModuleType
@@ -14,8 +14,13 @@ from bpy.app.handlers import persistent # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helper_funcs import  is_bpy_ready, py_dicty_get_field_value, find_blocks_owning_func_with_name
+from ....addon_helper_funcs import  is_bpy_ready, ui_draw_list_headers, find_blocks_owning_func_with_name
 from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer
+
+# --------------------------------------------------------------
+# Inter-block imports
+# --------------------------------------------------------------
+from ..core_helpers.helper_uilayouts import ui_box_with_header
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -39,7 +44,7 @@ rtc_sync_data_fields = [
     "is_hook_enabled",
 ]
 uilist_col_width_A = 1.5
-uilist_col_width_B = 10
+uilist_col_width_B = 4
 uilist_col_width_C = 3
 uilist_col_width_D = 3
 
@@ -649,26 +654,92 @@ class DGBLOCKS_UL_Hooks(bpy.types.UIList):
         sub.ui_units_x = uilist_col_width_D
         sub.prop(item, "is_hook_enabled", text="", icon='CHECKBOX_HLT' if item.is_hook_enabled else 'CHECKBOX_DEHLT')
 
+def _uilayout_draw_hooks_uilist_selection_detail(context, container):
+    
+    # Show disabled reason for selected alert row
+    core_props = context.scene.dgblocks_core_props
+    is_anything_selected = 0 <= core_props.managed_hooks_selected_idx < len(core_props.managed_hooks)
+    if core_props.managed_hooks and is_anything_selected:
+        selected_hook = core_props.managed_hooks[core_props.managed_hooks_selected_idx]
+        
+        # get mirrored hook RTC record for more data, like execution count
+        all_RTC_hook_subscribers = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
+        hook_RTC_instance = next((h for h in all_RTC_hook_subscribers if h.hook_func_name == selected_hook.hook_func_name), None)
+        if hook_RTC_instance:
+            
+            header_str = f"{hook_RTC_instance.hook_func_name}    ->    {hook_RTC_instance.downstream_block_id}"
+            details_box = container.box()
+            panel_header, panel_body = details_box.panel(idname = "_dummy_dgblocks_core_scene_selected_hook", default_closed=True)
+            row = panel_header.row()
+            row.alignment = "CENTER"
+            row.label(text = header_str)
+            if panel_body is not None:
+                
+                
+                # ui_box_with_header(context, internal_panel_body, "Numerical Data Filter", icon = "HIDE_OFF" if has_numeric_filter > 0 else "HIDE_ON")
+            
+                panel_body.separator(factor=0.5)  # Account for UIList left padding
+                row = panel_body.row()
+                row.alignment = "LEFT"
+                row.operator("dgblocks.debug_force_refresh_ui", text = "", icon = "FILE_REFRESH")
+                row.label(text  = "Last Trigger")
+                ts = datetime.fromtimestamp(hook_RTC_instance.timestamp_ms_last_attempt / 1000)
+                row.label(text = ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
+            
+                grid = panel_body.grid_flow(columns = 2)
+                
+                total_run_count = hook_RTC_instance.count_hook_propagate_success + hook_RTC_instance.count_hook_propagate_failure
+                
+                grid.label(text  = "Avg Run Time (ms)")
+                if total_run_count == 0:
+                    grid.label(text = "N/A")
+                else:
+                    grid.label(text = str((hook_RTC_instance.total_nanos_running_time) / float(total_run_count)))
+                
+                
+                grid.label(text  = "Successful Runs")
+                grid.label(text = str(hook_RTC_instance.count_hook_propagate_success))
+                
+                grid.label(text  = "Failed Runs")
+                grid.label(text = str(hook_RTC_instance.count_hook_propagate_failure))
+                
+                grid.label(text  = "Bypassed Runs")
+                grid.label(text = str(hook_RTC_instance.count_bypass_via_data_filter))
+                
+                # timestamp_ms_last_attempt: int = 0 # used by min_ms_between_runs
+                # total_nanos_running_time: float = 0.0 # used for debugging & UI Alerts
+                # count_hook_propagate_success: int = 0 # increments when hook func completes without exception
+                # count_hook_propagate_failure: int = 0 # increments when hook func raises an exception
+                # count_bypass_via_data_filter: int = 0 # increments when arg_filter predicate returns False
+                # count_bypass_via_status: int = 0 # increments when should_bypass_run is True, or re-entrancy guard fires
+                # count_bypass_via_frequency: int = 0 # increments when min_ms_between_runs rate-limit fires
+                            
+
 def _uilayout_draw_hooks_settings(context, container):
 
     core_props = context.scene.dgblocks_core_props
     box = container.box()
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_hooks_mgmt", default_closed=True)
-    panel_header.label(text = "All Hooks")
+    panel_header.label(text = f"All Hooks ({len(context.scene.dgblocks_core_props.managed_hooks)})")
     if panel_body is not None:        
 
         # Draw column headers - must match draw_item layout exactly
-        header = panel_body.row()
-        header.separator(factor=0.5)  # Account for UIList left padding
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_A
-        sub.label(text="")  # Alert icon
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_B
-        sub.label(text="Name")
-        sub = header.row()
-        sub.ui_units_x = uilist_col_width_D
-        sub.label(text="Is Enabled?")
+        # header = panel_body.row()
+        # header.separator(factor=0.5)  # Account for UIList left padding
+        # sub = header.row()
+        # sub.ui_units_x = uilist_col_width_A
+        # sub.label(text="")  # Alert icon
+        # sub = header.row()
+        # sub.ui_units_x = uilist_col_width_B
+        # sub.label(text="Name")
+        # sub = header.row()
+        # sub.ui_units_x = uilist_col_width_D
+        # sub.label(text="Is Enabled?")
+        
+        # Draw column headers - should match draw_item layout exactly
+        col_names = ("Function Name",  "Subscriber Block", "Source", "Is Enabled?")
+        col_widths = (uilist_col_width_A, uilist_col_width_B, uilist_col_width_C, uilist_col_width_D)
+        ui_draw_list_headers(panel_body, col_names, col_widths)
 
         # Draw the UIList
         row = panel_body.row()
@@ -679,16 +750,7 @@ def _uilayout_draw_hooks_settings(context, container):
             core_props, "managed_hooks",           # Collection property
             core_props, "managed_hooks_selected_idx",     # Active index property
             rows = row_count,
-            maxrows = row_count,
-            columns = 3, 
+            # columns = 3, 
         )
         
-        # # Show disabled reason for selected alert row
-        # if core_props.managed_hooks and 0 <= core_props.managed_hooks_selected_idx < len(core_props.managed_hooks):
-        #     active_block = core_props.managed_hooks[core_props.managed_hooks_selected_idx]
-        #     is_alert = active_block.should_block_be_enabled and not active_block.is_block_enabled
-            
-        #     if is_alert and active_block.block_disabled_reason:
-        #         box = panel_body.box()
-        #         box.alert = True
-        #         box.label(text=f"Reason: {active_block.block_disabled_reason}", icon='INFO')
+        _uilayout_draw_hooks_uilist_selection_detail(context, panel_body)

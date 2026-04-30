@@ -9,7 +9,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helper_funcs import is_bpy_ready
+from ....addon_helper_funcs import is_bpy_ready, ui_draw_list_headers
 from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels
 from .... import my_addon_config
 
@@ -31,8 +31,74 @@ base_linebreak_length = 20
 rtc_sync_key_fields = ["logger_name"]
 rtc_sync_data_fields = ["level_name", "src_block_id"]
 
+uilist_col_width_A = 3
+uilist_col_width_B = 5
+uilist_col_width_C = 3
+
 #=================================================================================
-# BLENDER DATA FOR FEATURE - Stored in Scene
+# PUBLIC CONVENIENCE FUNCTIONS
+#=================================================================================
+
+def get_logger(logger_id: Enum):
+    
+    true_logger_id = get_actual_rtc_key(logger_id)
+    try:
+        
+        all_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
+        logger_instance = next((x for x in all_loggers if x.logger_name == true_logger_id), None)
+        if logger_instance is None:
+            return Wrapper_Loggers._fallback_logger
+        else:
+            return logger_instance.logger
+        
+    except Exception as e:
+
+        fallback_logger = logging.getLogger("_fallback_logger")
+        if fallback_logger is None:
+            fallback_logger = Wrapper_Loggers.setup_fallback_logger()
+        return fallback_logger
+
+def print_github_issue_page_statement(logger:logging.Logger = None):
+    
+    str_log = ""
+    if hasattr(my_addon_config, "my_addon_repository") and my_addon_config.my_addon_repository is not None:
+        str_log =  """
+            A critical error has occured that prevents this addon from working.        
+            This log statement is only triggered by sitations which should not happen. 
+            Please create an Issue in Github for this this codebase: 
+
+        """ + my_addon_config.my_addon_repository
+        logger.critical(str_log)
+    else:
+        str_log = "No code repository defined for this addon"
+        logger.critical("No code repository defined for this addon")
+        
+    if logger:
+        logger.critical(str_log)
+    else:
+        print(str_log)
+
+def print_section_separator(text, width=100, char="="):
+    
+    print(f"\n{char * width}")
+    print(text.center(width))
+    print(f"{char * width}\n")
+
+#=================================================================================
+# PRIVATE API
+#=================================================================================
+
+def _setup_logger_console_handler(logger, logging_level):
+    # Set up a console handler
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(my_addon_config.logger_format)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging_level) # Default level (will be overwritten later by scene settings)
+
+#=================================================================================
+# RTC DATA & MIRRORED BLENDER DATA FOR FEATURE - Stored in Scene
 #=================================================================================
 
 def _callback_log_level_changed(self, context):
@@ -90,10 +156,6 @@ class DGBLOCKS_PG_Logger_Instance(bpy.types.PropertyGroup):
     
     # ID of the bloc that created this logger
     src_block_id: bpy.props.StringProperty(name="Source Block") # type: ignore
-
-#=================================================================================
-# RTC DATA FOR FEATURE - Stored in Scene
-#=================================================================================
 
 @dataclass
 class RTC_Logger_Instance:
@@ -170,7 +232,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger.debug(f"Updating loggers cache with mirrored Blender data")
 
         all_RTC_logger_instances = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        loggers_collectionprop = bpy.context.scene.dgblocks_core_props.scene_RTC_mirror_for_loggers
+        loggers_collectionprop = bpy.context.scene.dgblocks_core_props.managed_loggers
         update_dataclasses_to_match_collectionprop(
             dataclass_type = Wrapper_Loggers,
             source = loggers_collectionprop,
@@ -189,7 +251,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger.debug(f"Updating Blender data with mirrored loggers cache")
         
         all_RTC_logger_instances = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        loggers_collectionprop = bpy.context.scene.dgblocks_core_props.scene_RTC_mirror_for_loggers
+        loggers_collectionprop = bpy.context.scene.dgblocks_core_props.managed_loggers
         update_collectionprop_to_match_dataclasses(
             source = all_RTC_logger_instances,
             target = loggers_collectionprop,
@@ -288,75 +350,48 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         return cls._fallback_logger
 
 #=================================================================================
-# PUBLIC CONVENIENCE FUNCTIONS
+# UI
 #=================================================================================
 
-def get_logger(logger_id: Enum):
+class DGBLOCKS_UL_Loggers(bpy.types.UIList):
+    """UIList to display RTC blocks with enable toggle and alert states."""
     
-    true_logger_id = get_actual_rtc_key(logger_id)
-    try:
+    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
+       
+        row = container.row(align=True)
+        sub = row.row()
+        sub.ui_units_x = uilist_col_width_A
+        sub.label(text=item.src_block_id)
+        sub = row.row()
+        sub.ui_units_x = uilist_col_width_B
+        sub.label(text=item.logger_name)
+        sub = row.row()
+        sub.ui_units_x = uilist_col_width_C
+        sub.prop(item, "level_name", text = "")
         
-        all_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        logger_instance = next((x for x in all_loggers if x.logger_name == true_logger_id), None)
-        if logger_instance is None:
-            return Wrapper_Loggers._fallback_logger
-        else:
-            return logger_instance.logger
-        
-    except Exception as e:
-
-        fallback_logger = logging.getLogger("_fallback_logger")
-        if fallback_logger is None:
-            fallback_logger = Wrapper_Loggers.setup_fallback_logger()
-        return fallback_logger
-
-def print_github_issue_page_statement(logger:logging.Logger = None):
-    
-    str_log = ""
-    if hasattr(my_addon_config, "my_addon_repository") and my_addon_config.my_addon_repository is not None:
-        str_log =  """
-            A critical error has occured that prevents this addon from working.        
-            This log statement is only triggered by sitations which should not happen. 
-            Please create an Issue in Github for this this codebase: 
-
-        """ + my_addon_config.my_addon_repository
-        logger.critical(str_log)
-    else:
-        str_log = "No code repository defined for this addon"
-        logger.critical("No code repository defined for this addon")
-        
-    if logger:
-        logger.critical(str_log)
-    else:
-        print(str_log)
-
-def print_section_separator(text, width=100, char="="):
-    
-    print(f"\n{char * width}")
-    print(text.center(width))
-    print(f"{char * width}\n")
-
-#=================================================================================
-# PRIVATE API
-#=================================================================================
-
-def _setup_logger_console_handler(logger, logging_level):
-    # Set up a console handler
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter(my_addon_config.logger_format)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging_level) # Default level (will be overwritten later by scene settings)
 
 def _uilayout_draw_logger_settings(context, container):
 
-    scene_loggers = context.scene.dgblocks_core_props.scene_RTC_mirror_for_loggers
+    core_props = context.scene.dgblocks_core_props
     box = container.box()
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_loggers", default_closed=True)
-    panel_header.label(text = "All Loggers")
+    panel_header.label(text = f"All Loggers ({len(context.scene.dgblocks_core_props.managed_loggers)})")
     if panel_body is not None:        
-        prop_titles = [i.logger_name for i in scene_loggers]
-        prop_names = ["level_name" for _ in scene_loggers]
-        prop_owners = list(scene_loggers)
-        uilayout_template_columns_for_propertygroup(context, panel_body, prop_owners, prop_names, prop_titles)
+        
+        # Draw column headers - should match draw_item layout exactly
+        col_names = ("Source Block", "Logger Name", "Log Level")
+        col_widths = (uilist_col_width_A, uilist_col_width_B, uilist_col_width_C)
+        ui_draw_list_headers(panel_body, col_names, col_widths)
+
+        # Draw the UIList
+        row = panel_body.row()
+        row_count = len(core_props.managed_loggers)
+        row.template_list(
+            "DGBLOCKS_UL_Loggers",
+            "",
+            core_props, "managed_loggers",           # Collection property
+            core_props, "managed_loggers_selected_idx",     # Active index property
+            rows = row_count,
+            maxrows = row_count,
+            columns = row_count, 
+        )
