@@ -48,15 +48,15 @@ class Timer_Instance_Data:
     frequency_ms: int
     is_enabled: bool = True
 
-    # Runtime stats (mirrors RTC_Hook_Downstream_Instance pattern)
+    # Runtime stats (mirrors RTC_Hook_Subscriber_Instance pattern)
     timestamp_ms_last_fire: int = 0
     count_fire_success: int = 0
     count_fire_failure: int = 0
     is_currently_running: bool = False  # Re-entrancy guard
 
-    # Names of downstream hook functions this timer will trigger on fire.
+    # Names of subscriber hook functions this timer will trigger on fire.
     # Rebuilt from RTC hook sources whenever timer config changes.
-    downstream_hook_func_names: List[str] = field(default_factory=list)
+    subscriber_hook_func_names: List[str] = field(default_factory=list)
 
     # Private: actual bpy.app.timers callable. Not serialisable; rebuilt on sync.
     _timer_func: Optional[Callable] = field(default=None, init=False, repr=False)
@@ -102,7 +102,7 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             frequency_ms=frequency_ms,
             is_enabled=is_enabled,
         )
-        data.downstream_hook_func_names = cls._collect_downstream_hook_names()
+        data.subscriber_hook_func_names = cls._collect_subscriber_hook_names()
 
         if is_enabled:
             cls._register_bpy_timer(data)
@@ -159,8 +159,8 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             if data.is_enabled:
                 cls._register_bpy_timer(data)
 
-        # Refresh downstream hook names in case hooks changed since last sync
-        data.downstream_hook_func_names = cls._collect_downstream_hook_names()
+        # Refresh subscriber hook names in case hooks changed since last sync
+        data.subscriber_hook_func_names = cls._collect_subscriber_hook_names()
 
         _rtc_set_all(all_timers)
         return True
@@ -363,17 +363,17 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # ------------------------------------------------------------------
 
     @classmethod
-    def _collect_downstream_hook_names(cls) -> List[str]:
+    def _collect_subscriber_hook_names(cls) -> List[str]:
         """
         Return a list of hook function names that are currently registered
-        as downstream listeners for Block_Hooks.TIMER_FIRE.
+        as subscriber listeners for Block_Hooks.TIMER_FIRE.
         This list is stored on Timer_Instance_Data and used at fire-time.
         """
         hook_func_name = Block_Hooks.TIMER_FIRE.value[0]
         listeners = Wrapper_Hooks.get_instance(Block_Hooks.TIMER_FIRE)
         if not listeners:
             return []
-        # listeners is a list of RTC_Hook_Downstream_Instance objects
+        # listeners is a list of RTC_Hook_Subscriber_Instance objects
         return [hook_func_name for _ in listeners]  # same func name, one entry per listener block
 
     @classmethod
@@ -444,7 +444,7 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         try:
 
-            # Propagate hook to all downstream blocks
+            # Propagate hook to all subscriber blocks
             Wrapper_Hooks.run_hooked_funcs(
                 hook_func_name=Block_Hooks.TIMER_FIRE,
                 should_halt_on_exception=False,

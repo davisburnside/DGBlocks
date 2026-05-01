@@ -107,4 +107,4 @@ class Billboard_Shader(Shader_Instance):
         shader_info.vertex_source(vertex_source)
         shader_info.fragment_source(fragment_source)
 
-        self._shader_actual  = gpu.shader.create_from_info(shader_info)
+        self.shader_actual  = gpu.shader.create_from_info(shader_info)

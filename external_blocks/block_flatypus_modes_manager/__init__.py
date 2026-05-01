@@ -20,7 +20,6 @@ from ...blocks_natively_included._block_core.core_features.feature_block_manager
 from ...blocks_natively_included._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
 from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
 
-from ...blocks_natively_included.block_stable_modal.test1 import Wrapper_Modals_Manager
 from ...blocks_natively_included.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
 from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
 
@@ -63,12 +62,12 @@ _default_modal_options_for_keymouse_input = {
 
 def hook_modal_key_or_mouse_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
     pass
-    # print("downstream mousekey")
+    # print("subscriber mousekey")
     # print(modal_instance, event)
 
 def hook_modal_timer_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
     pass
-    print("downstream timer")
+    print("subscriber timer")
     # print(modal_instance, event)
 
 def hook_draw_event(draw_handler_instance):
@@ -148,21 +147,21 @@ def draw_image_billboards(shader_wrapper, points_list, colors_list, sizes_list):
         'size': all_sizes,
     }
     _batch = batch_for_shader(
-        shader_wrapper._shader_actual,
+        shader_wrapper.shader_actual,
         shader_wrapper.shader_type,
         custom_batch_attributes,
         indices = all_indices,
     )
-    shader_wrapper._shader_actual.bind()
+    shader_wrapper.shader_actual.bind()
     custom_shader_uniforms = {
         "ModelViewProjectionMatrix": bpy.context.region_data.perspective_matrix.copy(),
         "ViewMatrix": bpy.context.region_data.view_matrix.copy(),
         "offset_distance": 0.01 # (positive = towards camera, negative = away)
     }
-    shader_wrapper._shader_actual.uniform_sampler("icon_texture", icon_texture)
+    shader_wrapper.shader_actual.uniform_sampler("icon_texture", icon_texture)
     for name, value in custom_shader_uniforms.items():
         shader_wrapper.set_uniform(name, value)
-    _batch.draw(shader_wrapper._shader_actual)
+    _batch.draw(shader_wrapper.shader_actual)
     
     gpu.state.depth_mask_set(True)
 

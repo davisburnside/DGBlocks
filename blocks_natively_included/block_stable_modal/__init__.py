@@ -22,7 +22,7 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .test1 import BL_Modal_Instance, MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add, Wrapper_Modals_Manager, DGBLOCKS_OT_StableModal
+from .feature_stable_modal import BL_Modal_Instance, MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add, Wrapper_Modals_Manager, DGBLOCKS_OT_StableModal
 from .block_constants import Block_Logger_Definitions,Block_RTC_Members, Block_Hooks
 
 #=================================================================================
@@ -34,22 +34,6 @@ _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [
     "block-core"
 ]
-
-#=================================================================================
-# CALLBACK HOOK FUNCTIONS 
-#=================================================================================
-
-def hook_post_register_init(context):
-    """Called after register_block() finishes & bpy.context is fully usable"""
-    
-    logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-    logger.debug("Starting post_register_init for block-stable-modal")
-
-    # Ensure RTC is synced to match scene mirror data after startup
-    # Wrapper_Modals_Manager.update_RTC_with_mirrored_BL_data()
-    
-    logger.info("Finished post_register_init for block-stable-modal")
-    return True
 
 # =============================================================================
 # DATABLOCKS - Attached to Scene

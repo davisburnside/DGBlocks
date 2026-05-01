@@ -1,17 +1,8 @@
 
-from dataclasses import fields as dataclass_fields, is_dataclass
+
+# Sample License, ignore for now
+
 from typing import TypeVar
-
-
-
-
-
-
-
-
-
-
-
 from dataclasses import dataclass
 from typing import TypeVar, Union
 
@@ -19,43 +10,10 @@ T = TypeVar('T')
 
 _ALLOWED_KEY_TYPES = (str, bool, int)
 
+# --------------------------------------------------------------
+# Action types 
+# --------------------------------------------------------------
 
-# ---------- helpers ----------
-
-def _get_key_tuple(obj, key_fields: list[str]) -> tuple:
-    """Extract key field values as a tuple. Validates each value is str/bool/int."""
-    key = tuple(getattr(obj, name) for name in key_fields)
-    for name, val in zip(key_fields, key):
-        if not isinstance(val, _ALLOWED_KEY_TYPES):
-            raise TypeError(
-                f"Key field {name!r} on {type(obj).__name__} has "
-                f"unsupported type {type(val).__name__}; "
-                f"key fields must be str, bool, or int."
-            )
-    return key
-
-def _copy_fields(source, target, field_names: list[str]) -> None:
-    for name in field_names:
-        setattr(target, name, getattr(source, name))
-
-def _data_fields_equal(a, b, data_fields: list[str]) -> bool:
-    return all(getattr(a, name) == getattr(b, name) for name in data_fields)
-
-def _index_by_key(items, key_fields: list[str]) -> dict[tuple, int]:
-    """Build {key_tuple: index}, raising on duplicate keys."""
-    out: dict[tuple, int] = {}
-    for i, item in enumerate(items):
-        key = _get_key_tuple(item, key_fields)
-        if key in out:
-            raise ValueError(
-                f"Duplicate key {key!r} at indices {out[key]} and {i}; "
-                f"key fields {key_fields} must be unique within a collection."
-            )
-        out[key] = i
-    return out
-
-
-# ---------- action types ----------
 # Actions are emitted in the order they must be applied. Each action's
 # indices are valid at the moment of application, assuming all prior
 # actions in the list have already been applied.
@@ -101,8 +59,42 @@ class Create:
 
 Action = Union[Remove, Noop, Edit, Move, Create]
 
+# --------------------------------------------------------------
+# Helper funcs
+# --------------------------------------------------------------
 
-# ---------- shared planning ----------
+def _get_key_tuple(obj, key_fields: list[str]) -> tuple:
+    """Extract key field values as a tuple. Validates each value is str/bool/int."""
+    key = tuple(getattr(obj, name) for name in key_fields)
+    for name, val in zip(key_fields, key):
+        if not isinstance(val, _ALLOWED_KEY_TYPES):
+            raise TypeError(
+                f"Key field {name!r} on {type(obj).__name__} has "
+                f"unsupported type {type(val).__name__}; "
+                f"key fields must be str, bool, or int."
+            )
+    return key
+
+def _copy_fields(source, target, field_names: list[str]) -> None:
+    for name in field_names:
+        setattr(target, name, getattr(source, name))
+
+def _data_fields_equal(a, b, data_fields: list[str]) -> bool:
+    return all(getattr(a, name) == getattr(b, name) for name in data_fields)
+
+def _index_by_key(items, key_fields: list[str]) -> dict[tuple, int]:
+    """Build {key_tuple: index}, raising on duplicate keys."""
+    out: dict[tuple, int] = {}
+    for i, item in enumerate(items):
+        key = _get_key_tuple(item, key_fields)
+        if key in out:
+            raise ValueError(
+                f"Duplicate key {key!r} at indices {out[key]} and {i}; ",
+                f"key fields {key_fields} must be unique within a collection.",
+                f"Current: {out}"
+            )
+        out[key] = i
+    return out
 
 def _plan_sync(
     source,
@@ -198,8 +190,9 @@ def _plan_sync(
 
     return actions
 
-
-# ---------- direction 1: dataclasses -> CollectionProperty ----------
+# --------------------------------------------------------------
+# Direction 1: dataclasses -> CollectionProperty
+# --------------------------------------------------------------
 
 def plan_collectionprop_to_match_dataclasses(
     source: list[T],
@@ -208,7 +201,6 @@ def plan_collectionprop_to_match_dataclasses(
     data_fields: list[str],
 ) -> list[Action]:
     return _plan_sync(source, target, key_fields, data_fields)
-
 
 def apply_collectionprop_to_match_dataclasses(
     source: list[T],
@@ -236,8 +228,9 @@ def apply_collectionprop_to_match_dataclasses(
             if last != action.to_idx:
                 target.move(last, action.to_idx)
 
-
-# ---------- direction 2: CollectionProperty -> dataclasses ----------
+# --------------------------------------------------------------
+# Direction 2: CollectionProperty -> dataclasses 
+# --------------------------------------------------------------
 
 def plan_dataclasses_to_match_collectionprop(
     source,
@@ -283,8 +276,9 @@ def apply_dataclasses_to_match_collectionprop(
             kwargs = {n: getattr(src_item, n) for n in all_fields}
             actual_FWC.create_instance(target, action.to_idx, **kwargs)
 
-
-# ---------- convenience wrappers (old API) ----------
+# --------------------------------------------------------------
+# Convenience funcs
+# --------------------------------------------------------------
 
 def update_collectionprop_to_match_dataclasses(
         source, 
@@ -321,171 +315,9 @@ def update_dataclasses_to_match_collectionprop(
     apply_dataclasses_to_match_collectionprop(
         actual_FWC, source, target, actions, key_fields, data_fields)
 
-
-
-
-
-
-
-
-
-
-
-
-# T = TypeVar('T')
-
-# def _get_key_tuple(obj, key_fields: list[str]) -> tuple:
-#     """Extract key field values as a tuple for comparison."""
-#     return tuple(getattr(obj, name) for name in key_fields)
-
-# def _copy_fields(source, target, field_names: list[str]) -> None:
-#     """Copy field values from source to target."""
-#     for name in field_names:
-#         setattr(target, name, getattr(source, name))
-
-# def update_collectionprop_to_match_dataclasses(
-#     source: list[T],
-#     target,  # CollectionProperty
-#     key_fields: list[str],
-#     data_fields: list[str],
-# ) -> None:
-#     """
-#     Update a Blender CollectionProperty to match a list of dataclasses.
-    
-#     Source (dataclass list) is authoritative. Target collection is mutated
-#     in place — items are reused and reordered, not recreated unnecessarily.
-#     """
-#     # Build index of target items by key tuple
-#     target_by_key: dict[tuple, list[int]] = {}
-#     for i, item in enumerate(target):
-#         key = _get_key_tuple(item, key_fields)
-#         target_by_key.setdefault(key, []).append(i)
-    
-#     # Track which target indices we've claimed
-#     claimed_indices: set[int] = set()
-    
-#     # Determine mapping: source_index -> target_index (or None if needs creation)
-#     source_to_target: list[int | None] = []
-    
-#     for src_item in source:
-#         key = _get_key_tuple(src_item, key_fields)
-#         candidates = target_by_key.get(key, [])
-#         available = [i for i in candidates if i not in claimed_indices]
-        
-#         if available:
-#             chosen = available[0]
-#             claimed_indices.add(chosen)
-#             source_to_target.append(chosen)
-#         else:
-#             source_to_target.append(None)
-    
-#     # Remove unclaimed items (reverse order to preserve indices during removal)
-#     indices_to_remove = [i for i in range(len(target)) if i not in claimed_indices]
-#     for i in reversed(indices_to_remove):
-#         target.remove(i)
-    
-#     # Rebuild mapping after removals
-#     old_to_new: dict[int, int] = {}
-#     new_idx = 0
-#     for old_idx in range(len(target) + len(indices_to_remove)):
-#         if old_idx in claimed_indices:
-#             old_to_new[old_idx] = new_idx
-#             new_idx += 1
-    
-#     source_to_target = [
-#         old_to_new[i] if i is not None else None 
-#         for i in source_to_target
-#     ]
-    
-#     # Process each source item in order
-#     for desired_idx, (src_item, current_target_idx) in enumerate(zip(source, source_to_target)):
-#         if current_target_idx is None:
-#             # Create new item at end, then move to correct position
-#             new_item = target.add()
-#             _copy_fields(src_item, new_item, key_fields + data_fields)
-#             current_pos = len(target) - 1
-#             while current_pos > desired_idx:
-#                 target.move(current_pos, current_pos - 1)
-#                 current_pos -= 1
-#         else:
-#             # Reuse existing item — reorder if needed
-#             if current_target_idx != desired_idx:
-#                 target.move(current_target_idx, desired_idx)
-#                 # Adjust subsequent mappings affected by this move
-#                 for j in range(desired_idx + 1, len(source_to_target)):
-#                     if source_to_target[j] is not None:
-#                         if current_target_idx > desired_idx:
-#                             if desired_idx <= source_to_target[j] < current_target_idx:
-#                                 source_to_target[j] += 1
-#                         else:
-#                             if current_target_idx < source_to_target[j] <= desired_idx:
-#                                 source_to_target[j] -= 1
-#             # Update sync fields on the reused item
-#             _copy_fields(src_item, target[desired_idx], data_fields)
-
-# def update_dataclasses_to_match_collectionprop(
-#     actual_FWC: type[T], # The actual Feature Wrapper Class that contains 
-#     source,  # CollectionProperty
-#     target: list[T], # Python list of same-type @dataclass instances
-#     key_fields: list[str],
-#     data_fields: list[str],
-# ) -> None:
-#     """
-#     Update a list of dataclasses to match a Blender CollectionProperty.
-    
-#     Source (collection) is authoritative. Target list is mutated in place —
-#     items are reused and reordered, not recreated unnecessarily.
-#     """
-#     # Build index of target items by key tuple
-#     target_by_key: dict[tuple, list[int]] = {}
-#     for i, item in enumerate(target):
-#         key = _get_key_tuple(item, key_fields)
-#         target_by_key.setdefault(key, []).append(i)
-    
-#     claimed_indices: set[int] = set()
-    
-#     # Determine mapping: source_index -> target_index (or None if needs creation)
-#     source_to_target: list[int | None] = []
-    
-#     for src_item in source:
-#         key = _get_key_tuple(src_item, key_fields)
-#         candidates = target_by_key.get(key, [])
-#         available = [i for i in candidates if i not in claimed_indices]
-        
-#         if available:
-#             chosen = available[0]
-#             claimed_indices.add(chosen)
-#             source_to_target.append(chosen)
-#         else:
-#             source_to_target.append(None)
-    
-#     # Build list of items to keep (in their current positions for now)
-#     kept_items: list[T | None] = [
-#         target[i] if i in claimed_indices else None 
-#         for i in range(len(target))
-#     ]
-    
-#     # Clear and rebuild the target list in correct order
-#     target.clear()
-    
-#     for src_item, existing_idx in zip(source, source_to_target):
-#         if existing_idx is not None:
-#             # Reuse existing dataclass instance
-#             reused = kept_items[existing_idx]
-#             _copy_fields(src_item, reused, data_fields)
-#             target.append(reused)
-#         else:
-#             # Create new dataclass instance with key + sync fields
-#             kwargs = {
-#                 name: getattr(src_item, name) 
-#                 for name in key_fields + data_fields
-#             }
-#             kwargs["skip_BL_sync"] = True # BL data is already correct. Prevent unneeded BL->RTC->BL sync
-#             new_instance = actual_FWC.create_instance(**kwargs)
-#             target.append(new_instance)
-
-
-# ==================================
+# --------------------------------------------------------------
+# Other
+# --------------------------------------------------------------
 
 def compare_unique_tuple_lists(list_a, list_b):
     """
@@ -544,40 +376,3 @@ def compare_unique_tuple_lists(list_a, list_b):
             current.insert(target_idx, t)
 
     return actions
-
-def compare_unique_dicts(dict_a, dict_b):
-    """
-    Computes the sequence of steps needed to transform dict_a into dict_b.
-
-    Useful for syncing a live dict to a desired target state with minimal,
-    discrete operations. Actions are meant to be applied sequentially;
-    applying them in order to dict_a will produce dict_b.
-
-    Args:
-        dict_a: The current/source dict.
-        dict_b: The desired/target dict.
-
-    Returns:
-        A list of action dicts in the order they should be applied.
-        Each dict contains an 'action' key with one of the following shapes:
-
-            {"action": "remove", "key": k}
-            {"action": "add",    "key": k, "value": v}
-            {"action": "edit",   "key": k, "old_value": v1, "new_value": v2}
-    """
-    actions = []
-
-    # Remove keys not in dict_b
-    for k in dict_a:
-        if k not in dict_b:
-            actions.append({"action": "remove", "key": k})
-
-    # Add or edit
-    for k, v in dict_b.items():
-        if k not in dict_a:
-            actions.append({"action": "add", "key": k, "value": v})
-        elif dict_a[k] != v:
-            actions.append({"action": "edit", "key": k, "old_value": dict_a[k], "new_value": v})
-
-    return actions
-

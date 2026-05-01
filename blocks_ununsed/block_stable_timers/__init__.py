@@ -18,7 +18,6 @@ from ...my_addon_config import (
 from ...blocks_natively_included import _block_core
 from ...blocks_natively_included._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
 from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import ui_box_with_header, uilayout_draw_block_panel_header
-from ...blocks_natively_included._block_core.core_helpers.helper_functions import register_block_components, unregister_block_components
 from ...blocks_natively_included._block_core.core_features.feature_logs import get_logger
 from ...blocks_natively_included._block_core.core_helpers.constants import ( Core_Block_Loggers, Core_Block_Hook_Sources)
 

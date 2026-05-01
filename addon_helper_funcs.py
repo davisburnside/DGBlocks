@@ -60,6 +60,13 @@ def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
     print("\033[2J\033[H", end="")
 
+def print_section_separator(text, width=100, char="="):
+    
+    print(f"\n{char * width}")
+    print(text.center(width))
+    print(f"{char * width}\n")
+
+
 # --------------------------------------------------------------
 # Python Data tools
 # --------------------------------------------------------------
@@ -289,3 +296,40 @@ def ui_draw_list_headers(container, col_names: set, col_widths: set):
         sub = header.row()    
         sub.ui_units_x = col_widths[i]
         sub.label(text = col_names[i])  
+
+
+def register_hotkeys():
+        
+    # Add keymap entry
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        
+        km = kc.keymaps.new(name='Window', space_type='EMPTY')
+        
+        # kmi1 = km.keymap_items.new(op_name, type='T', value='PRESS', ctrl=True, shift=True)
+        # kmi1.active = True  
+        
+        for hotkey_data in my_addon_config.addon_hotkeys:
+            name = hotkey_data["OP_NAME"]
+            kmi2 = km.keymap_items.new(
+                    name, 
+                    type=hotkey_data["TYPE"], 
+                    value='PRESS', # Keypress event
+                    ctrl =hotkey_data["CTRL"],
+                    alt = hotkey_data["ALT"],
+                    shift = hotkey_data["SHIFT"],
+                    head=True)
+            kmi2.active = True    
+            logger.info(f"Added hotkey {name}")
+        
+def unregister_hotkeys():
+        
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        km = kc.keymaps['Window']
+        for kmi in km.keymap_items:
+            if kmi.idname in [k["OP_NAME"] for k in my_addon_config.addon_hotkeys]:
+                logger.info(f"removing hotkey {kmi.idname}")
+                km.keymap_items.remove(kmi)

@@ -7,9 +7,12 @@ import textwrap
 import bpy # type: ignore
 import blf # type: ignore
 
-from ....my_addon_config import (separator_width_factor,weblink_button_width_factor, min_width_for_weblink_btn_spawn)
+from ....my_addon_config import separator_width_factor, weblink_button_width_factor, min_width_for_weblink_btn_spawn
 from .constants import Core_Runtime_Cache_Members
 from ..core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ..core_features.feature_hooks import _uilayout_draw_hooks_settings
+from ..core_features.feature_block_manager import _uilayout_draw_block_manager_settings
+from ..core_features.feature_logs import _uilayout_draw_logger_settings
 
 #=================================================================================
 # PUBLIC API - Usable by any block
@@ -168,6 +171,32 @@ def uilayout_section_separator(container, lines_count:int = 2, extra_space:float
 #=================================================================================
 # INTERNAL API - Only used inside this block
 #=================================================================================
+
+def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.UILayout):
+    
+    core_scene_props = context.scene.dgblocks_core_props
+    
+    # General settings
+    box = container.box()
+    panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_general", default_closed=True)
+    panel_header.label(text = "General")
+    if panel_body is not None: 
+        grid = panel_body.grid_flow(columns=2)
+        grid.prop(core_scene_props, "addon_is_active")
+        grid.prop(core_scene_props, "debug_mode_enabled")
+        grid.prop(core_scene_props, "documentation_weblinks_enabled")
+        op_rtc_clear = grid.operator("dgblocks.debug_force_reload_scipts", text = "Clear RTC")
+        op_rtc_clear.target = "RTC"
+        op_rtc_clear.action = "CLEAR"
+        op_rtc_restore = grid.operator("dgblocks.debug_force_reload_scipts", text = "Restore RTC")
+        op_rtc_restore.target = "RTC"
+        op_rtc_restore.action = "RESTORE"
+        
+    
+    # Draw management subpanels for blocks, hooks, & loggers
+    _uilayout_draw_block_manager_settings(context, container)
+    _uilayout_draw_hooks_settings(context, container)
+    _uilayout_draw_logger_settings(context, container)
 
 # --------------------------------------------------------------
 # Used by draw_wrapped_text_v2

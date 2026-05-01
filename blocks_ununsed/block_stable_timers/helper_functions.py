@@ -25,9 +25,9 @@ def uilayout_draw_timer_list_item(layout_type, context, layout, data, item, icon
         # Frequency
         row.prop(timer_item, "frequency_ms", text="", emboss=False)
 
-        # Downstream hook count from Instance_Data
+        # Subscriber hook count from Instance_Data
         instance = Timer_Wrapper.get_instance(timer_item.timer_name)
-        hook_count = len(instance.downstream_hook_func_names) if instance else 0
+        hook_count = len(instance.subscriber_hook_func_names) if instance else 0
         row.label(text=f"Hooks: {hook_count}")
 
     elif layout_type == 'GRID':
@@ -74,7 +74,7 @@ def uilayout_draw_timer_panel(context, container):
             info_box.label(text=f"Last Fire: {instance.timestamp_ms_last_fire} ms")
             info_box.label(text=f"Fire Success: {instance.count_fire_success}")
             info_box.label(text=f"Fire Failures: {instance.count_fire_failure}")
-            info_box.label(text=f"Downstream Hooks: {len(instance.downstream_hook_func_names)}")
+            info_box.label(text=f"Subscriber Hooks: {len(instance.subscriber_hook_func_names)}")
 
 # =============================================================================
 # OPERATOR EXECUTION LOGIC

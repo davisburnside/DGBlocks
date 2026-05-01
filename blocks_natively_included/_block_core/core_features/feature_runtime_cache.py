@@ -1,25 +1,28 @@
-from dataclasses import asdict, is_dataclass, fields
+# Sample License, ignore for now
+
+# ==============================================================================================================================
+# IMPORTS
+# ==============================================================================================================================
+
 from enum import Enum
 import threading
 from contextlib import nullcontext
 from typing import Any, Optional
-import numpy as np
-import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helper_funcs import fast_deepcopy_with_fallback, is_py_listy, py_dicty_get_field_value, py_dicty_has_field
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager
+from ....addon_data_structures import Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
 from ..core_helpers.constants import Core_Runtime_Cache_Members
 
-#=================================================================================
-# MODULE MAIN FEATURE WRAPPER CLASS
-#=================================================================================
+# ==============================================================================================================================
+#  MAIN MODULE FEATURE
+# ==============================================================================================================================
 
 class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     """
@@ -65,7 +68,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             cls._cache = {}
 
     # --------------------------------------------------------------
-    # Implemented from Abstract_Datawrapper_Instance_Manager
+    # Funcs specific to this class, cache lifecycle mgmt
     # --------------------------------------------------------------
 
     @classmethod
@@ -129,79 +132,42 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 del cls._cache[true_key]
 
     # --------------------------------------------------------------
-    # Funcs specific to this class
+    # Funcs specific to this class, working with caches
     # --------------------------------------------------------------
 
     @classmethod
-    def add_unique_instance_to_registry_list(cls, member_key:str, uniqueness_field:str, new_instance: any, should_use_thread_lock:bool = True):
-        """
-        This function adds unique instances to an RTC main member in a way that facilitates simple RTC <--> BL Data syncs
-        It raises an exception on data validation failure
-        """
+    def add_unique_instance_to_registry_list(cls, member_key:str, uniqueness_field:str, uniqueness_field_value: any, new_instance: any, should_use_thread_lock:bool = True):
 
         true_member_key = get_actual_rtc_key(member_key, fail_gracefully = False)
-        current_data = cls.get_cache(true_member_key, should_use_thread_lock = should_use_thread_lock)
-
-        # Validate data structure
-        if current_data is None:
-            raise Exception(f"RTC member '{true_member_key}' is invalid: {current_data}")
-        if not is_py_listy(current_data):
-            raise Exception(f"RTC member '{true_member_key}' must be a list/set/tuple. It is instead a '{current_data.__class__}'")
-        if not py_dicty_has_field(new_instance, uniqueness_field):
-            _exception_missing_required_field(true_member_key, uniqueness_field)
+        idx, current_instance, all_RTC_list_members = cls.get_unique_instance_from_registry_list(member_key, uniqueness_field, uniqueness_field_value)
 
         # Validate uniqueness
-        new_unique_value = py_dicty_get_field_value(new_instance, uniqueness_field)
-        unique_values = set(new_unique_value)
-        for idx, existing_instance in enumerate(current_data):
-            if not py_dicty_has_field(existing_instance, uniqueness_field):
-                _exception_missing_required_field(member_key, uniqueness_field, idx)
-            instance_field_value = getattr(existing_instance, uniqueness_field)
-            if instance_field_value in unique_values:
-                message = f"RTC member '{member_key}' already contains an instance at index {idx} with unique field '{uniqueness_field}' value '{instance_field_value}'"
-                print(message)
-                return
-                # raise Exception(f"RTC member '{member_key}' already contains an instance at index {idx} with unique field '{uniqueness_field}' value '{instance_field_value}'")
-            unique_values.add(instance_field_value)
+        if current_instance:
+            raise Exception(f"RTC list '{true_member_key}' already contains an instance with '{uniqueness_field}' = '{uniqueness_field_value}'")
 
         # Update RTC member with new instance
-        current_data.append(new_instance)
-        cls.set_cache(member_key, current_data)
+        all_RTC_list_members.append(new_instance)
+        cls.set_cache(member_key, all_RTC_list_members)
 
     @classmethod
-    def get_unique_instance_from_registry_list(cls, member_key:str, uniqueness_field:str, uniqueness_field_value: any, should_use_thread_lock:bool = True):
-        """
-        This function adds unique instances to an RTC main member in a way that facilitates simple RTC <--> BL Data syncs
-        It raises an exception on data validation failure
-        """
+    def get_unique_instance_from_registry_list(cls, member_key:str, uniqueness_field:str, uniqueness_field_value: any, should_copy: bool = False, should_use_thread_lock:bool = True):
 
-        current_data = cls.get_cache(member_key, should_use_thread_lock = should_use_thread_lock)
-        for idx, existing_instance in enumerate(current_data):
-            # if not py_dicty_has_field(existing_instance, uniqueness_field):
-            #     _exception_missing_required_field(member_key, uniqueness_field, idx)
-
+        all_RTC_list_members = cls.get_cache(member_key, should_use_thread_lock = should_use_thread_lock)
+        for idx, existing_instance in enumerate(all_RTC_list_members):
             instance_field_value = getattr(existing_instance, uniqueness_field)
-            if instance_field_value == uniqueness_field_value:
-                return idx, existing_instance
+            if instance_field_value and instance_field_value == uniqueness_field_value:
+                return idx, existing_instance, all_RTC_list_members
             
-        return -1, None
+        return -1, None, all_RTC_list_members
 
     @classmethod
     def destroy_unique_instance_from_registry_list(cls, member_key:str, uniqueness_field:str, uniqueness_field_value: any, should_use_thread_lock:bool = True):
         
-        current_data = cls.get_cache(member_key, should_use_thread_lock = should_use_thread_lock)
-        idx_to_remove = -1
-        for idx, existing_instance in enumerate(current_data):
-            # if not py_dicty_has_field(existing_instance, uniqueness_field):
-            #     _exception_missing_required_field(member_key, uniqueness_field, idx)
-            instance_field_value = getattr(existing_instance, uniqueness_field)
-            if instance_field_value == uniqueness_field_value:
-                idx_to_remove = idx
-                break
-
-        if idx_to_remove >= 0:
-            del current_data[idx_to_remove]
-    
+        idx, current_instance, all_RTC_list_members = cls.get_unique_instance_from_registry_list(member_key, uniqueness_field, uniqueness_field_value, should_use_thread_lock = should_use_thread_lock)
+        if idx >= 0:
+            del all_RTC_list_members[idx]
+        cls.set_cache(member_key, all_RTC_list_members)
+        
     @classmethod
     def get_all_with_key_value_from_registry_list(cls, member_key:str, key_field_name:str, key_field_value: any, should_use_thread_lock:bool = True):
 
@@ -256,9 +222,9 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         elif true_member_key not in cache_names_being_synced and is_actively_syncing:
             cache_names_being_synced.append(true_member_key)
 
-#=================================================================================
-# CONVENIENCE FUNCTIONS
-#=================================================================================
+# ==============================================================================================================================
+# PUBLIC CONVENIENCE FUNCTIONS
+# ==============================================================================================================================
 
 def get_actual_rtc_key(key:Any, fail_gracefully:bool = True):
     # Enum classes are the standard for defining a block's loggers, RTC members, & other structured data.
@@ -271,10 +237,3 @@ def get_actual_rtc_key(key:Any, fail_gracefully:bool = True):
         return str(key)
     else:
         raise Exception(f"Invalid key: {key} | {key.__class__}")
-
-def _exception_missing_required_field(member_key:any, uniqueness_field:str, list_idx:int = None):
-
-    if list_idx is None:
-        raise Exception(f"RTC member '{member_key}' instance is missing required field '{uniqueness_field}'")
-    else:
-        raise Exception(f"RTC member '{member_key}' instance at list index {list_idx} is missing required field '{uniqueness_field}'")

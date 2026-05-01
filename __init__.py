@@ -69,7 +69,6 @@ for name, module in modules_to_reload:
 from .blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from .blocks_natively_included._block_core.core_features.feature_logs import Wrapper_Loggers, get_logger
 from .blocks_natively_included._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .blocks_natively_included._block_core.core_helpers.helper_functions import register_hotkeys, unregister_hotkeys
 from .blocks_natively_included._block_core.core_helpers.constants import Core_Block_Loggers
 
 #================================================================

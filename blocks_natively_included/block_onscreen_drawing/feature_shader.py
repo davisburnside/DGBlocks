@@ -23,17 +23,17 @@ from .constants import Shader_Types, Builtin_Shader_Names
 @dataclass
 class Shader_Instance:
     
-    # Required fields
-    shader_type: str
+    # Required fields for init
+    shader_type: str # Enum of 'POINTS', 'LINES', 'TRIS'
     shader_uid: str
     shader_group_id: str
     
-    # Shader wrappers must have a either a builtin or custom builder callback, not both
-    builtin_shader_name: Optional[str] = None
+    # If 'builtin_shader_name' is None, the shader is custom and must must self-create inside its __post_init__ override
+    builtin_shader_name: Optional[str] = None 
+    shader_actual: Any = field(init=False, default=None) # Actual gpu.shader. Will be populated for both custom and builtin shaders
 
     # Internal State
     _batch: gpu.types.GPUBatch = field(init=False, default=None) # Expensive to update, should only update if _points or _colors change
-    _shader_actual: Any = field(init=False, default=None) # Actual gpu.shader
     _texture: Any = field(init=False, default=None) # Only used for Images
     _points: np.ndarray = field(init=False, default=None)
     _colors: np.ndarray = field(init=False, default=None) # Only used for SMOOTH_COLOR, not UNIF9RM_COLOR Shaders
@@ -54,7 +54,7 @@ class Shader_Instance:
                 raise Exception(f"Invalid Shader bulitin name '{self.builtin_shader_name }', must be {bulitin_shaders_list}")
             
             # Create a custom Shader. If the builtin name is None, the custom shader must be created manually
-            self._shader_actual = gpu.shader.from_builtin(self.builtin_shader_name)
+            self.shader_actual = gpu.shader.from_builtin(self.builtin_shader_name)
 
     #==========================================
     # CALLED BEFORE SHADER DRAW - Causes expensive batch update.
@@ -80,13 +80,13 @@ class Shader_Instance:
         """Handles uniform mapping to GPU types"""
         
         if isinstance(value, (tuple, list, Matrix, Vector, float, np.ndarray)):
-            self._shader_actual.uniform_float(name, value)
+            self.shader_actual.uniform_float(name, value)
         elif isinstance(value, bool):
-            self._shader_actual.uniform_bool(name, value)
+            self.shader_actual.uniform_bool(name, value)
         elif isinstance(value, int):
-            self._shader_actual.uniform_int(name, value)
+            self.shader_actual.uniform_int(name, value)
         elif isinstance(value, gpu.types.GPUTexture):
-            self._shader_actual.uniform_sampler(name, value)
+            self.shader_actual.uniform_sampler(name, value)
 
     #==========================================
     # SHADER DRAW
@@ -101,7 +101,7 @@ class Shader_Instance:
         if self._colors is not None:
             content["color"] = self._colors
 
-        self._batch = batch_for_shader(self._shader_actual, self.shader_type, content)
+        self._batch = batch_for_shader(self.shader_actual, self.shader_type, content)
         self._needs_new_batch = False
 
     def draw(self):
@@ -113,5 +113,5 @@ class Shader_Instance:
             self.logger.error(f"shader {self.shader_uid} _batch is None")
             return
 
-        self._shader_actual.bind()
-        self._batch.draw(self._shader_actual)
+        self.shader_actual.bind()
+        self._batch.draw(self.shader_actual)

@@ -40,7 +40,7 @@ numeric_comparison_enum_items = [
 
 class Core_Debugging_Print_Options(StrEnum):
     HOOK_SOURCES = auto()
-    HOOK_DOWNSTREAMS = auto()
+    HOOK_SUBSCRIBERS = auto()
     ALL_BLOCKS_RTC_MEMBERS = auto()
     ALL_BLOCKS_BL_SCENE_PROPS = auto()
     ALL_BLOCKS_BL_PREFERENCES_PROPS = auto()

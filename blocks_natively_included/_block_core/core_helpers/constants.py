@@ -21,6 +21,8 @@ class Core_Block_Hook_Sources(Enum):
     CORE_EVENT_POST_REG_INIT = ("hook_post_register_init", {"context": bpy.types.Context, "some_str": str})
     CORE_EVENT_POST_UNDO = ("hook_core_event_undo", {"context": bpy.types.Context, "some_str": str})
     CORE_EVENT_POST_REDO = ("hook_core_event_redo", {"context": bpy.types.Context, "some_str": str})
+    CORE_EVENT_BLOCK_REGISTERED = ("hook_block_registered", {"block_name": str, "block_version": tuple})
+    CORE_EVENT_BLOCK_UNREGISTERED = ("hook_block_unregistered", {"block_name": str, "block_version": tuple})
 
 # name = logger ID
 # value[0] = logger display name & default level
@@ -41,7 +43,7 @@ class Core_Runtime_Cache_Members(Enum):
     REGISTRY_ALL_BLOCKS = ("REGISTRY_ALL_BLOCKS", [])
     REGISTRY_ALL_FEATURE_WRAPPERS = ("REGISTRY_ALL_FEATURE_WRAPPERS", [])
     REGISTRY_ALL_HOOK_SOURCES = ("REGISTRY_ALL_HOOK_SOURCES", [])
-    REGISTRY_ALL_HOOK_DOWNSTREAMS = ("REGISTRY_ALL_HOOK_DOWNSTREAMS", [])
+    REGISTRY_ALL_HOOK_SUBSCRIBERS = ("REGISTRY_ALL_HOOK_SUBSCRIBERS", [])
     REGISTRY_ALL_LOGGERS = ("REGISTRY_ALL_LOGGERS", [])
     META_REGISTRIES_BEING_SYNCED = ("META_REGISTRIES_BEING_SYNCED", [])
     UI_ALERTS = ("UI_ALERTS", {})
@@ -53,7 +55,7 @@ class Core_Runtime_Cache_Members(Enum):
 
 log_timestring_format = "%Y-%m-%d %H:%M:%S"
 
-# Must match fields in RTC_Hook_Downstream_Instance
+# Must match fields in RTC_Hook_Subscriber_Instance
 debug_sort_hooks_choice_items = [
     ("timestamp_ms_last_attempt", "Time Last Called", "Time Last Called"),
     ("is_hook_enabled", "Is Enabled", "Is Enabled"),
@@ -75,10 +77,3 @@ debug_console_print_data_filter_items = [
         ("OFF", "Filter Off", "Filter is Disabled"), 
         ("FILTER-INCLUDE", "Include Numbers", "Only Include values"),
         ("FILTER-EXCLUDE", "Exclude Numbers", "Exclude values")]
-
-class Core_Debugging_Print_Options(StrEnum):
-    HOOK_SOURCES = auto()
-    HOOK_DOWNSTREAMS = auto()
-    ALL_BLOCKS_RTC_MEMBERS = auto()
-    ALL_BLOCKS_BL_SCENE_PROPS = auto()
-    ALL_BLOCKS_BL_PREFERENCES_PROPS = auto()

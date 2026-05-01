@@ -6,7 +6,7 @@ A timer management system for Blender addons that provides persistent timer defi
 
 - **Persistent Timer Definitions**: Timer configurations are saved with the .blend file via scene properties
 - **Runtime Cache Integration**: Timer metadata and instances are managed in the addon's runtime cache
-- **Hook System**: Timers trigger `hook_timer_fire` callbacks in downstream blocks
+- **Hook System**: Timers trigger `hook_timer_fire` callbacks in subscriber blocks
 - **UI Management**: UIList interface in the N-panel for adding, removing, and configuring timers
 - **Automatic Sync**: Scene properties and runtime cache are automatically synchronized on startup and updates
 
@@ -24,7 +24,7 @@ A timer management system for Blender addons that provides persistent timer defi
 2. **Runtime Cache** (Transient) — single RTC member
    - `TIMER_INSTANCES`: `Dict[str, Timer_Wrapper.Instance_Data]` — one entry per named timer.
      Each `Instance_Data` record holds all metadata (frequency, enabled state, fire stats,
-     downstream hook names) **and** the `bpy.app.timers` callable reference (`_timer_func`).
+     subscriber hook names) **and** the `bpy.app.timers` callable reference (`_timer_func`).
      This collapses the old two-member design into one, mirroring the `Wrapper_Hooks` pattern.
 
 ### Timer Wrapper
@@ -39,7 +39,7 @@ The `Timer_Wrapper` class follows the `Abstract_Feature_Wrapper` pattern and pro
 
 ### Hook System
 
-Timers propagate the `hook_timer_fire` hook to downstream blocks:
+Timers propagate the `hook_timer_fire` hook to subscriber blocks:
 
 ```python
 def hook_timer_fire(context, timer_name: str):
@@ -133,5 +133,5 @@ Scene property changes automatically trigger `sync_scene_to_rtc` via update call
 
 - Timer frequencies are specified in milliseconds but converted to seconds for Blender's timer API
 - Timers automatically stop if disabled or removed from the scene
-- The "count_downstream_hooks" field shows how many blocks are listening to timer events
+- The "count_subscriber_hooks" field shows how many blocks are listening to timer events
 - Last fire time is displayed in milliseconds since epoch

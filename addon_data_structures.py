@@ -97,19 +97,7 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
     @classmethod
     @abstractmethod
     def create_instance(cls, **kwargs) -> any:
-        # Should return None or instance of child class
-        pass
-    
-    @classmethod
-    @abstractmethod
-    def get_instance(cls, **kwargs) -> any:
-        # Should return None or instance of child class
-        pass
-    
-    @classmethod
-    @abstractmethod
-    def set_instance(cls, **kwargs):
-        # Should return None, may overlap logic with create_instance
+        # Should instance
         pass
     
     @classmethod
@@ -117,9 +105,6 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
     def destroy_instance(cls, **kwargs):
         # Should return None
         pass
-
-
-
 
 #=================================================================================
 # ALL LOG LEVELS

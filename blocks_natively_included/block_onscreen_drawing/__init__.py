@@ -47,13 +47,8 @@ _BLOCK_DEPENDENCIES = [
 ]
 
 #=================================================================================
-# CALLBACK HOOK FUNCTIONS 
+# UI - Draw debugging panel
 #=================================================================================
-
-def hook_post_register_init(context):
-    
-    return True
-
 
 class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     bl_label       = "Modal Stack"
@@ -66,13 +61,10 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
         uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID.lower(), Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
         
-
     def draw(self, context):
 
         layout = self.layout
-
         all_rtc_draw_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
-
         for draw_handler_instance in all_rtc_draw_handlers.values():
             name = draw_handler_instance.draw_phase_name
             is_enabled = draw_handler_instance._generated_handle is not None
@@ -81,12 +73,11 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
             row.label(text = str(is_enabled))
 
 #=================================================================================
-# REGISTRATION EVENTS - Should only called from the addon's main __init__.py
+# REGISTRATION EVENTS
 #=================================================================================
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [    
-
     DGBLOCKS_PT_Debug_Drawing_Panel,
 ]
 
@@ -105,9 +96,6 @@ def register_block():
         block_hook_source_enums = Block_Hook_Sources,
     )
 
-    # Create Scene Property to hold modal configuration
-    # bpy.types.Scene.onscreen_drawing_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Stable_Drawing_Props)
-    
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
 
@@ -116,12 +104,7 @@ def unregister_block():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
     
-    
     # Remove block components from RTC
     Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
     
-    # Delete Scene Properties
-    # if hasattr(bpy.types.Scene, "onscreen_drawing_props"):
-    #     del bpy.types.Scene.onscreen_drawing_props
-
     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")

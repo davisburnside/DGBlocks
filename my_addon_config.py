@@ -16,6 +16,9 @@ addon_bl_type_prefix = "DGBLOCKS" # Must be uppercase. Used to name Blender-regi
 # REQUIRED ARBITRARY VALUES - These can be anything, but must exist
 # =============================================================================
 
+# Used when printing to console
+base_linebreak_length = 20 
+
 # Helpful for debugging. In most cases, this should be set to False before release
 should_show_developer_ui_panels = True
 

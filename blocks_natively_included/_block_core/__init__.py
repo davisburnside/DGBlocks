@@ -16,8 +16,7 @@ from .core_features.feature_logs import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL
 from .core_features.feature_block_manager import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
 from .core_features.feature_hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
 from .core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
-from .core_helpers.helper_functions import uilayout_draw_core_block_settings
+from .core_helpers.helper_uilayouts import uilayout_draw_block_panel_header, uilayout_draw_core_block_settings
 
 #=================================================================================
 # BLOCK DEFINITION

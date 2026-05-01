@@ -16,7 +16,7 @@ class Block_Logger_Definitions(Enum):
 # =============================================================================
 
 class Block_Hooks(Enum):
-    """Hook definitions that this block provides to downstream blocks"""
+    """Hook definitions that this block provides to subscriber blocks"""
     TIMER_FIRE = ("hook_timer_fire", {
         "context": bpy.types.Context, "timer_name": str
     })

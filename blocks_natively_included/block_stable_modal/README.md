@@ -1,15 +1,15 @@
 # Block Stable Modal
 
-A stable modal operator system for Blender addons that provides hook-based keyboard, mouse, and area-change event routing to downstream blocks.
+A stable modal operator system for Blender addons that provides hook-based keyboard, mouse, and area-change event routing to subscriber blocks.
 
 ## Features
 
 - **Persistent Modal Configuration**: Settings are saved with the .blend file via scene properties
 - **Runtime Cache Integration**: Modal metadata and state are managed in the addon's runtime cache
-- **Hook System**: Modal triggers event callbacks in downstream blocks via three distinct hooks
+- **Hook System**: Modal triggers event callbacks in subscriber blocks via three distinct hooks
 - **Automatic Restart**: The "stable" designation means the modal auto-restarts on crash/error
 - **Area Change Detection**: Detects when the mouse enters a new context.area
-- **Smart Return Aggregation**: Multiple downstream hooks can control modal behavior
+- **Smart Return Aggregation**: Multiple subscriber hooks can control modal behavior
 
 ## Architecture
 
@@ -41,7 +41,7 @@ The `Modal_Wrapper` class follows the `Abstract_Feature_Wrapper` pattern and pro
 
 ### Hook System
 
-The modal propagates three distinct hooks to downstream blocks:
+The modal propagates three distinct hooks to subscriber blocks:
 
 #### 1. Keyboard Events
 ```python
@@ -73,11 +73,11 @@ def hook_modal_area_change(context, event, old_area, new_area):
 
 ### Return Value Aggregation
 
-The modal operator intelligently handles return values from multiple downstream hooks:
+The modal operator intelligently handles return values from multiple subscriber hooks:
 
 - **Default**: `{'PASS_THROUGH'}` — allows all Blender operations to continue
 - **Override**: If ANY hook returns `{'FINISHED'}`, `{'CANCELLED'}`, or `{'RUNNING_MODAL'}`, the **first non-PASS_THROUGH value** is used
-- This gives downstream blocks control when needed, without blocking by default
+- This gives subscriber blocks control when needed, without blocking by default
 
 ## Usage
 

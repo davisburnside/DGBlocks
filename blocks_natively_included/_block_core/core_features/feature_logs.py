@@ -1,3 +1,8 @@
+# Sample License, ignore for now
+
+# ==============================================================================================================================
+# IMPORTS
+# ==============================================================================================================================
 
 from dataclasses import dataclass
 from typing import Callable
@@ -12,32 +17,19 @@ import bpy # type: ignore
 from ....addon_helper_funcs import is_bpy_ready, ui_draw_list_headers
 from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels
 from .... import my_addon_config
+from ....my_addon_config import base_linebreak_length
 
 # --------------------------------------------------------------
-# Intra-block importsrtc_loggers_key
+# Intra-block imports
 # --------------------------------------------------------------
 from .feature_runtime_cache import Wrapper_Runtime_Cache, get_actual_rtc_key
 from ..core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
-from ..core_helpers.helper_uilayouts import ui_box_with_header, uilayout_template_columns_for_propertygroup
 from ..core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Block_Loggers, Core_Runtime_Cache_Members
-
-#=================================================================================
-# MODULE VARS & CONSTANTS
-#=================================================================================
-
 rtc_loggers_key = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 
-base_linebreak_length = 20
-rtc_sync_key_fields = ["logger_name"]
-rtc_sync_data_fields = ["level_name", "src_block_id"]
-
-uilist_col_width_A = 3
-uilist_col_width_B = 5
-uilist_col_width_C = 3
-
-#=================================================================================
+# ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS
-#=================================================================================
+# ==============================================================================================================================
 
 def get_logger(logger_id: Enum):
     
@@ -55,38 +47,12 @@ def get_logger(logger_id: Enum):
 
         fallback_logger = logging.getLogger("_fallback_logger")
         if fallback_logger is None:
-            fallback_logger = Wrapper_Loggers.setup_fallback_logger()
+            fallback_logger = Wrapper_Loggers._setup_fallback_logger()
         return fallback_logger
 
-def print_github_issue_page_statement(logger:logging.Logger = None):
-    
-    str_log = ""
-    if hasattr(my_addon_config, "my_addon_repository") and my_addon_config.my_addon_repository is not None:
-        str_log =  """
-            A critical error has occured that prevents this addon from working.        
-            This log statement is only triggered by sitations which should not happen. 
-            Please create an Issue in Github for this this codebase: 
-
-        """ + my_addon_config.my_addon_repository
-        logger.critical(str_log)
-    else:
-        str_log = "No code repository defined for this addon"
-        logger.critical("No code repository defined for this addon")
-        
-    if logger:
-        logger.critical(str_log)
-    else:
-        print(str_log)
-
-def print_section_separator(text, width=100, char="="):
-    
-    print(f"\n{char * width}")
-    print(text.center(width))
-    print(f"{char * width}\n")
-
-#=================================================================================
+# ==============================================================================================================================
 # PRIVATE API
-#=================================================================================
+# ==============================================================================================================================
 
 def _setup_logger_console_handler(logger, logging_level):
     # Set up a console handler
@@ -97,9 +63,13 @@ def _setup_logger_console_handler(logger, logging_level):
         logger.addHandler(handler)
         logger.setLevel(logging_level) # Default level (will be overwritten later by scene settings)
 
-#=================================================================================
-# RTC DATA & MIRRORED BLENDER DATA FOR FEATURE - Stored in Scene
-#=================================================================================
+# ==============================================================================================================================
+# MIRRORED DATA FOR RTC & BLENDER
+# ==============================================================================================================================
+
+# --------------------------------------------------------------
+# Blender data, stored in scene
+# --------------------------------------------------------------
 
 def _callback_log_level_changed(self, context):
     """
@@ -116,7 +86,7 @@ def _callback_log_level_changed(self, context):
     new_level_name = self.level_name
     
     # Get the actual Python logger and update its level
-    _, logger_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+    idx, logger_instance, all_RTC_loggers = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
         member_key = rtc_loggers_key, 
         uniqueness_field = "logger_name", 
         uniqueness_field_value = logger_name,
@@ -131,7 +101,7 @@ def _callback_log_level_changed(self, context):
         logger.log(new_level_int, f"Log level changed to: {new_level_name}")
 
     Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, False)
-    
+
 class DGBLOCKS_PG_Logger_Instance(bpy.types.PropertyGroup):
     """
     Mirror Dataclass= 'Logger_Instance'
@@ -157,6 +127,14 @@ class DGBLOCKS_PG_Logger_Instance(bpy.types.PropertyGroup):
     # ID of the bloc that created this logger
     src_block_id: bpy.props.StringProperty(name="Source Block") # type: ignore
 
+# --------------------------------------------------------------
+# RTC data
+# --------------------------------------------------------------
+
+# Used during RTC <-> BL data sync
+rtc_sync_key_fields = ["logger_name"]
+rtc_sync_data_fields = ["level_name", "src_block_id"]
+
 @dataclass
 class RTC_Logger_Instance:
     # Record — instance state only, no manager logic
@@ -166,9 +144,9 @@ class RTC_Logger_Instance:
     src_block_id: str
     logger: logging.Logger
 
-#=================================================================================
-# MODULE MAIN FEATURE WRAPPER CLASS
-#=================================================================================
+# ==============================================================================================================================
+# MAIN MODULE FEATURE
+# ==============================================================================================================================
 
 class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager):
     
@@ -190,7 +168,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         cls._log_linebreak_monkeypatch_func = log_with_linebreak
 
         # setup the fallback logger. Only real usage is during debugging sessions
-        cls.setup_fallback_logger()
+        cls._setup_fallback_logger()
         cls._fallback_logger.debug("Running pre-bpy init for Wrapper_Loggers")
         
         # Create all core loggers
@@ -264,25 +242,15 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
     # --------------------------------------------------------------
 
     @classmethod
-    def get_instance(cls, logger_id: Enum):
-        
-        all_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        true_logger_id = get_actual_rtc_key(logger_id)
-        if true_logger_id not in all_loggers.keys():
-            return None
-
-        return all_loggers[true_logger_id]
-
-    @classmethod
     def create_instance(cls, src_block_id:str, logger_name:Enum, level_name:str, skip_BL_sync:bool = False):
         
         action_logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
 
         true_logger_id = get_actual_rtc_key(logger_name)
-        all_cached_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
+        idx, current_logger, all_RTC_loggers = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(rtc_loggers_key, "logger_name", logger_name)
 
-        # Validate uniquness. Return with no result upon duplication attempt
-        if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_loggers, "logger_name", logger_name):
+        # Validate uniquness. Return with no result upon duplication attemptlogger_name
+        if current_logger:
             action_logger.debug(f"Logger '{true_logger_id}' already exists in RTC. Returning with no action")
             return
         
@@ -301,9 +269,9 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
             logger = new_logger
         )
 
-        # Update runtime cache
-        all_cached_loggers.append(RTC_logger_instance)
-        Wrapper_Runtime_Cache.set_cache(rtc_loggers_key, all_cached_loggers)
+        # Update runtime cache with new logger
+        all_RTC_loggers.append(RTC_logger_instance)
+        Wrapper_Runtime_Cache.set_cache(rtc_loggers_key, all_RTC_loggers)
         action_logger.debug(f"Created Logger '{true_logger_id}'")
 
         if is_bpy_ready() and not skip_BL_sync:
@@ -325,23 +293,17 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         )
         logger.debug(f"Removed Logger '{logger_name}'")
 
-
         if is_bpy_ready() and not skip_BL_sync:
             Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, True)
             cls.update_BL_with_mirrored_RTC_data()
             Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, False)
-    
-    @classmethod
-    def set_instance(cls):
-        "no-op"
-        return 
 
     # --------------------------------------------------------------
     # Private funcs specific to this class
     # --------------------------------------------------------------
 
     @classmethod
-    def setup_fallback_logger(cls):
+    def _setup_fallback_logger(cls):
         
         # setup the fallback logger. Only real usage is during debugging sessions
         cls._fallback_logger = logging.getLogger("_fallback_logger")
@@ -349,27 +311,12 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         cls._fallback_logger.log_with_linebreak = types.MethodType(cls._log_linebreak_monkeypatch_func, cls._fallback_logger)
         return cls._fallback_logger
 
-#=================================================================================
+# ==============================================================================================================================
 # UI
-#=================================================================================
+# ==============================================================================================================================
 
-class DGBLOCKS_UL_Loggers(bpy.types.UIList):
-    """UIList to display RTC blocks with enable toggle and alert states."""
-    
-    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
-       
-        row = container.row(align=True)
-        sub = row.row()
-        sub.ui_units_x = uilist_col_width_A
-        sub.label(text=item.src_block_id)
-        sub = row.row()
-        sub.ui_units_x = uilist_col_width_B
-        sub.label(text=item.logger_name)
-        sub = row.row()
-        sub.ui_units_x = uilist_col_width_C
-        sub.prop(item, "level_name", text = "")
-        
-
+col_names = ("Source Block", "Logger Name", "Log Level")
+col_widths = (3, 5, 3)
 def _uilayout_draw_logger_settings(context, container):
 
     core_props = context.scene.dgblocks_core_props
@@ -377,10 +324,7 @@ def _uilayout_draw_logger_settings(context, container):
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_loggers", default_closed=True)
     panel_header.label(text = f"All Loggers ({len(context.scene.dgblocks_core_props.managed_loggers)})")
     if panel_body is not None:        
-        
-        # Draw column headers - should match draw_item layout exactly
         col_names = ("Source Block", "Logger Name", "Log Level")
-        col_widths = (uilist_col_width_A, uilist_col_width_B, uilist_col_width_C)
         ui_draw_list_headers(panel_body, col_names, col_widths)
 
         # Draw the UIList
@@ -389,9 +333,26 @@ def _uilayout_draw_logger_settings(context, container):
         row.template_list(
             "DGBLOCKS_UL_Loggers",
             "",
-            core_props, "managed_loggers",           # Collection property
-            core_props, "managed_loggers_selected_idx",     # Active index property
+            core_props, "managed_loggers", # Collection property
+            core_props, "managed_loggers_selected_idx", # Active index property
             rows = row_count,
             maxrows = row_count,
             columns = row_count, 
         )
+
+class DGBLOCKS_UL_Loggers(bpy.types.UIList):
+    """UIList to display RTC blocks with enable toggle and alert states."""
+    
+    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
+       
+        row = container.row(align=True)
+        sub = row.row()
+        sub.ui_units_x = col_widths[0]
+        sub.label(text=item.src_block_id)
+        sub = row.row()
+        sub.ui_units_x = col_widths[1]
+        sub.label(text=item.logger_name)
+        sub = row.row()
+        sub.ui_units_x = col_widths[2]
+        sub.prop(item, "level_name", text = "")
+        

@@ -7,14 +7,13 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import create_simplified_list_from_csv_string, get_members_and_values_of_propertygroup_with_name_prefix, get_addon_preferences
+from ...addon_helper_funcs import create_simplified_list_from_csv_string, get_members_and_values_of_propertygroup_with_name_prefix, print_section_separator
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .._block_core.core_features.feature_logs import print_section_separator
 from .._block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2, ui_box_with_header, uilayout_section_separator
 from .._block_core.core_helpers.constants import Core_Block_Hook_Sources, Core_Runtime_Cache_Members, debug_sort_hooks_choice_items, _BLOCK_ID as core_block_id
 
@@ -884,15 +883,15 @@ def extract_core_block_data_to_print(context, other_input):
     # Internal helper funcs
     # --------------------------------------------------------------
     
-    def get_data_for_downstream_hook_table(column_rename_map):
+    def get_data_for_subscriber_hook_table(column_rename_map):
         
         reformatted_hooks_data = {}
-        all_downstream_hooks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
-        for hook_func_name in all_downstream_hooks:
+        all_subscriber_hooks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS)
+        for hook_func_name in all_subscriber_hooks:
             reformatted_hooks_data[hook_func_name] = {}
-            for bhm in all_downstream_hooks[hook_func_name]:
+            for bhm in all_subscriber_hooks[hook_func_name]:
                 
-                # Reformat (RTC_Hook_Downstream_Instance -> dict) & rename columns of hook data for printing
+                # Reformat (RTC_Hook_Subscriber_Instance -> dict) & rename columns of hook data for printing
                 if bhm.total_nanos_running_time == 0:
                     avg_ms_runtime = 0
                 else:
@@ -908,15 +907,15 @@ def extract_core_block_data_to_print(context, other_input):
                     debug_sort_hooks_choice_items[7][0] : avg_ms_runtime,
                 }
                 renamed_data = {column_rename_map.get(k, k): v for k, v in raw_data.items()}
-                block_id = bhm.downstream_block_module._BLOCK_ID
+                block_id = bhm.subscriber_block_module._BLOCK_ID
                 reformatted_hooks_data[hook_func_name][block_id] = renamed_data
         
         return reformatted_hooks_data
     
     def get_data_for_unused_hooks_list():
         
-        all_hook_downstreams = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_DOWNSTREAMS)
-        unused_hooks = [h for h in all_hook_downstreams if len(all_hook_downstreams[h]) == 0]
+        all_hook_subscribers = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS)
+        unused_hooks = [h for h in all_hook_subscribers if len(all_hook_subscribers[h]) == 0]
         if len(unused_hooks) == 0:
             return "No Unused Hooks"
         str_unused_hooks = "\n\nUnused Hooks:\n- " + "\n- ".join(unused_hooks)
@@ -929,13 +928,13 @@ def extract_core_block_data_to_print(context, other_input):
     debug_settings = context.scene.dgblocks_debug_console_print_props
     data_to_return = {}
     
-    # Return unfiltered table string, of hook downstream metadata
-    if other_input == Core_Debugging_Print_Options.HOOK_DOWNSTREAMS:
+    # Return unfiltered table string, of hook subscriber metadata
+    if other_input == Core_Debugging_Print_Options.HOOK_SUBSCRIBERS:
         print_section_separator("All Hooks in Addon")
         
         column_rename_map = {item[0]: item[1] for item in debug_sort_hooks_choice_items}
         sort_key = column_rename_map[debug_settings.debug_block_hooks_table_sort_by]
-        formatted_data = get_data_for_downstream_hook_table(column_rename_map)
+        formatted_data = get_data_for_subscriber_hook_table(column_rename_map)
         
         data_to_return = "\n"
         data_to_return += make_table_string_from_data(formatted_data, sort_key = sort_key)
@@ -975,7 +974,7 @@ def uilayout_draw_core_block_console_print_panel(context:bpy.context, container:
     row.scale_y = button_scale
     op = row.operator(f"dgblocks.debug_console_print_block_diagnostics", text = "All Hook Data (Table, Unfiltered)")
     op.source_block_id = block_id
-    op.other_input = Core_Debugging_Print_Options.HOOK_DOWNSTREAMS
+    op.other_input = Core_Debugging_Print_Options.HOOK_SUBSCRIBERS
     split = box.split()
     row_l = split.row()
     row_r = split.row()
@@ -1030,14 +1029,14 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
     for idx, block_hook_metadata in enumerate(all_blocks_metadata_for_hook):
         # if idx > 0:
         uilayout_section_separator(container, extra_space = 0)
-        block_id = block_hook_metadata.downstream_block_module._BLOCK_ID
+        block_id = block_hook_metadata.subscriber_block_module._BLOCK_ID
         internal_panel_header, internal_panel_body = container.panel(idname = f"_dummy_dgblocks_console_print_{block_id}", default_closed = True)
         internal_panel_header.alignment = "CENTER"
         internal_panel_header.label(text = f"Print {block_id.upper()} State")
         if internal_panel_body: 
             Wrapper_Hooks.run_hooked_funcs(
                 hook_func_name = hook_func_name, 
-                specific_downstream_block_id = block_id, 
+                specific_subscriber_block_id = block_id, 
                 context = context,
                 container = internal_panel_body
             )

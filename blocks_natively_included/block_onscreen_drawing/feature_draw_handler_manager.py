@@ -34,6 +34,7 @@ class RTC_Draw_Handler_Instance:
     draw_phase_name: str # Unique, always a Draw_Phase_Types value
     region_name: str  # Draw_Handler_Region_Types value
     
+    # Shader groups that this handler is 'owner' of
     groups_to_shaders_map: defaultdict[list]
 
     # Callables
@@ -54,7 +55,7 @@ def _placeholder_draw_callback(draw_handler_instance: RTC_Draw_Handler_Instance)
     if draw_handler_instance._optional_draw_callback is None:
         Wrapper_Hooks.run_hooked_funcs(draw_handler_instance = draw_handler_instance)
         
-    # Otherwise, trigger a hook (runs blindly- no check for downstream listeners)
+    # Otherwise, trigger a hook (runs blindly- no check for subscriber listeners)
     else:
         draw_handler_instance._optional_draw_callback(draw_handler_instance = draw_handler_instance)
 
@@ -81,9 +82,9 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         for enum_value in Draw_Phase_Types:
             draw_phase_name = enum_value.name
             draw_handler_instance = RTC_Draw_Handler_Instance(
-                    draw_phase_name = draw_phase_name,
-                    region_name = None,
-                    groups_to_shaders_map = defaultdict(list),
+                draw_phase_name = draw_phase_name,
+                groups_to_shaders_map = defaultdict(list),
+                region_name = "WINDOW"
             )
             initial_rtc_data[draw_phase_name] = draw_handler_instance
 

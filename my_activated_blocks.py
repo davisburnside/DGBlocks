@@ -1,6 +1,6 @@
  
 from .blocks_natively_included import _block_core, block_debug_console_print, block_stable_modal, block_onscreen_drawing
-from .external_blocks import block_flatypus_modes_manager, block_2tone_tests
+from .external_blocks import block_flatypus_modes_manager
 
 # Each folder/package is a "block": a swappable, standardized unit. 
 # Some blocks depend on others. If block-A depends on block-B, then block-B must be listed after block-A
@@ -13,6 +13,6 @@ _ordered_blocks_list = [
     block_stable_modal,
     block_onscreen_drawing,
     block_flatypus_modes_manager,
-    block_2tone_tests,
+    # block_2tone_tests,
     # ... Add other block defininions here
 ]

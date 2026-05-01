@@ -6,6 +6,7 @@ import bpy
 # BLOCK-SPECIFIC DATA
 #=================================================================================
 
+# Defined by Blender's gpu module, not DGBlocks. This is a non-exhaustive list.
 class Draw_Phase_Types(StrEnum):
     POST_PIXEL = auto()
     POST_VIEW  = auto()
@@ -20,14 +21,12 @@ class Builtin_Shader_Names(StrEnum):
     POLYLINE_SMOOTH_COLOR = auto()
     POINT_UNIFORM_COLOR = auto()
     
-# Defined by Blender's gpu module, not DGBlocks
-# This is a non-exhaustive list. You can update it to suite your addon's needs
+# Defined by Blender's gpu module, not DGBlocks. This is a non-exhaustive list.
 # More info: https://docs.blender.org/api/current/gpu_extras.batch.html
 class Shader_Types(StrEnum):
     POINTS = auto()
     LINES = auto()
     TRIS = auto()
-
 
 #=================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members

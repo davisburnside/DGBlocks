@@ -28,6 +28,16 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 # --------------------------------------------------------------
 from .block_constants import Block_RTC_Members, Block_Logger_Definitions, Block_Hooks
 
+
+
+
+
+
+
+
+
+cache_key_blocks = Block_RTC_Members.MODALS_CACHE
+
 #=================================================================================
 # MIRRORED DATA STRUCTURES OF FEATURE
 #=================================================================================
@@ -45,7 +55,6 @@ class RTC_Modal_Instance:
     created_timestamp: int = -1
     last_event_timestamp: int = -1 # updates on timer or key/mouse events
     should_die: bool = False
-    # _op_ref: Optional[object] = None
 
 class BL_Modal_Instance(bpy.types.PropertyGroup):
 
@@ -111,13 +120,6 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Removing modal '{uid}'")
         
-        # Get instance to remove
-        # _, modal_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-        #     member_key = Block_RTC_Members.MODALS_CACHE, 
-        #     uniqueness_field = "uid", 
-        #     uniqueness_field_value = uid,
-        # )
-
         all_rtc_modals = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         modal_instance = next((m for m in all_rtc_modals if m.uid == uid), None)
         if modal_instance:
@@ -135,9 +137,7 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
     def set_instance(cls, data):
         pass
 
-
-        # --------------------------------------------------------------
-    
+    # --------------------------------------------------------------
     # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
     # --------------------------------------------------------------
 
@@ -183,14 +183,12 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         # per_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         # scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
 
-        
-
 #=================================================================================
 # BASE MODAL OPERATOR - Can be instanced many times
 #=================================================================================
 
 class DGBLOCKS_OT_StableModal(bpy.types.Operator):
-    """Stable modal operator that intercepts timer/mouse/keyboard events before passing them to downstream hooks"""
+    """Stable modal operator that intercepts timer/mouse/keyboard events before passing them to subscriber hooks"""
     bl_idname = "dgblocks.stable_modal_base"
     bl_label = ""
     bl_options = {'INTERNAL'}
@@ -408,11 +406,9 @@ def print_current_modals():
 
 def add_modal_op_to_blender_stack(modal_instance):
 
-    
     bpy.ops.dgblocks.stable_modal_base("INVOKE_DEFAULT", uid = modal_instance.uid)
 
-    #TODO implement this. modal_instance._op_ref needs to be assigned.
-    pass
+
 
 def _make_area_key(window, area):
     """Build a stable-ish key identifying this area within this window."""
@@ -448,4 +444,3 @@ def _resolve_area(context, area_key):
             if area.type == 'VIEW_3D':
                 return area
     return None
-
