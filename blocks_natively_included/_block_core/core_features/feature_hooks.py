@@ -20,7 +20,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helper_funcs import  is_bpy_ready, ui_draw_list_headers, find_blocks_owning_func_with_name
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer
+from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -29,6 +29,10 @@ from .feature_logs import get_logger
 from ..core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
 from .feature_runtime_cache import Wrapper_Runtime_Cache
+
+# --------------------------------------------------------------
+# Aliases
+# --------------------------------------------------------------
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_hook_sources = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
 cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS
@@ -41,7 +45,7 @@ cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCR
 # Blender data, stored in scene
 # --------------------------------------------------------------
 
-def _callback_update_hook_enabled(self, context):
+def _callback_update_hook_sub_enabled(self, context):
 
     # Skip further action if a sync is already in progress
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_hook_subscribers):
@@ -58,7 +62,7 @@ class DGBLOCKS_PG_Hook_Reference(bpy.types.PropertyGroup):
     src_block_id: bpy.props.StringProperty(name = "Source Block ID") # type: ignore
     subscriber_block_id: bpy.props.StringProperty(name = "Subscriber Block ID") # type: ignore
     hook_func_name: bpy.props.StringProperty(name = "Hook Function Name") # type: ignore
-    is_hook_enabled: bpy.props.BoolProperty(default = True, update = _callback_update_hook_enabled) # type: ignore
+    is_hook_enabled: bpy.props.BoolProperty(default = True, update = _callback_update_hook_sub_enabled) # type: ignore
 
 # --------------------------------------------------------------
 # RTC data
@@ -155,10 +159,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
 
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
-        cls.rebuild_RTC_subscribers_from_sources()
-        cls.update_BL_with_mirrored_RTC_data()
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
+        # All hook sources have been added by now. Rebuild Subscription cache from sources
+        cls._rebuild_hook_subs_cache()
+
+        # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
+        cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.INIT) # Causes partial RTC->BL sync
+        cls.update_RTC_with_mirrored_BL_data(event = Enum_Sync_Events.INIT) # Causes full BL-RTC resync
         return True
     
     @classmethod
@@ -171,39 +177,53 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # --------------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, skip_subscriber_sync = False):
+    def update_RTC_with_mirrored_BL_data(cls, event: str):
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating hooks cache with mirrored Blender data")
         
-        registry_all_subscriber_hooks = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
+        # Get mirrored BL/RTC data (potentially de-synced)
+        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
+        scene_hook_subs = bpy.context.scene.dgblocks_core_props.managed_hooks
+
+        # BL->RTC Sync
+        actions_denied = () # Block-manager's BL->RTC sync will never need to skip actions
         update_dataclasses_to_match_collectionprop(
             actual_FWC = Wrapper_Hooks,
-            source = scene_hooks_collection,
-            target = registry_all_subscriber_hooks,
+            source = scene_hook_subs,
+            target = cached_hook_subs,
             key_fields = rtc_sync_key_fields,
-            data_fields = rtc_sync_data_fields
+            data_fields = rtc_sync_data_fields,
+            actions_denied = actions_denied,
+            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
         )
-        if not skip_subscriber_sync:
-            cls.rebuild_RTC_subscribers_from_sources()
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls):
+    def update_BL_with_mirrored_RTC_data(cls, event: str):
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored hooks cache")
         
-        registry_all_subscriber_hooks = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        scene_hooks_collection = bpy.context.scene.dgblocks_core_props.managed_hooks
-        print([(i.hook_func_name, i.subscriber_block_id) for i in list(scene_hooks_collection)])
-        print([(i.hook_func_name, i.subscriber_block_id) for i in list(registry_all_subscriber_hooks)])
+        # Get mirrored BL/RTC data (potentially de-synced)
+        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
+        scene_hook_subs = bpy.context.scene.dgblocks_core_props.managed_hooks
+        
+        # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
+        actions_denied = ()
+        if event == Enum_Sync_Events.INIT:
+            actions_denied = (Enum_Sync_Actions.EDIT)
+
+        # RTC->BL Sync
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
         update_collectionprop_to_match_dataclasses(
-            source = registry_all_subscriber_hooks,
-            target = scene_hooks_collection,
+            source = cached_hook_subs,
+            target = scene_hook_subs,
             key_fields = rtc_sync_key_fields,
-            data_fields = rtc_sync_data_fields
+            data_fields = rtc_sync_data_fields,
+            actions_denied = actions_denied,
+            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
         )
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
@@ -216,7 +236,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         new_hook_func_id: any,
         new_hook_func_named_args: Dict[str, Any] = None,
         skip_BL_sync:bool = False, 
-        skip_subscriber_sync:bool = False
+        skip_subscriber_cache_rebuild:bool = False
     ) -> None:
 
         logger = get_logger(Core_Block_Loggers.HOOKS)
@@ -226,7 +246,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         hook_func_name = cls._get_func_name_from_hook_id(new_hook_func_id)
         all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
 
-        # Validate uniquness. Return with no action upon duplication attempt
+        # Validate uniqueness. Return with no action upon duplication attempt
         if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_hook_sources, "hook_func_name", hook_func_name):
             logger.debug(f"Hook Source '{hook_func_name}' already exists in RTC. Returning with no action")
             return
@@ -241,17 +261,15 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_cached_hook_sources)
 
         # Update subscribers
-        if not skip_subscriber_sync:
-            cls.rebuild_RTC_subscribers_from_sources()
+        if not skip_subscriber_cache_rebuild:
+            cls._rebuild_hook_subs_cache()
 
         # Add hook data from Blender file
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
-            cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
+            cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.PROPERTY_UPDATE)
 
     @classmethod
-    def destroy_instance(cls, hook_func_name, skip_BL_sync:bool = False, skip_subscriber_sync:bool = False) -> None:
+    def destroy_instance(cls, hook_func_name, skip_BL_sync:bool = False, skip_subscriber_cache_rebuild:bool = False) -> None:
         """
         Remove hook registration
         """
@@ -269,14 +287,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_source_instances)
 
         # Update subscribers
-        if not skip_subscriber_sync:
-            cls.rebuild_RTC_subscribers_from_sources()
+        if not skip_subscriber_cache_rebuild:
+            cls._rebuild_hook_subs_cache()
 
         # Remove hook data from Blender file
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
-            cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
+            cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.REMOVE)
 
     # --------------------------------------------------------------
     # Public funcs specific to this class
@@ -286,7 +302,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def run_hooked_funcs(
         cls,
         hook_func_name: any,
-        specific_subscriber_block_id: Optional[str] = None,
+        subscriber_block_id: Optional[str] = None,
         should_halt_on_exception: bool = True,
         **kwargs,
     ) -> Any:
@@ -295,19 +311,19 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         
         Args:
             hook_func: The hook function to call
-            specific_subscriber_block_id: If provided, only call this specific block's hook
+            subscriber_block_id: If provided, only call this specific block's hook
             should_halt_on_exception: If True, re-raise exceptions
             **kwargs: Arguments passed to hook functions
             
         Returns:
-            If specific_subscriber_block_id: single return value
+            If subscriber_block_id: single return value
             Otherwise: dict of {block_id: return_value}
         """
         logger = get_logger(Core_Block_Loggers.HOOKS)
         all_returns: Dict[str, Any] = {}
         
         # Get hook func name from str/enum input
-        hook_func_name = cls._get_func_name_from_hook_id(hook_func_name)
+        hook_func_name = cls.get_subscriber_blocks_of_hook(hook_func_name)
 
         RTC_subscriber_hooks = Wrapper_Runtime_Cache.get_all_with_key_value_from_registry_list(
             cache_key_hook_subscribers,
@@ -330,7 +346,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 continue
             
             # 1. Filter by subscriber block if specified
-            if specific_subscriber_block_id is not None and specific_subscriber_block_id != block_id:
+            if subscriber_block_id is not None and subscriber_block_id != block_id:
                 continue
             
             # 2. Check bypass timeout/reset logic
@@ -386,7 +402,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 end_time_nanos = time.time() # recalculate right after func call
                 instance.count_hook_propagate_success += 1
 
-                if specific_subscriber_block_id is not None:
+                if subscriber_block_id is not None:
                     return result
                 all_returns[block_id] = result
 
@@ -409,12 +425,24 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         return all_returns
 
+    @classmethod
+    def get_subscriber_blocks_of_hook(cls, hook_src_id: Enum):
+        
+        # Get hook func name from str/enum input
+        actual_hook_func_name = hook_src_id.value[0]
+        
+        # Get registered downstream hooks for a func name
+        all_RTC_hook_subscribers = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS)
+        block_ids = [h.subscriber_block_id for h in all_RTC_hook_subscribers if h.hook_func_name == actual_hook_func_name]
+
+        return block_ids
+
     # --------------------------------------------------------------
     # Private funcs specific to this class
     # --------------------------------------------------------------
 
     @classmethod
-    def rebuild_RTC_subscribers_from_sources(cls):
+    def _rebuild_hook_subs_cache(cls):
         """
         Rebuild REGISTRY_ALL_HOOK_SUBSCRIBERS from REGISTRY_ALL_HOOK_SOURCES and REGISTRY_ALL_BLOCKS.
         RTC_Hook_Subscriber_Instance's copy-logic is unsuited for RTC's builtin sync (sync_blender_propertygroup_and_raw_python), so copy-logic is handled here instead
@@ -500,6 +528,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         # Write updates back to registry
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, registry_all_hook_subscribers)
 
+
     @classmethod
     def _get_func_name_from_hook_id(cls, hook_func):
         
@@ -510,6 +539,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             return hook_func.value[0]
         else:
             raise Exception(f"Invalid input, expects <str> or <Enum> for hook_func: {hook_func}")
+
 
     @classmethod
     def _validate_hook_args(cls, func_name, expected_args):
@@ -653,7 +683,7 @@ def _uilayout_draw_hooks_settings(context, container):
     core_props = context.scene.dgblocks_core_props
     box = container.box()
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_hooks_mgmt", default_closed=True)
-    panel_header.label(text = f"All Hooks ({len(context.scene.dgblocks_core_props.managed_hooks)})")
+    panel_header.label(text = f"All Hook Subscriptions ({len(context.scene.dgblocks_core_props.managed_hooks)})")
     if panel_body is not None:        
 
         # Draw column headers - should match draw_item layout exactly

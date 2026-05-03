@@ -99,7 +99,7 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
         else:
             raw_data_to_print = Wrapper_Hooks.run_hooked_funcs(
                 hook_func_name = Block_Hook_Sources.DEBUG_GET_BLOCK_DATA, 
-                specific_subscriber_block_id = self.source_block_id, 
+                subscriber_block_id = self.source_block_id, 
                 context = context,
                 other_input = self.other_input
             )
@@ -140,11 +140,9 @@ class DGBLOCKS_PT_Debugging_Panel(bpy.types.Panel):
     bl_order = 0
 
     def draw_header(self, context):
-
-        uilayout_draw_block_panel_header(context, self.layout, "Debug/Print State for all Blocks", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
+        uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
 
     def draw(self, context):
-        
         uilayout_draw_debug_settings(context, self.layout)
 
 #=================================================================================
@@ -172,14 +170,7 @@ def register_block():
     )
     
     # Add block-core Properties to Scene
-    # bpy.types.Scene.dgblocks_debug_console_print_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Props_Profile)
-    setattr(
-        _block_core.DGBLOCKS_PG_Core_Props,
-        f"dgblocks_debug_console_print_props",
-        bpy.props.PointerProperty(type = DGBLOCKS_PG_Debug_Props_Profile)
-    )
-
-    # setattr(MySceneProps, "my_collection", PointerProperty(type=DGBLOCKS_PG_Debug_Props_Profile))
+    bpy.types.Scene.dgblocks_debug_console_print_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Props_Profile)
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 

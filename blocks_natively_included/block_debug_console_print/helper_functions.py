@@ -15,12 +15,12 @@ from ...addon_helper_funcs import create_simplified_list_from_csv_string, get_me
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
 from .._block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2, ui_box_with_header, uilayout_section_separator
-from .._block_core.core_helpers.constants import Core_Block_Hook_Sources, Core_Runtime_Cache_Members, debug_sort_hooks_choice_items, _BLOCK_ID as core_block_id
+from .._block_core.core_helpers.constants import Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ..block_debug_console_print.constants import Core_Debugging_Print_Options, Block_Hook_Sources
+from .constants import Block_Hook_Sources, Core_Debugging_Print_Options, debug_sort_hooks_choice_items
 
 # --------------------------------------------------------------
 # Helper funcs for formatting data
@@ -1014,20 +1014,18 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
     debug_props = context.scene.dgblocks_debug_console_print_props
     
     box = container.box()
+
+    # Call drawing function for core-block. Since core-block is known dependency of this block, it's reference can be hardcoded here, unlike blocks in the next step
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_print_console", default_closed=True)
     panel_header.label(text = f"Print {core_block_id.upper()} State")
     if panel_body is not None:  
         uilayout_draw_core_block_console_print_panel(context, panel_body, core_block_id)
 
-
-
     # Call drawing functions in downstrean blocks which are hooked for function hook_debug_uilayout_draw_console_print_settings
-    # Each block can have it's own presentation logic, so block-core passes the UILayout (internal_panel_body) to each block hook to allow those blocks to contribute to this current draw call
-    
+    # Each block can have it's own presentation logic. This logic is triggered from a hook every screen-draw call (many times per second)
     hook_func_name = Block_Hook_Sources.DEBUG_UI_DRAW_FOR_BLOCK_CONSOLE_PRINT
-    all_blocks_metadata_for_hook = Wrapper_Hooks.get_instance(hook_func_name) # get_hooked_blocks_metadata_for_func(hook_func_name
+    all_blocks_metadata_for_hook = Wrapper_Hooks.get_subscriber_blocks_of_hook(hook_func_name) # get_hooked_blocks_metadata_for_func(hook_func_name
     for idx, block_hook_metadata in enumerate(all_blocks_metadata_for_hook):
-        # if idx > 0:
         uilayout_section_separator(container, extra_space = 0)
         block_id = block_hook_metadata.subscriber_block_module._BLOCK_ID
         internal_panel_header, internal_panel_body = container.panel(idname = f"_dummy_dgblocks_console_print_{block_id}", default_closed = True)
@@ -1036,16 +1034,10 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
         if internal_panel_body: 
             Wrapper_Hooks.run_hooked_funcs(
                 hook_func_name = hook_func_name, 
-                specific_subscriber_block_id = block_id, 
+                subscriber_block_id = block_id, 
                 context = context,
                 container = internal_panel_body
             )
-
-
-
-
-
-
 
     # For console prints  
     box = container.box()

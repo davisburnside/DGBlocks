@@ -4,9 +4,9 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_data_structures import DGBLOCKS_PG_General_Purpose_Tag, Abstract_BL_and_RTC_Data_Syncronizer
 from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
+from ...addon_data_structures import Global_Addon_State
+from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Core block imports
@@ -44,7 +44,7 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     # When true, all create/edit/move/remove actions are console printed for:
     # - update_dataclasses_to_match_collectionprop
     # - update_collectionprop_to_match_dataclasses
-    debug_log_all_RTC_BL_sync_actions: bpy.props.BoolProperty()# type: ignore
+    debug_log_all_RTC_BL_sync_actions: bpy.props.BoolProperty(default = False)# type: ignore
 
     # --------------------------------------------------------------
     # Persistent, undo/redo-enabled Scene data for each feature-wrapper's mirrored  RTC data
@@ -127,7 +127,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
     def execute(self, context):
 
         # Clearing these would prevent restore-action
-        rtc_members_to_skip = ["REGISTRY_ALL_BLOCKS", "REGISTRY_ALL_FEATURE_WRAPPERS"]
+        rtc_members_to_skip = ["REGISTRY_ALL_BLOCKS", "REGISTRY_ALL_FWCS"]
         
         # Clear or restore the RTC, Blender data is unaffected
         if self.target == "RTC":
@@ -194,10 +194,7 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         return should_show_developer_ui_panels # The toggle to enable/disable the addon is in core-block dev panel
     
     def draw_header(self, context):
-        addon_is_active = context.scene.dgblocks_core_props.addon_is_active
-        header_str = _BLOCK_ID.upper() if addon_is_active else f"{_BLOCK_ID.upper()} ( Disabled )"
-        icon_name = "FILE_3D" if addon_is_active else default_disabled_icon
-        uilayout_draw_block_panel_header(context, self.layout, header_str, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name=icon_name)
+        uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
 
     def draw(self, context):
         
@@ -209,7 +206,6 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [
-    DGBLOCKS_PG_General_Purpose_Tag,
     DGBLOCKS_PG_Debug_Block_Reference,
     DGBLOCKS_PG_Logger_Instance,
     DGBLOCKS_PG_Hook_Reference,
@@ -239,6 +235,9 @@ def register_block():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
+    initial_state = Global_Addon_State()
+    # Wrapper_Block_Management.set
+
     # Register all block classes & components
     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
     Wrapper_Block_Management.create_instance(
@@ -246,7 +245,7 @@ def register_block():
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = _feature_wrapper_classes_to_register, 
         block_hook_source_enums = Core_Block_Hook_Sources,
-        block_RTC_member_enums = Core_Runtime_Cache_Members, 
+        block_RTC_member_enums = Core_Runtime_Cache_Members,
         block_logger_enums = Core_Block_Loggers 
     )
     

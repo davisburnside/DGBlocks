@@ -10,9 +10,9 @@ _ordered_blocks_list = [
     block_debug_console_print,
     # block_example_simple,
     # block_example_complex_A,
-    block_stable_modal,
+    # block_stable_modal,
     block_onscreen_drawing,
-    block_flatypus_modes_manager,
+    # block_flatypus_modes_manager,
     # block_2tone_tests,
     # ... Add other block defininions here
 ]

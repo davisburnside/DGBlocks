@@ -240,7 +240,6 @@ def plan_dataclasses_to_match_collectionprop(
 ) -> list[Action]:
     return _plan_sync(list(source), target, key_fields, data_fields)
 
-
 def apply_dataclasses_to_match_collectionprop(
     actual_FWC: type[T],
     source,
@@ -285,17 +284,20 @@ def update_collectionprop_to_match_dataclasses(
         target,
         key_fields, 
         data_fields,
+        actions_denied: list = [],
+        debug_print_actions: bool = False
     ):
     
-    actions = plan_collectionprop_to_match_dataclasses(
-        source, target, key_fields, data_fields)
-    
-    print("updating BL")
-    for a in actions:
-        print(a)
+    actions = plan_collectionprop_to_match_dataclasses(source, target, key_fields, data_fields)
 
-    apply_collectionprop_to_match_dataclasses(
-        source, target, actions, key_fields, data_fields)
+    
+    
+    if debug_print_actions:
+        print(f"updating BL-CollectionProp '{source.__name__}' ({len(target)}) to match RTC ({len(source)})")
+        for action in actions:
+            print(action)
+
+    apply_collectionprop_to_match_dataclasses(source, target, actions, key_fields, data_fields)
 
 def update_dataclasses_to_match_collectionprop(
         actual_FWC, 
@@ -303,17 +305,18 @@ def update_dataclasses_to_match_collectionprop(
         target,
         key_fields, 
         data_fields,
+        actions_denied: set = (),
+        debug_print_actions: bool = False
     ):
 
-    actions = plan_dataclasses_to_match_collectionprop(
-        source, target, key_fields, data_fields)
+    actions = plan_dataclasses_to_match_collectionprop(source, target, key_fields, data_fields)
     
-    print("updating Py list")
-    for a in actions:
-        print(a)
+    if debug_print_actions:
+        print(f"updating RTC ({len(target)}) to match BL-CollectionProp '{source.__name__}' ({len(source)}")
+        for action in actions:
+            print(action)
         
-    apply_dataclasses_to_match_collectionprop(
-        actual_FWC, source, target, actions, key_fields, data_fields)
+    apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, actions, key_fields, data_fields)
 
 # --------------------------------------------------------------
 # Other

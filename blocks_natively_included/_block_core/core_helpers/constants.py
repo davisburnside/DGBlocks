@@ -18,9 +18,9 @@ _BLOCK_ID = "block-core"
 # value[0] = hooked function name (caps included)
 # value[1] = expected function arguments & types
 class Core_Block_Hook_Sources(Enum):
-    CORE_EVENT_POST_REG_INIT = ("hook_post_register_init", {"context": bpy.types.Context, "some_str": str})
-    CORE_EVENT_POST_UNDO = ("hook_core_event_undo", {"context": bpy.types.Context, "some_str": str})
-    CORE_EVENT_POST_REDO = ("hook_core_event_redo", {"context": bpy.types.Context, "some_str": str})
+    CORE_EVENT_POST_REG_INIT = ("hook_post_register_init", {})
+    CORE_EVENT_POST_UNDO = ("hook_core_event_undo", {})
+    CORE_EVENT_POST_REDO = ("hook_core_event_redo", {})
     CORE_EVENT_BLOCK_REGISTERED = ("hook_block_registered", {"block_name": str, "block_version": tuple})
     CORE_EVENT_BLOCK_UNREGISTERED = ("hook_block_unregistered", {"block_name": str, "block_version": tuple})
 
@@ -41,7 +41,7 @@ class Core_Block_Loggers(Enum):
 class Core_Runtime_Cache_Members(Enum):
     ADDON_METADATA = ("ADDON_METADATA", Global_Addon_State)
     REGISTRY_ALL_BLOCKS = ("REGISTRY_ALL_BLOCKS", [])
-    REGISTRY_ALL_FEATURE_WRAPPERS = ("REGISTRY_ALL_FEATURE_WRAPPERS", [])
+    REGISTRY_ALL_FWCS = ("REGISTRY_ALL_FWCS", [])
     REGISTRY_ALL_HOOK_SOURCES = ("REGISTRY_ALL_HOOK_SOURCES", [])
     REGISTRY_ALL_HOOK_SUBSCRIBERS = ("REGISTRY_ALL_HOOK_SUBSCRIBERS", [])
     REGISTRY_ALL_LOGGERS = ("REGISTRY_ALL_LOGGERS", [])
@@ -54,26 +54,3 @@ class Core_Runtime_Cache_Members(Enum):
 #=================================================================================
 
 log_timestring_format = "%Y-%m-%d %H:%M:%S"
-
-# Must match fields in RTC_Hook_Subscriber_Instance
-debug_sort_hooks_choice_items = [
-    ("timestamp_ms_last_attempt", "Time Last Called", "Time Last Called"),
-    ("is_hook_enabled", "Is Enabled", "Is Enabled"),
-    ("count_hook_propagate_success", "Success Count", "Number of successful hook calls"),
-    ("count_hook_propagate_failure", "Failure Count", "Number of hook calls that raised an exception"),
-    ("count_bypass_via_data_filter", "Bypass: Data Filter", "Bypassed by @hook_data_filter predicate"),
-    ("count_bypass_via_status", "Bypass: Status", "Bypassed by manual flag or re-entrancy guard"),
-    ("count_bypass_via_frequency", "Bypass: Frequency", "Bypassed by min_ms_between_runs rate limit"),
-    ("average_runtime", "(ms) Avg Exec Time", "Average execution time per successful call"),
-]
-
-debug_console_print_dict_key_filter_items = [
-        ("OFF", "Filter Disabled", "Filter Disabled"), 
-        ("LEAF", "Filter only Leaf Nodes", "Filter only Leaf Node"),
-        ("BRANCH", "Filter only Branch Nodes", ""),
-        ("FULL", "Filter all Nodes", "Filter all Nodes")]
-
-debug_console_print_data_filter_items = [
-        ("OFF", "Filter Off", "Filter is Disabled"), 
-        ("FILTER-INCLUDE", "Include Numbers", "Only Include values"),
-        ("FILTER-EXCLUDE", "Exclude Numbers", "Exclude values")]

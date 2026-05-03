@@ -184,6 +184,7 @@ def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.U
         grid = panel_body.grid_flow(columns=2)
         grid.prop(core_scene_props, "addon_is_active")
         grid.prop(core_scene_props, "debug_mode_enabled")
+        grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
         grid.prop(core_scene_props, "documentation_weblinks_enabled")
         op_rtc_clear = grid.operator("dgblocks.debug_force_reload_scipts", text = "Clear RTC")
         op_rtc_clear.target = "RTC"

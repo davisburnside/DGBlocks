@@ -1,35 +1,56 @@
 
 from abc import ABC, abstractmethod
-from enum import Enum
+from dataclasses import dataclass, field
+from enum import Enum, StrEnum, auto
 import bpy # type: ignore
 
+@dataclass
+class Global_Addon_State():
+    POST_REG_INIT_HAS_RUN: bool = False
+    ADDON_STARTED_SUCCESSFULLY: bool = False
+    SESSION_EVENTS: list = field(default_factory = list)
 
+# ==============================================================================================================================
+# COMMON ENUMS
+# ==============================================================================================================================
 
-
-
-
-
-
-class Global_Addon_State(Enum):
-    POST_REG_INIT_HAS_RUN = False
-    SESSION_EVENTS = []
-
-
-
-
-#=================================================================================
-# GLOBAL DATA DEFINITIONS - Used throughout this addon
-#=================================================================================
-
-class DGBLOCKS_PG_General_Purpose_Tag(bpy.types.PropertyGroup):
+class Enum_Log_Levels(Enum):
+    DEBUG = ("DEBUG", "Debug", "Show all messages", 10)
+    INFO = ("INFO", "Info", "Show info and above", 20)
+    WARNING = ("WARNING", "Warning", "Show warnings and above", 30)
+    ERROR = ("ERROR", "Error", "Show errors and above", 40)
+    CRITICAL = ("CRITICAL", "Critical", "Show only critical errors", 50)
     
-    tag_group: bpy.props.StringProperty(name="Tag Group") # type: ignore
-    tag_id: bpy.props.StringProperty(name="Tag ID") # type: ignore
-    tag_description: bpy.props.StringProperty() # type: ignore
+    @property
+    def desc(self):
+        return self.value[2]@property
+    
+    @property
+    def weight(self):
+        return self.value[3]@property
+    
+    @classmethod# Used by scene_loggers.level.items
+    def tuple_enum_items(cls):
+        """Helper to return tuples for Blender: (identifier, name, description)"""
+        # We only take the first 3 elements for the UI
+        return [item.value[:3] for item in cls]
 
-#=================================================================================
+class Enum_Sync_Events(StrEnum):
+    INIT = auto()
+    REMOVE = auto()
+    UNDO = auto()
+    REDO = auto()
+    PROPERTY_UPDATE = auto()
+
+class Enum_Sync_Actions(StrEnum):
+    CREATE = auto()
+    REMOVE = auto()
+    EDIT = auto()
+    MOVE = auto()
+
+# ==============================================================================================================================
 # FEATURE WRAPPER PARENT CLASSES
-#=================================================================================
+# ==============================================================================================================================
 
 # Addon Features (logging, event-listeners, hooks...) are often bundled into a single wrapper class that inherits from these Abstract classes
 # These special classes are labeled 'FWC' (Feature-Wrapper Classes)
@@ -44,7 +65,7 @@ class DGBLOCKS_PG_General_Purpose_Tag(bpy.types.PropertyGroup):
 
 class Abstract_Feature_Wrapper(ABC):
     # Inhertited by all FWCs. 
-    # Each FWC's Init/Destroy functions are automatically called during startup/shutdown events by Wrapper_Block_Management
+    # Each FWC's Init/Destroy functions are automatically called during startup/shutdown events by Wrapper_Block_Management.
 
     @classmethod
     @abstractmethod
@@ -73,20 +94,20 @@ class Abstract_BL_and_RTC_Data_Syncronizer(ABC):
 
     @classmethod
     @abstractmethod
-    def update_RTC_with_mirrored_BL_data(cls):
+    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
         # Used by Wrapper_Block_Management on undo/redo/load, and by certain property update callbacks
         # Rebuild RTC from scene/obj/datablock properties. Blender is the source of truth
         # Should use 'update_dataclasses_to_match_collectionprop' for convenience
-        # Must have no extra arguments, returns are ignored
+        # Args must match exactly
         pass
 
     @classmethod
     @abstractmethod
-    def update_BL_with_mirrored_RTC_data(cls): 
+    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): 
         # Used when RTC data need to be persisted into Blender
         # RTC data overwries scene/obj/datablock properties. Data is reused/modified instead of recreated, when possible
         # Should use 'update_collectionprop_to_match_dataclasses' for convenience
-        # Must have no extra arguments, returns are ignored
+        # Args must match exactly
         pass
 
 class Abstract_Datawrapper_Instance_Manager(ABC):
@@ -97,36 +118,14 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
     @classmethod
     @abstractmethod
     def create_instance(cls, **kwargs) -> any:
-        # Should instance
+        # Can have arbitrary args
+        # Should return instance
         pass
     
     @classmethod
     @abstractmethod
     def destroy_instance(cls, **kwargs):
+        # Can have arbitrary args
         # Should return None
         pass
 
-#=================================================================================
-# ALL LOG LEVELS
-#=================================================================================
-
-class Enum_Log_Levels(Enum):
-    DEBUG = ("DEBUG", "Debug", "Show all messages", 10)
-    INFO = ("INFO", "Info", "Show info and above", 20)
-    WARNING = ("WARNING", "Warning", "Show warnings and above", 30)
-    ERROR = ("ERROR", "Error", "Show errors and above", 40)
-    CRITICAL = ("CRITICAL", "Critical", "Show only critical errors", 50)
-    
-    @property
-    def desc(self):
-        return self.value[2]@property
-    
-    @property
-    def weight(self):
-        return self.value[3]@property
-    
-    @classmethod# Used by scene_loggers.level.items
-    def tuple_enum_items(cls):
-        """Helper to return tuples for Blender: (identifier, name, description)"""
-        # We only take the first 3 elements for the UI
-        return [item.value[:3] for item in cls]

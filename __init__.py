@@ -1,18 +1,4 @@
-# DGBLocks Baseline
-# Copyright 2026, Davis Burnside
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTIBILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You may have received a copy of the GNU General Public License
-# along with this program. If not, see <http://www.gnu.org/licenses/>.
- 
+
 bl_info = {
     "name" : "dgblock_basic_template",
     "author" : "DGBlocks", 
@@ -36,16 +22,16 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from .addon_helper_funcs import clear_console
-from .my_activated_blocks import _ordered_blocks_list
-from .my_addon_config import addon_name
+
 blender_version = '.'.join(map(str, bpy.app.version[:2]))
 
 clear_console()
 
+#=======()=========================================================
+# RECURSIVE MODULE RELOAD (FOR DEVELOPERS)
 #================================================================
-# RECURSIVE MODULE RELOAD
-# Allows a single bpy.ops.script.reload() to reload all python files in deeply nested folders
-#================================================================
+# Allows a single bpy.ops.script.reload() to reload all python files in deeply nested folders.
+# Without this step, some modules need 2 reload() actions to refresh
 
 # Get all modules in addon
 all_sys_modules = sys.modules.items()
@@ -63,8 +49,10 @@ for name, module in modules_to_reload:
     importlib.reload(module)
 
 #================================================================
-# CORE-BLOCK IMPORTS
+# ADDON-LEVEL & CORE-BLOCK IMPORTS
 #================================================================
+from .my_activated_blocks import _ordered_blocks_list
+from .my_addon_config import addon_name
 
 from .blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from .blocks_natively_included._block_core.core_features.feature_logs import Wrapper_Loggers, get_logger
@@ -73,13 +61,14 @@ from .blocks_natively_included._block_core.core_helpers.constants import Core_Bl
 
 #================================================================
 # MAIN REGISTRATION
-# This main __init__ file should own/register no bpy.types.* classes
-# Instead, all classes should be owned & registered by a block
 #================================================================
+# This main __init__ file should own/register no bpy.types.* classes
+# Instead, all classes/properties should be registered & managed by the block that owns them
 
 def register():
     
-    # Two feature-wrapper classes (runtime-cache & loggers) are initialized first
+    # Two feature-wrapper classes (runtime-cache & loggers) are bootstrapped first, before their owner (block-core) starts registration.
+    # Loggers are used immediately after this step, and loggers are stored inside the Runtime Cache
     if not Wrapper_Runtime_Cache.init_pre_bpy():
         raise Exception("Runtime Cache Wrapper failed pre-bpy init")
     if not Wrapper_Loggers.init_pre_bpy(): # The "get_logger(...)"" func will work after this step
@@ -89,7 +78,7 @@ def register():
     logger.log_with_linebreak(f"Starting main registration for Addon '{addon_name}'")
 
     # Block Managmenet feature-wrapper is created next, and is used immediately after (Triggers init tasks on other core-block features)
-    Wrapper_Block_Management.init_pre_bpy(blocks_to_register = _ordered_blocks_list)
+    Wrapper_Block_Management.init_pre_bpy()
 
     # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
     # Causes of invalid blocks: TODO webpage link
@@ -98,6 +87,7 @@ def register():
     # Call registration logic of each block, in order. Core-block should always be first in this list
     # Most init tasks for core-block features are already completed by this point, but 
     # Other features, from other blocks, may have their own init tasks. These are automatically triggered inside 'register_block'
+    # To see the full list of actions triggered by the registration loop, set REGISTRATE, POST_REGISTRATE, BLOCK_MGMT Loggers to 'DEBUG'
     for block in valid_block_packages:
         block.register_block()
     

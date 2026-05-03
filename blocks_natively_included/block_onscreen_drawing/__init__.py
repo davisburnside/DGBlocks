@@ -51,15 +51,14 @@ _BLOCK_DEPENDENCIES = [
 #=================================================================================
 
 class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
-    bl_label       = "Modal Stack"
-    bl_idname      = "VIEW3D_PT_Debug_Drawing_Panel"
-    bl_space_type  = 'VIEW_3D'
+    bl_label = ""
+    bl_idname = "VIEW3D_PT_Debug_Drawing_Panel"
+    bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category    = addon_title
+    bl_category = addon_title
 
     def draw_header(self, context):
-
-        uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID.lower(), Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
+        uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "RESTRICT_VIEW_ON")
         
     def draw(self, context):
 
@@ -97,7 +96,6 @@ def register_block():
     )
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
-
 
 def unregister_block():
     

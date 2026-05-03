@@ -15,7 +15,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helper_funcs import is_bpy_ready, ui_draw_list_headers
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels
+from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events
 from .... import my_addon_config
 from ....my_addon_config import base_linebreak_length
 
@@ -25,7 +25,11 @@ from ....my_addon_config import base_linebreak_length
 from .feature_runtime_cache import Wrapper_Runtime_Cache, get_actual_rtc_key
 from ..core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Block_Loggers, Core_Runtime_Cache_Members
-rtc_loggers_key = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
+
+# --------------------------------------------------------------
+# Aliases
+# --------------------------------------------------------------
+cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS
@@ -36,8 +40,8 @@ def get_logger(logger_id: Enum):
     true_logger_id = get_actual_rtc_key(logger_id)
     try:
         
-        all_loggers = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        logger_instance = next((x for x in all_loggers if x.logger_name == true_logger_id), None)
+        cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
+        logger_instance = next((x for x in cached_loggers if x.logger_name == true_logger_id), None)
         if logger_instance is None:
             return Wrapper_Loggers._fallback_logger
         else:
@@ -78,16 +82,16 @@ def _callback_log_level_changed(self, context):
     """
 
     # Skip further action if a sync is already in progress
-    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(rtc_loggers_key):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_loggers):
         return
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, True)
+    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
     
     logger_name = self.logger_name
     new_level_name = self.level_name
     
     # Get the actual Python logger and update its level
-    idx, logger_instance, all_RTC_loggers = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-        member_key = rtc_loggers_key, 
+    idx, logger_instance, cached_loggers = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+        member_key = cache_key_loggers, 
         uniqueness_field = "logger_name", 
         uniqueness_field_value = logger_name,
     )
@@ -100,7 +104,7 @@ def _callback_log_level_changed(self, context):
     if old_level_int != new_level_int:
         logger.log(new_level_int, f"Log level changed to: {new_level_name}")
 
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, False)
+    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
 
 class DGBLOCKS_PG_Logger_Instance(bpy.types.PropertyGroup):
     """
@@ -187,7 +191,9 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
         
-        cls.update_BL_with_mirrored_RTC_data()
+        # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
+        cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.INIT) # Causes partial RTC->BL sync
+        cls.update_RTC_with_mirrored_BL_data(event = Enum_Sync_Events.INIT) # Causes full BL-RTC resync
         return True
 
     @classmethod
@@ -200,7 +206,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
     # --------------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls):
+    def update_RTC_with_mirrored_BL_data(cls, event: str):
         """
         Synchronizes RTC with the Blender Logger info
         """
@@ -209,18 +215,24 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating loggers cache with mirrored Blender data")
 
-        all_RTC_logger_instances = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        loggers_collectionprop = bpy.context.scene.dgblocks_core_props.managed_loggers
+        # Get mirrored BL/RTC data (potentially de-synced)
+        cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
+        scene_loggers = bpy.context.scene.dgblocks_core_props.managed_loggers
+
+        # BL->RTC Sync
+        actions_denied = ()
         update_dataclasses_to_match_collectionprop(
             dataclass_type = Wrapper_Loggers,
-            source = loggers_collectionprop,
-            target = all_RTC_logger_instances,
+            source = scene_loggers,
+            target = cached_loggers,
             key_fields = rtc_sync_key_fields,
-            data_fields = rtc_sync_data_fields
+            data_fields = rtc_sync_data_fields,
+            actions_denied = actions_denied,
+            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
         )
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls):
+    def update_BL_with_mirrored_RTC_data(cls, event: str):
         """
         Synchronizes Blender log levels with the RTC logger info
         """
@@ -228,14 +240,26 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored loggers cache")
         
-        all_RTC_logger_instances = Wrapper_Runtime_Cache.get_cache(rtc_loggers_key)
-        loggers_collectionprop = bpy.context.scene.dgblocks_core_props.managed_loggers
+        # Get mirrored BL/RTC data (potentially de-synced)
+        cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
+        scene_loggers = bpy.context.scene.dgblocks_core_props.managed_loggers
+
+        # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
+        actions_denied = ()
+        if event == Enum_Sync_Events.INIT:
+            actions_denied = (Enum_Sync_Actions.EDIT)
+
+        # BL->RTC Sync
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
         update_collectionprop_to_match_dataclasses(
-            source = all_RTC_logger_instances,
-            target = loggers_collectionprop,
+            source = cached_loggers,
+            target = scene_loggers,
             key_fields = rtc_sync_key_fields,
-            data_fields = rtc_sync_data_fields
+            data_fields = rtc_sync_data_fields,
+            actions_denied = actions_denied,
+            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
         )
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
@@ -247,7 +271,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         action_logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
 
         true_logger_id = get_actual_rtc_key(logger_name)
-        idx, current_logger, all_RTC_loggers = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(rtc_loggers_key, "logger_name", logger_name)
+        idx, current_logger, cached_loggers = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_loggers, "logger_name", logger_name)
 
         # Validate uniquness. Return with no result upon duplication attemptlogger_name
         if current_logger:
@@ -270,14 +294,14 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         )
 
         # Update runtime cache with new logger
-        all_RTC_loggers.append(RTC_logger_instance)
-        Wrapper_Runtime_Cache.set_cache(rtc_loggers_key, all_RTC_loggers)
+        cached_loggers.append(RTC_logger_instance)
+        Wrapper_Runtime_Cache.set_cache(cache_key_loggers, cached_loggers)
         action_logger.debug(f"Created Logger '{true_logger_id}'")
 
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, True)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
             cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, False)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
         
         return new_logger
 
@@ -287,16 +311,16 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger = get_logger(Core_Block_Loggers.REGISTRATE)
         
         Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
-            member_key = rtc_loggers_key, 
+            member_key = cache_key_loggers, 
             uniqueness_field = "logger_name", 
             uniqueness_field_value = logger_name, 
         )
         logger.debug(f"Removed Logger '{logger_name}'")
 
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, True)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
             cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(rtc_loggers_key, False)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
 
     # --------------------------------------------------------------
     # Private funcs specific to this class
