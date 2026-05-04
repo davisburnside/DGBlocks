@@ -2,8 +2,6 @@
 import dataclasses
 from datetime import datetime
 from typing import Any
-
-from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header, uilayout_section_separator
 import bpy # type: ignore
 
 # --------------------------------------------------------------
@@ -11,14 +9,15 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 from ...addon_helpers.data_tools import get_propertygroup_values, create_simplified_list_from_csv_string
 from ...addon_helpers.generic_helpers import print_section_separator
+from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header, uilayout_section_separator
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from .._block_core.core_features.feature_hooks import Wrapper_Hooks
-from .._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .._block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2
-from .._block_core.core_helpers.constants import Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
+from ..block_core.core_features.feature_hooks import Wrapper_Hooks
+from ..block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ..block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2
+from ..block_core.core_helpers.constants import Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
 
 # --------------------------------------------------------------
 # Intra-block imports

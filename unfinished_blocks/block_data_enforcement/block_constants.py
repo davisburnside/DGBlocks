@@ -1,7 +1,7 @@
 
 from enum import Enum, StrEnum, auto
 
-from ..blocks_natively_included._block_core.core_block_constants import Core_Block_Loggers
+from ..native_blocks._block_core.core_block_constants import Core_Block_Loggers
 
 # ==========================================
 # Determines if stable ids are assigned immediately on creation or only when requested.

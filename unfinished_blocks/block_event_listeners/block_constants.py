@@ -2,7 +2,7 @@
 from enum import Enum, StrEnum, auto
 import bpy
 
-from ..blocks_natively_included._block_core.core_block_constants import Core_Block_Loggers
+from ..native_blocks._block_core.core_block_constants import Core_Block_Loggers
 
 # Loggers user by this block
 class Block_Logger_Definitions(Enum):

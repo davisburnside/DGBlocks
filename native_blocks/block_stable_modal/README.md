@@ -131,7 +131,7 @@ def hook_modal_area_change(context, event, old_area, new_area):
 ### Programmatic Control
 
 ```python
-from blocks_natively_included.block_stable_modal.feature_modal_wrapper import Modal_Wrapper
+from native_blocks.block_stable_modal.feature_modal_wrapper import Modal_Wrapper
 
 # Start the modal
 Modal_Wrapper.start_modal(context)

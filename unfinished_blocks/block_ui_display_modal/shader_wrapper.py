@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 import gpu
 from gpu_extras.batch import batch_for_shader
 
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_feature_logs import get_logger
 from .shaders.my_custom_shaders import create_grid_tri_shader
 
 

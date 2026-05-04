@@ -13,15 +13,15 @@ from ...my_addon_config import Documentation_URLs, addon_title
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...blocks_natively_included import _block_core
-from ...blocks_natively_included._block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
-from ...blocks_natively_included._block_core.core_features.feature_hooks import Wrapper_Hooks
-from ...blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
-from ...blocks_natively_included._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from ...native_blocks import block_core
+from ...native_blocks.block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
+from ...native_blocks.block_core.core_features.feature_hooks import Wrapper_Hooks
+from ...native_blocks.block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ...native_blocks.block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
-from ...blocks_natively_included.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
-from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
+from ...native_blocks.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
+from ...native_blocks.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
 
 # --------------------------------------------------------------
 # Intra-block imports

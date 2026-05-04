@@ -11,11 +11,11 @@ from ...addon_helpers.data_structures import Enum_Sync_Events
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from .. import _block_core
-from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
-from .._block_core.core_features.feature_hooks import Wrapper_Hooks
-from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
-from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from .. import block_core
+from ..block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
+from ..block_core.core_features.feature_hooks import Wrapper_Hooks
+from ..block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ..block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
@@ -30,7 +30,7 @@ from .constants import Block_Hook_Sources, debug_console_print_dict_key_filter_i
 
 _BLOCK_ID = "block-debug-console-print" # Defined in constants, To Prevent circular imports. Other Blocks can assign directly
 _BLOCK_VERSION = (1,0,0)
-_BLOCK_DEPENDENCIES = [_block_core.core_block_id] 
+_BLOCK_DEPENDENCIES = [block_core.core_block_id] 
 
 # ==============================================================================================================================
 # BLENDER DATA FOR BLOCK
@@ -93,7 +93,7 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
             clear_console()
 
         # When printing for core-block (Hook Tables & RTC JSON), the "get data" function is inside this block
-        if self.source_block_id == _block_core._BLOCK_ID:
+        if self.source_block_id == block_core._BLOCK_ID:
             raw_data_to_print = extract_core_block_data_to_print(context, self.other_input)
         
         # When printing for other blocks, the "get data" function is extracted from that subscriber block with a hook
@@ -184,7 +184,7 @@ def unregister_block(event: Enum_Sync_Events):
     Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
     
     # Delete block-core Scene Properties
-    if hasattr(_block_core.DGBLOCKS_PG_Core_Props, "dgblocks_debug_console_print_props"):
+    if hasattr(block_core.DGBLOCKS_PG_Core_Props, "dgblocks_debug_console_print_props"):
         del bpy.types.Scene.dgblocks_debug_console_print_props
     
     logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")

@@ -4,8 +4,8 @@ import string
 import uuid
 
 
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
+from ..native_blocks._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
 from .block_constants import Block_Runtime_Cache_Member_Definitions
 from .block_config import my_filter_for_stable_id_assignment, my_stable_id_target_list
 from .block_constants import Block_Logger_Definitions

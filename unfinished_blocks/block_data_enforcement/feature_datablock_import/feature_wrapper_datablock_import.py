@@ -9,9 +9,9 @@ import time
 from enum import Enum
 import bpy
 from ...addon_config import Documentation_URLs
-from ...blocks_natively_included._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header
-from ...blocks_natively_included._block_core.core_feature_logs import get_logger
-from ...blocks_natively_included._block_core.core_helper_functions import register_block_components, unregister_block_components
+from ...native_blocks._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header
+from ...native_blocks._block_core.core_feature_logs import get_logger
+from ...native_blocks._block_core.core_helper_functions import register_block_components, unregister_block_components
 from ...addon_config import addon_name
 
 #================================================================

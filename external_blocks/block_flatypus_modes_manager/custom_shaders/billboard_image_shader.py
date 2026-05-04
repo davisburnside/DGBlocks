@@ -5,7 +5,7 @@ import gpu
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ....blocks_natively_included.block_onscreen_drawing.feature_shader import Shader_Instance
+from ....native_blocks.block_onscreen_drawing.feature_shader import Shader_Instance
 
 # =================================================================================
 # SHADER CONSTANTS

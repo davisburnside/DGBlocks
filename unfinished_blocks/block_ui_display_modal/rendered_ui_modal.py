@@ -20,10 +20,10 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Vector, Matrix, Euler
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
-from ..blocks_natively_included._block_core.core_block_constants import addon_name
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_block_constants import addon_name
+from ..native_blocks._block_core.core_feature_logs import get_logger
 from ..addon_config import Documentation_URLs
-from ..blocks_natively_included._block_core.core_helper_uilayouts import force_redraw_ui, create_ui_box_with_header, uilayout_draw_block_panel_header
+from ..native_blocks._block_core.core_helper_uilayouts import force_redraw_ui, create_ui_box_with_header, uilayout_draw_block_panel_header
 from .shader_wrapper import Basic_Builtin_Shader_Names, DGBlocks_Shader_Wrapper, Shader_Types
 from .draw_functions.my_draw_funcs_2d import draw_simple_box
 from .draw_functions.shared_helper_functions import config_gpu_for_occluded_3d_draw

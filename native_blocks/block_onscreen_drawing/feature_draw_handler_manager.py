@@ -9,14 +9,14 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_helpers import get_names_of_parent_classes
-from ...addon_helpers.data_structures import Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Feature_Wrapper
+from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from .._block_core.core_features.feature_hooks import Wrapper_Hooks
-from .._block_core.core_features.feature_logs import get_logger
+from ..block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from ..block_core.core_features.feature_hooks import Wrapper_Hooks
+from ..block_core.core_features.feature_logs import get_logger
 
 # --------------------------------------------------------------
 # Intra-block imports

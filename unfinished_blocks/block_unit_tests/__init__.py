@@ -10,11 +10,11 @@ from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addo
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...blocks_natively_included import _block_core
-from ...blocks_natively_included._block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
-from ...blocks_natively_included._block_core.core_features.feature_hooks import Wrapper_Hooks
-from ...blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
-from ...blocks_natively_included._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from ...native_blocks import block_core
+from ...native_blocks.block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
+from ...native_blocks.block_core.core_features.feature_hooks import Wrapper_Hooks
+from ...native_blocks.block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ...native_blocks.block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
@@ -28,7 +28,7 @@ from .helper_unittests import run_operator_in_headless_blender, _sample_unittest
 
 _BLOCK_ID = "block-unit-tests" 
 _BLOCK_VERSION = (1,0,0)
-_BLOCK_DEPENDENCIES = [_block_core.core_block_id] 
+_BLOCK_DEPENDENCIES = [block_core.core_block_id] 
 
 class DGBLOCKS_OT_Run_Tests(bpy.types.Operator):
     bl_idname = "dgblocks.run_tests"

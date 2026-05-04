@@ -9,13 +9,13 @@ from ..addon_config import (
         should_show_developer_ui_panels,
         Documentation_URLs)
 
-from ...blocks_natively_included import _block_core
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
-from ..blocks_natively_included._block_core.core_helper_uilayouts import create_ui_box_with_header, uilayout_draw_block_panel_header
-from ..blocks_natively_included._block_core.core_helper_functions import register_block_components, unregister_block_components
-from ..blocks_natively_included._block_core.core_helper_debug_functions import make_pretty_json_string_from_data
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
-from ..blocks_natively_included._block_core.core_block_constants import (
+from ...native_blocks import block_core
+from ..native_blocks._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
+from ..native_blocks._block_core.core_helper_uilayouts import create_ui_box_with_header, uilayout_draw_block_panel_header
+from ..native_blocks._block_core.core_helper_functions import register_block_components, unregister_block_components
+from ..native_blocks._block_core.core_helper_debug_functions import make_pretty_json_string_from_data
+from ..native_blocks._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_block_constants import (
         Core_Block_Loggers)
 
 from . import feature_generic_listener_wrapper
@@ -30,7 +30,7 @@ from .block_constants import (
 # ==============================================================================================================================
 
 _BLOCK_ID = "block-event-listener"
-_BLOCK_DEPENDENCIES = [_block_core._BLOCK_ID]
+_BLOCK_DEPENDENCIES = [block_core._BLOCK_ID]
 
 # ==============================================================================================================================
 # CALLBACK HOOK FUNCTIONS 

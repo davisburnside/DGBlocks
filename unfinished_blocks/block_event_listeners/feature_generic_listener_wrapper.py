@@ -24,8 +24,8 @@ from typing import Any, Callable
 import bpy
 from bpy.types import Depsgraph, Object, Scene
 
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
+from ..native_blocks._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
 
 from .block_constants import Enum_Runtime_Cache_Keys, Enum_Event_Listener_Definitions
 

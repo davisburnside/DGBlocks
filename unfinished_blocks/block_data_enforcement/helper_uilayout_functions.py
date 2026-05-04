@@ -1,5 +1,5 @@
-from ..blocks_natively_included._block_core.core_helper_uilayouts import create_ui_box_with_header
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache
+from ..native_blocks._block_core.core_helper_uilayouts import create_ui_box_with_header
+from ..native_blocks._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache
 
 from .block_constants import CACHE_KNOWN_OBJECT_IDS
 from .feature_library_import.library_installation_wrapper import Python_Library_Dependencies, Library_Installation_Wrapper

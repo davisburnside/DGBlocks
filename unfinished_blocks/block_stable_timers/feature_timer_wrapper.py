@@ -2,7 +2,7 @@
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
-from ...blocks_natively_included._block_core import Abstract_Feature_Wrapper
+from ...native_blocks.block_core import Abstract_Feature_Wrapper
 import bpy  # type: ignore
 
 # --------------------------------------------------------------
@@ -15,11 +15,11 @@ from ...addon_helpers.generic_helpers import (
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...blocks_natively_included._block_core import Abstract_Datawrapper_Instance_Manager
-from ...blocks_natively_included._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from ...blocks_natively_included._block_core.core_features.feature_hooks import Wrapper_Hooks
-from ...blocks_natively_included._block_core.core_features.feature_logs import get_logger
-from ...blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ...native_blocks.block_core import Abstract_Datawrapper_Instance_Manager
+from ...native_blocks.block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ...native_blocks.block_core.core_features.feature_hooks import Wrapper_Hooks
+from ...native_blocks.block_core.core_features.feature_logs import get_logger
+from ...native_blocks.block_core.core_features.feature_block_manager import Wrapper_Block_Management
 
 # --------------------------------------------------------------
 # Intra-block imports

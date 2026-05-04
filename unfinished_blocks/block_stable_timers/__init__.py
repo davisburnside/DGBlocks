@@ -16,11 +16,11 @@ from ...my_addon_config import (
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...blocks_natively_included import _block_core
-from ...blocks_natively_included._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ...native_blocks import block_core
+from ...native_blocks.block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header
-from ...blocks_natively_included._block_core.core_features.feature_logs import get_logger
-from ...blocks_natively_included._block_core.core_helpers.constants import ( Core_Block_Loggers, Core_Block_Hook_Sources)
+from ...native_blocks.block_core.core_features.feature_logs import get_logger
+from ...native_blocks.block_core.core_helpers.constants import ( Core_Block_Loggers, Core_Block_Hook_Sources)
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -39,7 +39,7 @@ from .block_constants import (
 _BLOCK_ID = "block-stable-timers"
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [
-    _block_core._BLOCK_ID,
+    block_core._BLOCK_ID,
 ]
 
 # ==============================================================================================================================

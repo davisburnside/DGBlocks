@@ -7,8 +7,8 @@ import bpy
 
 from ..addon_config import addon_name
 
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache, Wrapper_Runtime_Cache.set_cache
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache, Wrapper_Runtime_Cache.set_cache
+from ..native_blocks._block_core.core_feature_logs import get_logger
 
 from ..block_data_enforcement.feature_library_import.library_installation_wrapper import Library_Installation_Wrapper
 

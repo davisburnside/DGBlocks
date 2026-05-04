@@ -79,7 +79,7 @@ def hook_timer_fire(context, timer_name: str):
 To programmatically create/manage timers:
 
 ```python
-from blocks_natively_included.block_timer.feature_timer_wrapper import Timer_Wrapper
+from native_blocks.block_timer.feature_timer_wrapper import Timer_Wrapper
 
 # Create a timer
 Timer_Wrapper.create_instance("my_timer", frequency_ms=1000, is_enabled=True)

@@ -10,14 +10,14 @@ from ..addon_config import (
         should_show_developer_ui_panels,
         Documentation_URLs)
 
-from ...blocks_natively_included import _block_core
-from ..blocks_natively_included._block_core.core_feature_runtime_cache import delete_from_addon_runtime_cache, Wrapper_Runtime_Cache.set_cache
-from ..blocks_natively_included._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header
-from ..blocks_natively_included._block_core.core_helper_functions import register_block_components, unregister_block_components
-from ..blocks_natively_included._block_core.core_feature_logs import get_logger
-from ..blocks_natively_included._block_core.core_block_constants import (Core_Block_Loggers)
+from ...native_blocks import block_core
+from ..native_blocks._block_core.core_feature_runtime_cache import delete_from_addon_runtime_cache, Wrapper_Runtime_Cache.set_cache
+from ..native_blocks._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header
+from ..native_blocks._block_core.core_helper_functions import register_block_components, unregister_block_components
+from ..native_blocks._block_core.core_feature_logs import get_logger
+from ..native_blocks._block_core.core_block_constants import (Core_Block_Loggers)
 
-from ...blocks_natively_included import block_event_listeners
+from ...native_blocks import block_event_listeners
 from ..block_event_listeners.block_constants import Block_Logger_Definitions as event_listener_loggers
 
 from .feature_datablock_import import feature_wrapper_datablock_import
@@ -34,7 +34,7 @@ from .block_constants import (
 # =============================================================================
 
 _BLOCK_ID = "block-data-enforcement"
-_BLOCK_DEPENDENCIES = [_block_core._BLOCK_ID, block_event_listeners._BLOCK_ID]
+_BLOCK_DEPENDENCIES = [block_core._BLOCK_ID, block_event_listeners._BLOCK_ID]
 
 #================================================================
 # INIT EVENTS - Called after register_block() finishes & bpy.context is fully usable

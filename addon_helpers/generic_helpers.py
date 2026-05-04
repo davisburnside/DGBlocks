@@ -10,8 +10,6 @@ from typing import Any, Callable, Collection, List, Optional
 import numpy as np
 import bpy  # type: ignore
 import mathutils # type: ignore
-
-# addon_helper_funcs module can only import from .addon_config.py in this addon, to prevent circular deps
 from ..my_addon_config import should_show_developer_ui_panels, addon_name
 
 # --------------------------------------------------------------
