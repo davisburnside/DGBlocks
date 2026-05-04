@@ -293,7 +293,7 @@ def update_collectionprop_to_match_dataclasses(
     
     
     if debug_print_actions:
-        print(f"updating BL-CollectionProp '{source.__name__}' ({len(target)}) to match RTC ({len(source)})")
+        print(f"updating BL-CollectionProp (len={len(target)}) to match RTC (len={len(source)})")
         for action in actions:
             print(action)
 
@@ -312,7 +312,7 @@ def update_dataclasses_to_match_collectionprop(
     actions = plan_dataclasses_to_match_collectionprop(source, target, key_fields, data_fields)
     
     if debug_print_actions:
-        print(f"updating RTC ({len(target)}) to match BL-CollectionProp '{source.__name__}' ({len(source)}")
+        print(f"updating RTC (len={len(target)}) to match BL-CollectionProp (len={len(source)}")
         for action in actions:
             print(action)
         
