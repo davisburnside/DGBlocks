@@ -51,6 +51,7 @@ for name, module in modules_to_reload:
 #================================================================
 # ADDON-LEVEL & CORE-BLOCK IMPORTS
 #================================================================
+from .addon_data_structures import Enum_Sync_Events
 from .my_activated_blocks import _ordered_blocks_list
 from .my_addon_config import addon_name
 
@@ -69,16 +70,14 @@ def register():
     
     # Two feature-wrapper classes (runtime-cache & loggers) are bootstrapped first, before their owner (block-core) starts registration.
     # Loggers are used immediately after this step, and loggers are stored inside the Runtime Cache
-    if not Wrapper_Runtime_Cache.init_pre_bpy():
-        raise Exception("Runtime Cache Wrapper failed pre-bpy init")
-    if not Wrapper_Loggers.init_pre_bpy(): # The "get_logger(...)"" func will work after this step
-        raise Exception("Logger Wrapper failed pre-bpy init")
+    Wrapper_Runtime_Cache.init_pre_bpy(event = Enum_Sync_Events.ADDON_INIT)
+    Wrapper_Loggers.init_pre_bpy(event = Enum_Sync_Events.ADDON_INIT)
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting main registration for Addon '{addon_name}'")
+    logger.log_with_linebreak(f"Starting main pre-bpy registration for Addon '{addon_name}'")
 
     # Block Managmenet feature-wrapper is created next, and is used immediately after (Triggers init tasks on other core-block features)
-    Wrapper_Block_Management.init_pre_bpy()
+    Wrapper_Block_Management.init_pre_bpy(event = Enum_Sync_Events.ADDON_INIT)
 
     # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
     # Causes of invalid blocks: TODO webpage link
@@ -89,9 +88,9 @@ def register():
     # Other features, from other blocks, may have their own init tasks. These are automatically triggered inside 'register_block'
     # To see the full list of actions triggered by the registration loop, set REGISTRATE, POST_REGISTRATE, BLOCK_MGMT Loggers to 'DEBUG'
     for block in valid_block_packages:
-        block.register_block()
+        block.register_block(event = Enum_Sync_Events.ADDON_INIT)
     
-    logger.log_with_linebreak(f"Finished main registration for Addon '{addon_name}'")
+    logger.log_with_linebreak(f"Finished main pre-bpy registration for Addon '{addon_name}'")
 
 def unregister():
     
@@ -105,12 +104,12 @@ def unregister():
     # This should be done in the opposite order as register()
     for block in reversed(_ordered_blocks_list):
         try:
-            block.unregister_block()
+            block.unregister_block(event = Enum_Sync_Events.ADDON_SHUTDOWN)
         except:
             logger.error(f"Exception when unregistering block '{block._BLOCK_ID}': ", exc_info = True)
 
     # Block-manager does cleanup tasks for itself & all other core-block features
-    Wrapper_Block_Management.destroy_wrapper()
+    Wrapper_Block_Management.destroy_wrapper(event = Enum_Sync_Events.ADDON_SHUTDOWN)
     
     try:
         logger.log_with_linebreak(f"Finished main unregistration for Addon '{addon_name}'")

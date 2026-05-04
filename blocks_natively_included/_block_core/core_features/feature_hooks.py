@@ -19,14 +19,14 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helper_funcs import  is_bpy_ready, ui_draw_list_headers, find_blocks_owning_func_with_name
+from ....addon_helper_funcs import is_bpy_ready, ui_draw_list_headers, find_blocks_owning_func_with_name
 from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
 from .feature_logs import get_logger
-from ..core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Runtime_Cache_Members
+from ..core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
 from .feature_runtime_cache import Wrapper_Runtime_Cache
 
@@ -149,12 +149,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls) -> None:
+    def init_pre_bpy(cls, event: Enum_Sync_Events) -> None:
         "no-op"
         return True
     
     @classmethod
-    def init_post_bpy(cls) -> None:
+    def init_post_bpy(cls, event: Enum_Sync_Events) -> None:
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
@@ -163,12 +163,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cls._rebuild_hook_subs_cache()
 
         # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
-        cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.INIT) # Causes partial RTC->BL sync
-        cls.update_RTC_with_mirrored_BL_data(event = Enum_Sync_Events.INIT) # Causes full BL-RTC resync
+        cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.ADDON_INIT) # Causes partial RTC->BL sync
+        cls.update_RTC_with_mirrored_BL_data(event = Enum_Sync_Events.ADDON_INIT) # Causes full BL-RTC resync
         return True
     
     @classmethod
-    def destroy_wrapper(cls) -> None:
+    def destroy_wrapper(cls, event: Enum_Sync_Events) -> None:
         "no-op"
         return True
 
@@ -177,7 +177,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # --------------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: str):
+    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating hooks cache with mirrored Blender data")
@@ -199,7 +199,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         )
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: str):
+    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Updating Blender data with mirrored hooks cache")
@@ -210,7 +210,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         
         # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
         actions_denied = ()
-        if event == Enum_Sync_Events.INIT:
+        if event == Enum_Sync_Events.ADDON_INIT:
             actions_denied = (Enum_Sync_Actions.EDIT)
 
         # RTC->BL Sync
@@ -232,6 +232,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def create_instance(
         cls,
+        event: Enum_Sync_Events,
         src_block_id: str,
         new_hook_func_id: any,
         new_hook_func_named_args: Dict[str, Any] = None,
@@ -269,7 +270,13 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.PROPERTY_UPDATE)
 
     @classmethod
-    def destroy_instance(cls, hook_func_name, skip_BL_sync:bool = False, skip_subscriber_cache_rebuild:bool = False) -> None:
+    def destroy_instance(
+        cls, 
+        event: Enum_Sync_Events,
+        hook_func_name: str, 
+        skip_BL_sync:bool = False,
+        skip_subscriber_cache_rebuild:bool = False,
+    ) -> None:
         """
         Remove hook registration
         """
@@ -292,7 +299,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Remove hook data from Blender file
         if is_bpy_ready() and not skip_BL_sync:
-            cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.REMOVE)
+            cls.update_BL_with_mirrored_RTC_data(event)
 
     # --------------------------------------------------------------
     # Public funcs specific to this class

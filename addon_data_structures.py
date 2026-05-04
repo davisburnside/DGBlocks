@@ -36,11 +36,12 @@ class Enum_Log_Levels(Enum):
         return [item.value[:3] for item in cls]
 
 class Enum_Sync_Events(StrEnum):
-    INIT = auto()
-    REMOVE = auto()
-    UNDO = auto()
-    REDO = auto()
+    ADDON_INIT = auto()
+    ADDON_SHUTDOWN = auto()
     PROPERTY_UPDATE = auto()
+    PROPERTY_UPDATE_UNDO = auto()
+    PROPERTY_UPDATE_REDO = auto()
+    
 
 class Enum_Sync_Actions(StrEnum):
     CREATE = auto()

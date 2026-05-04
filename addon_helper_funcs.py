@@ -66,7 +66,6 @@ def print_section_separator(text, width=100, char="="):
     print(text.center(width))
     print(f"{char * width}\n")
 
-
 # --------------------------------------------------------------
 # Python Data tools
 # --------------------------------------------------------------
@@ -275,6 +274,10 @@ def diff_collections(old_keys, new_keys):
 # --------------------------------------------------------------
 # General Convenience functions
 # --------------------------------------------------------------
+
+def clear_all_BL_data():
+
+    pass
 
 def get_names_of_parent_classes(python_obj: any):
     

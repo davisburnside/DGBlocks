@@ -157,7 +157,7 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
             raise Exception("modal's dont match")
         
         update_dataclasses_to_match_collectionprop(
-            dataclass_type = RTC_Modal_Instance,
+            actual_FWC = RTC_Modal_Instance,
             source = rtc_all_modals,
             target = scene_modals_collection,
             key_fields = ["uid"],

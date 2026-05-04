@@ -5,7 +5,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...addon_data_structures import Global_Addon_State
+from ...addon_data_structures import Enum_Sync_Events, Global_Addon_State
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -45,6 +45,9 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     # - update_dataclasses_to_match_collectionprop
     # - update_collectionprop_to_match_dataclasses
     debug_log_all_RTC_BL_sync_actions: bpy.props.BoolProperty(default = False)# type: ignore
+
+    # Empties all CollectionProps created by this addon eveyr startup
+    debug_clear_BL_data_on_startup: bpy.props.BoolProperty(default = False)# type: ignore
 
     # --------------------------------------------------------------
     # Persistent, undo/redo-enabled Scene data for each feature-wrapper's mirrored  RTC data
@@ -230,7 +233,7 @@ _feature_wrapper_classes_to_register = [
     Wrapper_Hooks,
 ]
 
-def register_block():
+def register_block(event: Enum_Sync_Events):
 
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
@@ -241,6 +244,7 @@ def register_block():
     # Register all block classes & components
     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
     Wrapper_Block_Management.create_instance(
+        event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = _feature_wrapper_classes_to_register, 
@@ -254,12 +258,12 @@ def register_block():
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block():
+def unregister_block(event: Enum_Sync_Events):
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+    Wrapper_Block_Management.destroy_instance(event, _BLOCK_ID)
     
     # Delete block-core Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_core_props"):

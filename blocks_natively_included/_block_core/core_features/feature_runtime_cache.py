@@ -13,7 +13,7 @@ from typing import Any, Optional
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helper_funcs import fast_deepcopy_with_fallback, is_py_listy, py_dicty_get_field_value, py_dicty_has_field
-from ....addon_data_structures import Abstract_Feature_Wrapper
+from ....addon_data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -41,10 +41,10 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls) -> bool:
+    def init_pre_bpy(cls, event: Enum_Sync_Events) -> bool:
         
         # Initialize the cache
-        cls.destroy_wrapper()
+        cls.destroy_wrapper(event = event)
         cls._cache = {}  # Force new dict instance
         cls._lock = threading.RLock()  # Force new lock instance
         
@@ -54,15 +54,14 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             member_default_value = rtc_member.value[1] # Supported RTC value types = primitives, types, python collections, Enum classes, and @dataclasses
             default_value_copy = fast_deepcopy_with_fallback(member_default_value) 
             cls.set_cache(member_key, default_value_copy)
-        return True
 
     @classmethod
-    def init_post_bpy(cls) -> bool:
+    def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
         # Initialize the cache. Called after of addon registration
-        return True # No actions to take
+        return # No actions to take
 
     @classmethod
-    def destroy_wrapper(cls):
+    def destroy_wrapper(cls, event: Enum_Sync_Events):
         # Clear all cache data. Called during unregister
         with cls._lock:
             cls._cache = {}
