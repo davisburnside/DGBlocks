@@ -12,7 +12,7 @@ from ..addon_config import (
 
 from ...blocks_natively_included import _block_core
 from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
-from ..blocks_natively_included._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header, ui_box_with_header
+from ..blocks_natively_included._block_core.core_helper_uilayouts import uilayout_draw_block_panel_header, create_ui_box_with_header
 from ..blocks_natively_included._block_core.core_helper_functions import register_block_components, unregister_block_components
 from ..blocks_natively_included._block_core.core_feature_logs import get_logger
 from ..blocks_natively_included._block_core.core_block_constants import (Core_Block_Loggers)
@@ -75,9 +75,9 @@ class DGBLOCKS_PG_Scene_Numba_Acceleration_Props(bpy.types.PropertyGroup):
         default=False
     ) # type: ignore
 
-#=================================================================================
+# ==============================================================================================================================
 # OPERATORS
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_OT_Numba_Cache_Operations(bpy.types.Operator):
     """
@@ -135,7 +135,7 @@ def uilayout_draw_main_panel(context, layout):
     is_numba_installed = Library_Installation_Wrapper.is_installed("numba")
     
     # Main settings box
-    settings_box = ui_box_with_header(context, layout, "Numba Acceleration")
+    settings_box = create_ui_box_with_header(context, layout, "Numba Acceleration")
     
     # Numba status and install button
     status_row = settings_box.row()
@@ -166,7 +166,7 @@ def uilayout_draw_main_panel(context, layout):
     # Cache info
     cache_dir = feature_numba_function_wrapper._get_numba_cache_dir()
     
-    cache_box = ui_box_with_header(context, layout, "Compilation Cache")
+    cache_box = create_ui_box_with_header(context, layout, "Compilation Cache")
     if cache_dir and os.path.exists(cache_dir):
         cache_box.label(text=f"Cache directory:", icon='FILE_FOLDER')
         path_row = cache_box.row()
@@ -195,7 +195,7 @@ def uilayout_draw_main_panel(context, layout):
     )
     
     if registry and len(registry) > 0:
-        func_box = ui_box_with_header(context, layout, "Registered Functions")
+        func_box = create_ui_box_with_header(context, layout, "Registered Functions")
         for func_name, func_data in registry.items():
             row = func_box.row()
             

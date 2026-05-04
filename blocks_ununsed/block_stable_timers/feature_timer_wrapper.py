@@ -8,7 +8,7 @@ import bpy  # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import (
+from ...addon_helpers.generic_helpers import (
     diff_collections,
 )
 

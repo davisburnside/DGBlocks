@@ -1,4 +1,4 @@
-from ..blocks_natively_included._block_core.core_helper_uilayouts import ui_box_with_header
+from ..blocks_natively_included._block_core.core_helper_uilayouts import create_ui_box_with_header
 from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache.get_cache
 
 from .block_constants import CACHE_KNOWN_OBJECT_IDS
@@ -21,13 +21,13 @@ def uilayout_draw_main_panel(context, container):
 
 def uilayout_draw_libraries_panel(context, container):
     
-    box = ui_box_with_header(context, container, ["Home Folder for Library Downloads", "Editable in Preferences -> Addons"])
+    box = create_ui_box_with_header(context, container, ["Home Folder for Library Downloads", "Editable in Preferences -> Addons"])
     folder_str = Library_Installation_Wrapper._get_library_home_path()
     row = box.row()
     row.label(text = folder_str)
     row.operator("dgblocks.open_folder", text = "", icon="FOLDER_REDIRECT").folder_path = folder_str
     
-    box = ui_box_with_header(context, container, "Required Python Libraries")
+    box = create_ui_box_with_header(context, container, "Required Python Libraries")
     row = box.row()
     col_left = row.column()
     libraries = [i for i in Python_Library_Dependencies]

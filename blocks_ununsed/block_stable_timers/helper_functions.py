@@ -2,7 +2,7 @@
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import ui_box_with_header
+from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header
 from .feature_timer_wrapper import Timer_Wrapper
 
 # =============================================================================
@@ -40,7 +40,7 @@ def uilayout_draw_timer_panel(context, container):
     timer_props = context.scene.dgblocks_timer_props
 
     # Timer list
-    box = ui_box_with_header(context, container, "Timer Definitions")
+    box = create_ui_box_with_header(context, container, "Timer Definitions")
 
     row = box.row()
     row.template_list(
@@ -62,7 +62,7 @@ def uilayout_draw_timer_panel(context, container):
     if len(timer_props.timers) > 0 and timer_props.uilist_selection_index_active_timer < len(timer_props.timers):
         active_timer = timer_props.timers[timer_props.uilist_selection_index_active_timer]
 
-        details_box = ui_box_with_header(context, container, "Timer Details")
+        details_box = create_ui_box_with_header(context, container, "Timer Details")
         details_box.prop(active_timer, "timer_name")
         details_box.prop(active_timer, "frequency_ms")
         details_box.prop(active_timer, "is_enabled")
@@ -70,7 +70,7 @@ def uilayout_draw_timer_panel(context, container):
         # Show runtime info from Instance_Data
         instance = Timer_Wrapper.get_instance(active_timer.timer_name)
         if instance:
-            info_box = ui_box_with_header(context, container, "Runtime Info")
+            info_box = create_ui_box_with_header(context, container, "Runtime Info")
             info_box.label(text=f"Last Fire: {instance.timestamp_ms_last_fire} ms")
             info_box.label(text=f"Fire Success: {instance.count_fire_success}")
             info_box.label(text=f"Fire Failures: {instance.count_fire_failure}")

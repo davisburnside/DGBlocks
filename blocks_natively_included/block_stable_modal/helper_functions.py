@@ -2,4 +2,4 @@
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from .._block_core.core_helpers.helper_uilayouts import ui_box_with_header
+from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header

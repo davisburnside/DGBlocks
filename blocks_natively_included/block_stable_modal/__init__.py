@@ -6,7 +6,7 @@ from bpy.props import BoolProperty, PointerProperty # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import should_draw_delevoper_panel, get_self_block_module
+from ...addon_helpers.generic_helpers import should_draw_delevoper_panel, get_self_block_module
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -17,7 +17,7 @@ from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_log
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -25,9 +25,9 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 from .feature_stable_modal import BL_Modal_Instance, MODAL_OT_Delete, MODAL_UL_StackList, VIEW3D_PT_ModalStack, MODAL_OT_Add, Wrapper_Modals_Manager, DGBLOCKS_OT_StableModal
 from .block_constants import Block_Logger_Definitions,Block_RTC_Members, Block_Hooks
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-stable-modal"
 _BLOCK_VERSION = (1,0,0)

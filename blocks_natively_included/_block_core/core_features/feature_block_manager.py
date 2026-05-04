@@ -10,14 +10,16 @@ import inspect
 from typing import Type
 from types import ModuleType
 from enum import Enum
+from ....addon_helpers.ui_drawing_helpers import ui_draw_list_headers
 import bpy  # type: ignore
 from bpy.app.handlers import persistent  # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State
-from ....addon_helper_funcs import is_bpy_ready, force_redraw_ui, fast_deepcopy_with_fallback, get_names_of_parent_classes, ui_draw_list_headers
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State
+from ....addon_helpers.data_tools import fast_deepcopy_with_fallback
+from ....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -212,6 +214,11 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         if ADDON_METADATA.POST_REG_INIT_HAS_RUN:
             logger.info("Already completed post-bpy init for Wrapper_Block_Management, returning early")
             return
+        
+        # (Debugging) clear all saved properties
+        core_props = bpy.context.scene.dgblocks_core_props
+        if core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
+            logger.warning("(Debugging) Clearing all saved properties")
         
         # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event = event) # Causes partial RTC->BL sync 

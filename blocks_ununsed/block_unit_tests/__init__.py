@@ -4,7 +4,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import get_self_block_module, clear_console
+from ...addon_helpers.generic_helpers import get_self_block_module, clear_console
 from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -15,16 +15,16 @@ from ...blocks_natively_included._block_core.core_features.feature_logs import C
 from ...blocks_natively_included._block_core.core_features.feature_hooks import Wrapper_Hooks
 from ...blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from ...blocks_natively_included._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
 from .helper_unittests import run_operator_in_headless_blender, _sample_unittest, launch_headless_operator
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-unit-tests" 
 _BLOCK_VERSION = (1,0,0)
@@ -58,9 +58,9 @@ class DGBLOCKS_OT_Run_Tests(bpy.types.Operator):
                     
         return {"FINISHED"}
 
-#=================================================================================
+# ==============================================================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_PT_Unit_Test_Panel(bpy.types.Panel):
     bl_label = ""
@@ -77,16 +77,16 @@ class DGBLOCKS_PT_Unit_Test_Panel(bpy.types.Panel):
 
     def draw_header(self, context):
 
-        uilayout_draw_block_panel_header(context, self.layout, "Unit Tests", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
+        ui_draw_block_panel_header(context, self.layout, "Unit Tests", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
 
     def draw(self, context):
         
         layout = self.layout
         layout.operator("dgblocks.run_tests", text = "run 'em")
 
-#=================================================================================
+# ==============================================================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py
-#=================================================================================
+# ==============================================================================================================================
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [

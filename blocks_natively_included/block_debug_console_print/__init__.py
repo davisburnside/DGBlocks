@@ -4,8 +4,9 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import get_self_block_module, clear_console
 from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
+from ...addon_helpers.generic_helpers import get_self_block_module, clear_console
+from ...addon_helpers.data_structures import Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -15,7 +16,7 @@ from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_log
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -23,17 +24,17 @@ from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_pane
 from .helper_functions import extract_core_block_data_to_print, uilayout_draw_debug_settings, make_pretty_json_string_from_data
 from .constants import Block_Hook_Sources, debug_console_print_dict_key_filter_items, debug_console_print_data_filter_items, debug_sort_hooks_choice_items, numeric_comparison_enum_items
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-debug-console-print" # Defined in constants, To Prevent circular imports. Other Blocks can assign directly
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [_block_core.core_block_id] 
 
-#=================================================================================
+# ==============================================================================================================================
 # BLENDER DATA FOR BLOCK
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_PG_Debug_Props_Profile(bpy.types.PropertyGroup):
     # Affects console printing for state data of blocks
@@ -71,9 +72,9 @@ class DGBLOCKS_PG_Debug_Props_Profile(bpy.types.PropertyGroup):
     # Table Column Sorting
     debug_block_hooks_table_sort_by: bpy.props.EnumProperty(items = debug_sort_hooks_choice_items, name = "Sort By") # type: ignore
 
-#=================================================================================
+# ==============================================================================================================================
 # OPERATORS 
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
     bl_idname = "dgblocks.debug_console_print_block_diagnostics"
@@ -126,9 +127,9 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
             
         return {"FINISHED"}
 
-#=================================================================================
+# ==============================================================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_PT_Debugging_Panel(bpy.types.Panel):
     bl_label = ""
@@ -140,14 +141,14 @@ class DGBLOCKS_PT_Debugging_Panel(bpy.types.Panel):
     bl_order = 0
 
     def draw_header(self, context):
-        uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
+        ui_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
 
     def draw(self, context):
         uilayout_draw_debug_settings(context, self.layout)
 
-#=================================================================================
+# ==============================================================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py
-#=================================================================================
+# ==============================================================================================================================
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [
@@ -156,7 +157,7 @@ _block_classes_to_register = [
     DGBLOCKS_PT_Debugging_Panel,
 ]
 
-def register_block():
+def register_block(event: Enum_Sync_Events):
 
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
@@ -164,6 +165,7 @@ def register_block():
     # Register all block classes & components
     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
     Wrapper_Block_Management.create_instance(
+        event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
         block_hook_source_enums = Block_Hook_Sources,
@@ -174,12 +176,12 @@ def register_block():
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block():
+def unregister_block(event: Enum_Sync_Events):
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+    Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
     
     # Delete block-core Scene Properties
     if hasattr(_block_core.DGBLOCKS_PG_Core_Props, "dgblocks_debug_console_print_props"):

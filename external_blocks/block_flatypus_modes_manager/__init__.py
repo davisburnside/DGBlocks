@@ -7,7 +7,7 @@ from mathutils import Vector, Matrix, Euler
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import get_self_block_module, clear_console
+from ...addon_helpers.generic_helpers import get_self_block_module, clear_console
 from ...my_addon_config import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
@@ -18,7 +18,7 @@ from ...blocks_natively_included._block_core.core_features.feature_logs import C
 from ...blocks_natively_included._block_core.core_features.feature_hooks import Wrapper_Hooks
 from ...blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from ...blocks_natively_included._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 from ...blocks_natively_included.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
 from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
@@ -28,9 +28,9 @@ from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_man
 # --------------------------------------------------------------
 from .constants import Block_Logger_Definitions, Block_RTC_Members, Assembly_Mode_Shader_Definitions
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-flatypus-assembly-mode" 
 _BLOCK_VERSION = (1,0,0)
@@ -40,9 +40,9 @@ _BLOCK_DEPENDENCIES = [
     "block-onscreen-drawing"
 ] 
 
-#=================================================================================
+# ==============================================================================================================================
 # vars
-#=================================================================================
+# ==============================================================================================================================
 
 _default_modal_options_for_3dview_display = {
     "uid": "viewport_display",
@@ -56,9 +56,9 @@ _default_modal_options_for_keymouse_input = {
     "includes_timer": False,
 }
 
-#=================================================================================
+# ==============================================================================================================================
 # DOWNSTREAM HOOKS
-#=================================================================================
+# ==============================================================================================================================
 
 def hook_modal_key_or_mouse_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
     pass
@@ -76,9 +76,9 @@ def hook_draw_event(draw_handler_instance):
     return True
 
 
-#=================================================================================
+# ==============================================================================================================================
 # Operators
-#=================================================================================
+# ==============================================================================================================================
 
 
 
@@ -231,9 +231,9 @@ class DGBLOCKS_OT_Toggle_Assembly_Mode(bpy.types.Operator):
 
         return {"FINISHED"}
 
-#=================================================================================
+# ==============================================================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
     bl_label = ""
@@ -250,7 +250,7 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
 
     def draw_header(self, context):
 
-        uilayout_draw_block_panel_header(context, self.layout, "FLT-mode-debug", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
+        ui_draw_block_panel_header(context, self.layout, "FLT-mode-debug", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
 
     def draw(self, context):
         
@@ -258,9 +258,9 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
         layout.operator("dgblocks.toggle_assembly_mode", text = "run 'em")
         op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "test drawers").test_action_1 = "POST_VIEW"
 
-#=================================================================================
+# ==============================================================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py
-#=================================================================================
+# ==============================================================================================================================
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [

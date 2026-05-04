@@ -4,15 +4,15 @@ from types import ModuleType
 from typing import Any, Callable, Dict, Optional
 import bpy #type: ignore
 
-from ....addon_data_structures import Global_Addon_State
+from ....addon_helpers.data_structures import Global_Addon_State
 
 _BLOCK_ID = "block-core"
 
-#=================================================================================
+# ==============================================================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
 # Enum classes are used to allow typing & autocomplete, minimizing "magic-strings" antipattern
 # Enum class values must have both unique names & unique values. Non-unique values cause names to become aliases of each other
-#=================================================================================
+# ==============================================================================================================================
 
 # name = hook ID
 # value[0] = hooked function name (caps included)
@@ -49,8 +49,8 @@ class Core_Runtime_Cache_Members(Enum):
     UI_ALERTS = ("UI_ALERTS", {})
     UI_WORDWRAP_WIDTHS = ("UI_WORDWRAP_WIDTHS", {})
     
-#=================================================================================
+# ==============================================================================================================================
 # OTHER
-#=================================================================================
+# ==============================================================================================================================
 
 log_timestring_format = "%Y-%m-%d %H:%M:%S"

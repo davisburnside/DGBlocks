@@ -12,8 +12,8 @@ from typing import Any, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helper_funcs import fast_deepcopy_with_fallback, is_py_listy, py_dicty_get_field_value, py_dicty_has_field
-from ....addon_data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
+from ....addon_helpers.data_tools import fast_deepcopy_with_fallback
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -175,8 +175,6 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         return_idxs = []
         return_instances = []
         for idx, existing_instance in enumerate(current_data):
-            # if not py_dicty_has_field(existing_instance, key_field_name):
-            #     _exception_missing_required_field(member_key, key_field_name, idx)
 
             instance_field_value = getattr(existing_instance, key_field_name)
             if instance_field_value == key_field_value:

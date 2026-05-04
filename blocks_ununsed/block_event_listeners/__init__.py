@@ -2,7 +2,6 @@
 import bpy # type: ignore
 from bpy.props import BoolProperty # type: ignore
 
-from ..addon_helper_funcs import get_members_and_values_of_propertygroup_with_name_prefix
 from ..addon_config import (
         addon_name, 
         addon_title,
@@ -12,7 +11,7 @@ from ..addon_config import (
 
 from ...blocks_natively_included import _block_core
 from ..blocks_natively_included._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
-from ..blocks_natively_included._block_core.core_helper_uilayouts import ui_box_with_header, uilayout_draw_block_panel_header
+from ..blocks_natively_included._block_core.core_helper_uilayouts import create_ui_box_with_header, uilayout_draw_block_panel_header
 from ..blocks_natively_included._block_core.core_helper_functions import register_block_components, unregister_block_components
 from ..blocks_natively_included._block_core.core_helper_debug_functions import make_pretty_json_string_from_data
 from ..blocks_natively_included._block_core.core_feature_logs import get_logger
@@ -26,16 +25,16 @@ from .block_constants import (
         Block_Logger_Definitions,
         Enum_Runtime_Cache_Keys)
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DATA - A unique ID & list of Dependencies is required for every Block
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-event-listener"
 _BLOCK_DEPENDENCIES = [_block_core._BLOCK_ID]
 
-#=================================================================================
+# ==============================================================================================================================
 # CALLBACK HOOK FUNCTIONS 
-#=================================================================================
+# ==============================================================================================================================
 
 # --------------------------------------------------------------
 # Addon init, called after register_block() finishes & bpy.context is fully usable
@@ -201,7 +200,7 @@ class DGBLOCKS_PT_Debug_Event_Handlers(bpy.types.Panel):
         layout = self.layout
         event_listener_props = context.scene.dgblocks_event_listener_props
         
-        box =  ui_box_with_header(context, layout, "Active Event Listeners")
+        box =  create_ui_box_with_header(context, layout, "Active Event Listeners")
         # box.operator("dgblocks.debug_print_event_listener_wrapper_cache")
         
         event_handler_props = context.scene.dgblocks_event_listener_props

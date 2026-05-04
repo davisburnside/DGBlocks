@@ -4,11 +4,11 @@ import bpy # type: ignore
 
 from .custom_shaders.billboard_image_shader import Billboard_Shader
 
-#=================================================================================
+# ==============================================================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
 # Enum classes are used to allow typing & autocomplete, minimizing "magic-strings" antipattern
 # Enum class values must have both unique names & unique values. Non-unique values cause names to become aliases of each other
-#=================================================================================
+# ==============================================================================================================================
 
 # name = hook ID
 # value[0] = hooked function name (caps included)
@@ -22,9 +22,9 @@ class Block_Logger_Definitions(Enum):
 class Block_RTC_Members(Enum):
     IS_ASSEMBLY_MODE_ACTIVE = ("flatypus-assembly-mode-active", False)
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK-SPECIFIC CONSTANTS
-#=================================================================================
+# ==============================================================================================================================
 
 # name = Shader UID
 # value[0] = Shader type: always a value from 'Shader_Types'

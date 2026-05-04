@@ -31,7 +31,7 @@ from bpy.types import Panel, Operator, PropertyGroup
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import get_self_block_module, clear_console
+from ...addon_helpers.generic_helpers import get_self_block_module, clear_console
 from ...my_addon_config import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
@@ -42,14 +42,14 @@ from ...blocks_natively_included._block_core.core_features.feature_logs import C
 from ...blocks_natively_included._block_core.core_features.feature_hooks import Wrapper_Hooks
 from ...blocks_natively_included._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from ...blocks_natively_included._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 from ...blocks_natively_included.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
 from ...blocks_natively_included.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-2tone-test1" 
 _BLOCK_VERSION = (1,0,0)

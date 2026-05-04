@@ -2,11 +2,11 @@
 from enum import Enum
 import bpy # type: ignore
 
-#=================================================================================
+# ==============================================================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
 # Enum classes are used to allow typing & autocomplete, minimizing "magic-strings" antipattern
 # Enum class values must have both unique names & unique values. Non-unique values cause names to become aliases of each other
-#=================================================================================
+# ==============================================================================================================================
 
 # name = hook ID
 # value[0] = hooked function name (caps included)
@@ -47,6 +47,6 @@ class Block_RTC_Members(Enum):
     # MODAL_INSTANCE = ("modal-instance", None) # Unlike timers which can have multiple instances, the modal is singular.
     MODALS_CACHE = ("modals-cache", [])
 
-#=================================================================================
+# ==============================================================================================================================
 # OTHER
-#=================================================================================
+# ==============================================================================================================================

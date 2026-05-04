@@ -7,9 +7,9 @@ from typing import Callable, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager
+from ...addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager
 
-from ...addon_helper_funcs import should_draw_delevoper_panel, get_self_block_module
+from ...addon_helpers.generic_helpers import should_draw_delevoper_panel, get_self_block_module
 from ...my_addon_config import addon_name, addon_title
 
 # --------------------------------------------------------------
@@ -21,7 +21,7 @@ from .._block_core.core_features.feature_logs import Core_Block_Loggers, get_log
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_block_manager import Wrapper_Block_Management
 from .._block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from .._block_core.core_helpers.helper_uilayouts import uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -38,9 +38,9 @@ from .block_constants import Block_RTC_Members, Block_Logger_Definitions, Block_
 
 cache_key_blocks = Block_RTC_Members.MODALS_CACHE
 
-#=================================================================================
+# ==============================================================================================================================
 # MIRRORED DATA STRUCTURES OF FEATURE
-#=================================================================================
+# ==============================================================================================================================
 
 @dataclass
 class RTC_Modal_Instance:
@@ -61,9 +61,9 @@ class BL_Modal_Instance(bpy.types.PropertyGroup):
     # Mirrored fields of RTC_Modal_Instance
     uid: bpy.props.StringProperty() # type: ignore
 
-#=================================================================================
+# ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
-#=================================================================================
+# ==============================================================================================================================
 
 class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer):
     # Manager — classmethods only, no instance state
@@ -183,9 +183,9 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         # per_Runtime_Cache.get_cache(Block_RTC_Members.MODALS_CACHE)
         # scene_modals_collection = bpy.context.scene.dgblocks_modal_props.managed_modals
 
-#=================================================================================
+# ==============================================================================================================================
 # BASE MODAL OPERATOR - Can be instanced many times
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_OT_StableModal(bpy.types.Operator):
     """Stable modal operator that intercepts timer/mouse/keyboard events before passing them to subscriber hooks"""
@@ -311,9 +311,9 @@ class DGBLOCKS_OT_StableModal(bpy.types.Operator):
         
         return {"PASS_THROUGH"}
 
-#=================================================================================
+# ==============================================================================================================================
 # OPERATORS AND UI FOR FEATURE INTERACTION
-#=================================================================================
+# ==============================================================================================================================
 
 class MODAL_OT_Add(bpy.types.Operator):
     """Add a new modal to the stack with default parameters."""
@@ -394,9 +394,9 @@ class VIEW3D_PT_ModalStack(bpy.types.Panel):
         )
         layout.operator("modal_stack.add", icon='ADD') 
 
-#=================================================================================
+# ==============================================================================================================================
 # PRIVATE MODULE API — should not be used outside this file
-#=================================================================================
+# ==============================================================================================================================
 
 def print_current_modals():
     for op in bpy.context.window_manager.operators:

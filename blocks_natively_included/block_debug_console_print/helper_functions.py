@@ -2,19 +2,22 @@
 import dataclasses
 from datetime import datetime
 from typing import Any
+
+from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header, uilayout_section_separator
 import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import create_simplified_list_from_csv_string, get_members_and_values_of_propertygroup_with_name_prefix, print_section_separator
+from ...addon_helpers.data_tools import get_propertygroup_values, create_simplified_list_from_csv_string
+from ...addon_helpers.generic_helpers import print_section_separator
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
 from .._block_core.core_features.feature_hooks import Wrapper_Hooks
 from .._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .._block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2, ui_box_with_header, uilayout_section_separator
+from .._block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2
 from .._block_core.core_helpers.constants import Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
 
 # --------------------------------------------------------------
@@ -948,7 +951,7 @@ def extract_core_block_data_to_print(context, other_input):
     # Return JSON representation of all current-scene properties related to Blocks
     elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_BL_SCENE_PROPS:
         print_section_separator(f"All Scene-Owned Addon data")
-        data_to_return = get_members_and_values_of_propertygroup_with_name_prefix(context.scene, "dgblock")
+        data_to_return = get_propertygroup_values(context.scene, prefix = "dgblock")
         
     # elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_BL_PREFERENCES_PROPS:
     #     print_section_separator(f"All Scene-Owned Addon data")
@@ -1099,11 +1102,11 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
         internal_panel_header.label(text = f"Filter by Data")
         internal_panel_header.label(text = "", icon = "HIDE_OFF" if (has_container_filter or has_numeric_filter) else "HIDE_ON")
         if internal_panel_body:
-            box = ui_box_with_header(context, internal_panel_body, ["Structural (list / set / dict) Filters", "Disabled when = 0"], icon = "HIDE_OFF" if has_container_filter > 0 else "HIDE_ON")
+            box = create_ui_box_with_header(context, internal_panel_body, ["Structural (list / set / dict) Filters", "Disabled when = 0"], icon = "HIDE_OFF" if has_container_filter > 0 else "HIDE_ON")
             grid = box.grid_flow(columns=2)
             grid.prop(debug_props, "debug_console_print_filter_data_max_rows_in_each_container")
             grid.prop(debug_props, "debug_console_print_depth_to_truncate")
-            box = ui_box_with_header(context, internal_panel_body, "Numerical Data Filter", icon = "HIDE_OFF" if has_numeric_filter > 0 else "HIDE_ON")
+            box = create_ui_box_with_header(context, internal_panel_body, "Numerical Data Filter", icon = "HIDE_OFF" if has_numeric_filter > 0 else "HIDE_ON")
             grid = box.grid_flow(columns=3)
             grid.alignment = "EXPAND"
             include_filter_icon = "HIDE_OFF" if inclusion_filter_on > 0 else "HIDE_ON"

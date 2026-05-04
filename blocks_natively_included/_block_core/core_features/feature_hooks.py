@@ -14,13 +14,14 @@ import inspect
 import time
 from types import ModuleType
 from typing import Any, Callable, Dict, Optional
+from ....addon_helpers.ui_drawing_helpers import ui_draw_list_headers
 import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helper_funcs import is_bpy_ready, ui_draw_list_headers, find_blocks_owning_func_with_name
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
+from ....addon_helpers.generic_helpers import is_bpy_ready, find_blocks_owning_func_with_name
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
 
 # --------------------------------------------------------------
 # Intra-block imports

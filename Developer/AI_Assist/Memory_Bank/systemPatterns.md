@@ -138,5 +138,5 @@ class ADDON_PT_Panel(bpy.types.Panel):
 
 ### Helper Functions
 - `uilayout_draw_block_panel_header`: Standardized panel headers with documentation links
-- `ui_box_with_header`: Consistent box sections within panels
+- `create_ui_box_with_header`: Consistent box sections within panels
 - `draw_wrapped_text`: Multi-line text display

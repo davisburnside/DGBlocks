@@ -1,11 +1,12 @@
 
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 import bpy # type: ignore
 from bpy.props import StringProperty, IntProperty, BoolProperty, CollectionProperty, PointerProperty # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import should_draw_delevoper_panel
+from ...addon_helpers.generic_helpers import should_draw_delevoper_panel
 from ...my_addon_config import (
         addon_title,
         addon_bl_type_prefix, 
@@ -17,7 +18,7 @@ from ...my_addon_config import (
 # --------------------------------------------------------------
 from ...blocks_natively_included import _block_core
 from ...blocks_natively_included._block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from ...blocks_natively_included._block_core.core_helpers.helper_uilayouts import ui_box_with_header, uilayout_draw_block_panel_header
+from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header
 from ...blocks_natively_included._block_core.core_features.feature_logs import get_logger
 from ...blocks_natively_included._block_core.core_helpers.constants import ( Core_Block_Loggers, Core_Block_Hook_Sources)
 
@@ -31,9 +32,9 @@ from .block_constants import (
         Block_Runtime_Cache_Members,
         Block_Hooks)
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = "block-stable-timers"
 _BLOCK_VERSION = (1,0,0)
@@ -41,9 +42,9 @@ _BLOCK_DEPENDENCIES = [
     _block_core._BLOCK_ID,
 ]
 
-#=================================================================================
+# ==============================================================================================================================
 # CALLBACK HOOK FUNCTIONS 
-#=================================================================================
+# ==============================================================================================================================
 
 def hook_post_register_init(context):
     """Called after register_block() finishes & bpy.context is fully usable"""
@@ -160,7 +161,7 @@ class DGBLOCKS_PT_Timer_Panel(bpy.types.Panel):
         enabled_count = len([t for t in all_timer_instances.values() if t.is_enabled])
         total_count = len(all_timer_instances)
         label = f"{_BLOCK_ID.upper()} ( {enabled_count}/{total_count} )"
-        uilayout_draw_block_panel_header(context, self.layout,label, Documentation_URLs.MY_PLACEHOLDER_URL_1, icon_name = "TIME")
+        ui_draw_block_panel_header(context, self.layout,label, Documentation_URLs.MY_PLACEHOLDER_URL_1, icon_name = "TIME")
     
     def draw(self, context):
         uilayout_draw_timer_panel(context, self.layout)

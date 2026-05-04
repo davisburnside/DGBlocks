@@ -8,8 +8,8 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import get_names_of_parent_classes
-from ...addon_data_structures import Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Feature_Wrapper
+from ...addon_helpers.generic_helpers import get_names_of_parent_classes
+from ...addon_helpers.data_structures import Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -24,9 +24,9 @@ from .._block_core.core_features.feature_logs import get_logger
 from .constants import Block_Logger_Definitions, Draw_Phase_Types, Block_RTC_Members
 from .feature_shader import Shader_Instance
 
-#=================================================================================
+# ==============================================================================================================================
 # RTC DATA FOR FEATURE
-#=================================================================================
+# ==============================================================================================================================
 
 @dataclass
 class RTC_Draw_Handler_Instance:

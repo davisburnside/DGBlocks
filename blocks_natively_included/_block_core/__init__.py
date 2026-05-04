@@ -1,11 +1,12 @@
 import os
+from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helper_funcs import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...addon_data_structures import Enum_Sync_Events, Global_Addon_State
+from ...addon_helpers.generic_helpers import force_reload_all_scripts, get_self_block_module, force_redraw_ui
+from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -16,19 +17,19 @@ from .core_features.feature_logs import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL
 from .core_features.feature_block_manager import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
 from .core_features.feature_hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
 from .core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .core_helpers.helper_uilayouts import uilayout_draw_block_panel_header, uilayout_draw_core_block_settings
+from .core_helpers.helper_uilayouts import uilayout_draw_core_block_settings
 
-#=================================================================================
+# ==============================================================================================================================
 # BLOCK DEFINITION
-#=================================================================================
+# ==============================================================================================================================
 
 _BLOCK_ID = core_block_id # Defined in constants, To Prevent circular imports. Other Blocks can assign directly
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [] # Core block depends on no others
 
-#=================================================================================
+# ==============================================================================================================================
 # BLENDER DATA FOR BLOCK
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     
@@ -60,9 +61,9 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     managed_loggers_selected_idx: bpy.props.IntProperty()  # type: ignore
     managed_loggers: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Logger_Instance) # type: ignore
 
-#=================================================================================
+# ==============================================================================================================================
 # OPERATORS - used by all blocks
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_OT_Open_Help_Page(bpy.types.Operator):
     bl_idname = "dgblocks.open_help_page"
@@ -162,9 +163,9 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
 
         return {"FINISHED"}
 
-#=================================================================================
+# ==============================================================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
-#=================================================================================
+# ==============================================================================================================================
 
 class DGBLOCKS_UP_Core_Preferences(bpy.types.AddonPreferences):
     bl_idname = addon_name 
@@ -197,15 +198,15 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         return should_show_developer_ui_panels # The toggle to enable/disable the addon is in core-block dev panel
     
     def draw_header(self, context):
-        uilayout_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
+        ui_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
 
     def draw(self, context):
         
         uilayout_draw_core_block_settings(context, self.layout)
 
-#=================================================================================
+# ==============================================================================================================================
 # REGISTRATION EVENTS - Should only called from the addon's main __init__.py
-#=================================================================================
+# ==============================================================================================================================
 
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [
@@ -254,7 +255,7 @@ def register_block(event: Enum_Sync_Events):
     )
     
     # Add block-core Properties to Scene
-    bpy.types.Scene.dgblocks_core_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Core_Props)
+    bpy.types.Scene.dgblocks_core_props = bpy.props.PointerProperty(type = DGBLOCKS_PG_Core_Props)
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
@@ -263,7 +264,7 @@ def unregister_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(event, _BLOCK_ID)
+    Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
     
     # Delete block-core Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_core_props"):

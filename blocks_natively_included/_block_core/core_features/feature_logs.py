@@ -9,13 +9,14 @@ from typing import Callable
 import types
 from enum import Enum
 import logging
+from ....addon_helpers.ui_drawing_helpers import ui_draw_list_headers
 import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helper_funcs import is_bpy_ready, ui_draw_list_headers
-from ....addon_data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events
+from ....addon_helpers.generic_helpers import is_bpy_ready
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events
 from .... import my_addon_config
 from ....my_addon_config import base_linebreak_length
 

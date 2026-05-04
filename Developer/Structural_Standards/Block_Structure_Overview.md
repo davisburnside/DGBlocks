@@ -431,7 +431,7 @@ def draw_header(self, context):
 # In helper_functions.py
 def uilayout_draw_timer_panel(context, container):
     """All drawing logic lives here"""
-    box = ui_box_with_header(context, container, "Timer Control")
+    box = create_ui_box_with_header(context, container, "Timer Control")
     # ... layout code
 
 # In __init__.py Panel.draw()
