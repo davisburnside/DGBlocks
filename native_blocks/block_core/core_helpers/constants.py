@@ -31,6 +31,7 @@ class Core_Block_Loggers(Enum):
     ROOT = ("root", "DEBUG")
     HOOKS = ("hooks", "DEBUG")
     BLOCK_MGMT = ("core-events", "DEBUG")
+    DATA_SYNC = ("data-sync", "DEBUG")
     REGISTRATE = ("register", "DEBUG")
     POST_REGISTRATE = ("post-reg", "DEBUG")
     UI = ("ui", "WARNING")

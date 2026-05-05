@@ -64,12 +64,13 @@ def _callback_update_block_enabled(self, context):
         # Update enabled/disabled status for all block instances, depending on the status of their dependencies
         cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         blocks_to_enable, blocks_to_disable = Wrapper_Block_Management.evaluate_block_dependency_tree(cached_blocks)
+        event = Enum_Sync_Events.PROPERTY_UPDATE
 
         for block in blocks_to_enable:
-            block.block_module.register_block()
+            block.block_module.register_block(event)
 
         for block in blocks_to_disable:
-            block.block_module.unregister_block()
+            block.block_module.unregister_block(event)
 
         # Apply changes back to mirrored Blender data
         # Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
@@ -376,18 +377,20 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # 3: Delete the Block's Hooks, Loggers, and RTC Registries first. Only Sync to Blender on the last iteration
         for idx, hook_func_name in enumerate(reversed(block_to_remove.block_hook_source_names)):
             is_last = idx + 1 == len(block_to_remove.block_hook_source_names)
+            is_shutdown = event == Enum_Sync_Events.ADDON_SHUTDOWN
             Wrapper_Hooks.destroy_instance(
                 event = event,
                 hook_func_name = hook_func_name,
-                skip_BL_sync = not is_last, 
-                skip_subscriber_cache_rebuild = not is_last,
+                skip_BL_sync = is_shutdown or not is_last, 
+                skip_subscriber_cache_rebuild = is_shutdown or not is_last,
             )
         for idx, logger_name in enumerate(reversed(block_to_remove.block_logger_names)):
             is_last = idx + 1 == len(block_to_remove.block_logger_names)
+            is_shutdown = event == Enum_Sync_Events.ADDON_SHUTDOWN
             Wrapper_Loggers.destroy_instance(
                 event = event,
                 logger_name = logger_name, 
-                skip_BL_sync = not is_last,
+                skip_BL_sync = is_shutdown or not is_last, 
             )
         for rtc_registry_name in reversed(block_to_remove.block_RTC_member_names):
             Wrapper_Runtime_Cache.remove_cache(rtc_registry_name)
@@ -401,44 +404,45 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
     @classmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
 
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Updating block-mgmt cache with mirrored Blender data")
+        core_props = bpy.context.scene.dgblocks_core_props
+        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger.debug(f"Updating block-mgmt RTC with mirrored Blender data")
+        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
         
         # Get mirrored BL/RTC data (potentially de-synced)
         cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-        scene_blocks = bpy.context.scene.dgblocks_core_props.managed_blocks
+        scene_blocks = core_props.managed_blocks
         
         # BL->RTC Sync
-        actions_denied = () # Block-manager's BL->RTC sync will never need to skip actions
         update_dataclasses_to_match_collectionprop(
             actual_FWC = Wrapper_Block_Management,
             source = scene_blocks,
             target = cached_blocks,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields,
-            actions_denied = actions_denied,
-            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
+            actions_denied = set(), # Block-manager's BL->RTC sync will never need to skip actions
+            debug_logger = debug_logger,
         )
 
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
 
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Updating Blender data with mirrored block-mgmt cache")
+        core_props = bpy.context.scene.dgblocks_core_props
+        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger.debug(f"Updating block-mgmt BL Data with mirrored RTC")
+        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
+
+        # Sanity check before sync
+        Wrapper_Runtime_Cache.asset_cache_is_not_syncing(cache_key_blocks, cls)
 
         # Get mirrored BL/RTC data (potentially de-synced)
         cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-        scene_blocks = bpy.context.scene.dgblocks_core_props.managed_blocks
-
-        # Sanity check before sync
-        is_cache_already_syncing = Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks)
-        if is_cache_already_syncing:
-            raise Exception("'Wrapper_Block_Management' is flagged as syncing")
+        scene_blocks = core_props.managed_blocks
 
         # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-        actions_denied = ()
+        actions_denied = set()
         if event == Enum_Sync_Events.ADDON_INIT:
-            actions_denied = (Enum_Sync_Actions.EDIT)
+            actions_denied = {Enum_Sync_Actions.EDIT}
 
         # RTC->BL Sync
         Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, True)
@@ -448,7 +452,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields,
             actions_denied = actions_denied,
-            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
+            debug_logger = debug_logger,
         )
         Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, False)
 

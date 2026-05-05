@@ -180,39 +180,46 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
 
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Updating hooks cache with mirrored Blender data")
+        core_props = bpy.context.scene.dgblocks_core_props
+        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger.debug(f"Updating hooks RTC with mirrored BL Data")
+        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
         
         # Get mirrored BL/RTC data (potentially de-synced)
         cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        scene_hook_subs = bpy.context.scene.dgblocks_core_props.managed_hooks
+        scene_hook_subs = core_props.managed_hooks
 
         # BL->RTC Sync
-        actions_denied = () # Block-manager's BL->RTC sync will never need to skip actions
+        actions_denied = ()
         update_dataclasses_to_match_collectionprop(
             actual_FWC = Wrapper_Hooks,
             source = scene_hook_subs,
             target = cached_hook_subs,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields,
-            actions_denied = actions_denied,
-            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
+            actions_denied = set(), # This BL->RTC sync will never need to skip actions
+            debug_logger = debug_logger, 
         )
 
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
 
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Updating Blender data with mirrored hooks cache")
+        core_props = bpy.context.scene.dgblocks_core_props
+        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger.debug(f"Updating hooks BL data with mirrored RTC")
+        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
+
+        # Sanity check before sync
+        Wrapper_Runtime_Cache.asset_cache_is_not_syncing(cache_key_hook_subscribers, cls)
         
         # Get mirrored BL/RTC data (potentially de-synced)
         cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        scene_hook_subs = bpy.context.scene.dgblocks_core_props.managed_hooks
+        scene_hook_subs = core_props.managed_hooks
         
         # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-        actions_denied = ()
+        actions_denied = set()
         if event == Enum_Sync_Events.ADDON_INIT:
-            actions_denied = (Enum_Sync_Actions.EDIT)
+            actions_denied = {Enum_Sync_Actions.EDIT}
 
         # RTC->BL Sync
         Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
@@ -222,7 +229,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields,
             actions_denied = actions_denied,
-            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
+            debug_logger = debug_logger,
         )
         Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
 

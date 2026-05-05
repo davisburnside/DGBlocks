@@ -2,7 +2,8 @@
 
 # Sample License, ignore for now
 
-from typing import TypeVar
+import logging
+from typing import Optional, TypeVar
 from dataclasses import dataclass
 from typing import TypeVar, Union
 
@@ -190,6 +191,17 @@ def _plan_sync(
 
     return actions
 
+def _print_actions(source, target, actions, logger):
+
+    reformatted_actions = [a for a in actions if not isinstance(a, Noop)]
+    if len(reformatted_actions) == 0:
+        logger.log(logger.level, "Source & target already match, no updates needed")
+        return
+
+    logger.log(logger.level, f"updating source (len={len(target)}) to match target (len={len(source)})")
+    for action in reformatted_actions:
+        logger.log(logger.level, action)
+
 # --------------------------------------------------------------
 # Direction 1: dataclasses -> CollectionProperty
 # --------------------------------------------------------------
@@ -205,9 +217,9 @@ def plan_collectionprop_to_match_dataclasses(
 def apply_collectionprop_to_match_dataclasses(
     source: list[T],
     target,
-    actions: list[Action],
     key_fields: list[str],
     data_fields: list[str],
+    actions: list[Action],
 ) -> None:
     all_fields = key_fields + data_fields
     for action in actions:
@@ -260,7 +272,7 @@ def apply_dataclasses_to_match_collectionprop(
     all_fields = key_fields + data_fields
     for action in actions:
         if isinstance(action, Remove):
-            actual_FWC.destroy_instance(target, action.from_idx)
+            actual_FWC.destroy_instance(target, action.from_idx, skip_BL_sync = True)
         elif isinstance(action, Noop):
             pass
         elif isinstance(action, Edit):
@@ -273,7 +285,7 @@ def apply_dataclasses_to_match_collectionprop(
         elif isinstance(action, Create):
             src_item = source_list[action.source_idx]
             kwargs = {n: getattr(src_item, n) for n in all_fields}
-            actual_FWC.create_instance(target, action.to_idx, **kwargs)
+            actual_FWC.create_instance(target, action.to_idx, skip_BL_sync = True, **kwargs)
 
 # --------------------------------------------------------------
 # Convenience funcs
@@ -284,18 +296,15 @@ def update_collectionprop_to_match_dataclasses(
         target,
         key_fields, 
         data_fields,
-        actions_denied: list = [],
-        debug_print_actions: bool = False
+        actions_denied: set[type[Action]] = {},
+        debug_logger: Optional[logging.Logger] = None
     ):
     
+
     actions = plan_collectionprop_to_match_dataclasses(source, target, key_fields, data_fields)
 
-    
-    
-    if debug_print_actions:
-        print(f"updating BL-CollectionProp (len={len(target)}) to match RTC (len={len(source)})")
-        for action in actions:
-            print(action)
+    if debug_logger:
+        _print_actions(source, target, actions, debug_logger)
 
     apply_collectionprop_to_match_dataclasses(source, target, actions, key_fields, data_fields)
 
@@ -305,16 +314,14 @@ def update_dataclasses_to_match_collectionprop(
         target,
         key_fields, 
         data_fields,
-        actions_denied: set = (),
-        debug_print_actions: bool = False
+        actions_denied: set[type[Action]] = {},
+        debug_logger: Optional[logging.Logger] = None
     ):
 
     actions = plan_dataclasses_to_match_collectionprop(source, target, key_fields, data_fields)
     
-    if debug_print_actions:
-        print(f"updating RTC (len={len(target)}) to match BL-CollectionProp (len={len(source)}")
-        for action in actions:
-            print(action)
+    if debug_logger:
+        _print_actions(source, target, actions, debug_logger)
         
     apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, actions, key_fields, data_fields)
 

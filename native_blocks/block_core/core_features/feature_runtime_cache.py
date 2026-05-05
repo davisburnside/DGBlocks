@@ -67,7 +67,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             cls._cache = {}
 
     # --------------------------------------------------------------
-    # Funcs specific to this class, cache lifecycle mgmt
+    # Funcs specific to this class, for cache lifecycle mgmt
     # --------------------------------------------------------------
 
     @classmethod
@@ -131,8 +131,12 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 del cls._cache[true_key]
 
     # --------------------------------------------------------------
-    # Funcs specific to this class, working with caches
+    # Funcs specific to this class, for getting/setting unique list members
     # --------------------------------------------------------------
+
+    @classmethod
+    def cache_list_contains_member(cls, cache_list: list, key_field_name: str, key_field_value: str):
+        return any(getattr(item, key_field_name) == key_field_value for item in cache_list)
 
     @classmethod
     def add_unique_instance_to_registry_list(cls, member_key:str, uniqueness_field:str, uniqueness_field_value: any, new_instance: any, should_use_thread_lock:bool = True):
@@ -196,9 +200,9 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         for idx in reversed(idxs_to_delete):
             del current_data[idx]
 
-    @classmethod
-    def cache_list_contains_member(cls, cache_list: list, key_field_name: str, key_field_value: str):
-        return any(getattr(item, key_field_name) == key_field_value for item in cache_list)
+    # --------------------------------------------------------------
+    # Funcs specific to this class, for getting/setting "is-syncing" metadata for each RTC member cache
+    # --------------------------------------------------------------
 
     @classmethod
     def is_cache_flagged_as_syncing(cls, member_key: str):
@@ -219,6 +223,11 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             cache_names_being_synced.remove(true_member_key)
         elif true_member_key not in cache_names_being_synced and is_actively_syncing:
             cache_names_being_synced.append(true_member_key)
+
+    @classmethod
+    def asset_cache_is_not_syncing(cls, cache_key, wrapper_class):
+        if cls.is_cache_flagged_as_syncing(cache_key):
+            raise Exception(f"'{wrapper_class.__name__}' is flagged as syncing")
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS

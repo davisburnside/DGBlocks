@@ -82,10 +82,10 @@ def _callback_log_level_changed(self, context):
     This is triggered by the UI dropdown or when set via code.
     """
 
-    # Skip further action if a sync is already in progress
-    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_loggers):
-        return
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
+    # # Skip further action if a sync is already in progress
+    # if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_loggers):
+    #     return
+    # Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
     
     logger_name = self.logger_name
     new_level_name = self.level_name
@@ -105,7 +105,7 @@ def _callback_log_level_changed(self, context):
     if old_level_int != new_level_int:
         logger.log(new_level_int, f"Log level changed to: {new_level_name}")
 
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
+    # Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
 
 class DGBLOCKS_PG_Logger_Instance(bpy.types.PropertyGroup):
     """
@@ -210,23 +210,24 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         """
         #TODO finish
         
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Updating loggers cache with mirrored Blender data")
+        core_props = bpy.context.scene.dgblocks_core_props
+        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger.debug(f"Updating loggers RTC with mirrored BL Data")
+        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
 
         # Get mirrored BL/RTC data (potentially de-synced)
         cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-        scene_loggers = bpy.context.scene.dgblocks_core_props.managed_loggers
+        scene_loggers =core_props.managed_loggers
 
         # BL->RTC Sync
-        actions_denied = ()
         update_dataclasses_to_match_collectionprop(
             actual_FWC = Wrapper_Loggers,
             source = scene_loggers,
             target = cached_loggers,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields,
-            actions_denied = actions_denied,
-            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
+            actions_denied = set(),  # Block-manager's BL->RTC sync will never need to skip actions
+            debug_logger = debug_logger,
         )
 
     @classmethod
@@ -235,27 +236,32 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         Synchronizes Blender log levels with the RTC logger info
         """
 
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Updating Blender data with mirrored loggers cache")
+        core_props = bpy.context.scene.dgblocks_core_props
+        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger.debug(f"Updating loggers BL Data with mirrored RTC")
+        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
         
+        # Sanity check before sync
+        Wrapper_Runtime_Cache.asset_cache_is_not_syncing(cache_key_loggers, cls)
+
         # Get mirrored BL/RTC data (potentially de-synced)
         cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-        scene_loggers = bpy.context.scene.dgblocks_core_props.managed_loggers
+        scene_loggers = core_props.managed_loggers
 
         # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-        actions_denied = ()
+        actions_denied = set()
         if event == Enum_Sync_Events.ADDON_INIT:
-            actions_denied = (Enum_Sync_Actions.EDIT)
+            actions_denied = {Enum_Sync_Actions.EDIT}
 
         # BL->RTC Sync
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
         update_collectionprop_to_match_dataclasses(
             source = cached_loggers,
             target = scene_loggers,
             key_fields = rtc_sync_key_fields,
             data_fields = rtc_sync_data_fields,
+            debug_logger = debug_logger,
             actions_denied = actions_denied,
-            debug_print_actions = bpy.context.scene.dgblocks_core_props.debug_log_all_RTC_BL_sync_actions,
         )
         Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
 
