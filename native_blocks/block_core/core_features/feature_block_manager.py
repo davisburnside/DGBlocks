@@ -300,7 +300,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
             # If a block is being added during runtime, instead of created during startup, then the post-bpy (FWC scope) & final hook init (block scope) for are triggered here
             # Otherwise, they are handled in Wrapper_Block_Management.post_bpy_init
-            should_peform_final_init_steps_early = event in  (Enum_Sync_Events.PROPERTY_UPDATE, Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
+            should_peform_final_init_steps_early = event in (Enum_Sync_Events.PROPERTY_UPDATE, Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
             if should_peform_final_init_steps_early:
 
                 # perform final init step for all FWCs

@@ -1,66 +1,54 @@
-# DGBlocks Memory Bank
+# DGBlocks AI Assist — Memory Bank Index
 
-This Memory Bank maintains context across sessions for the DGBlocks addon template. It contains documentation about the project's architecture, patterns, and current state.
+This folder contains the **Memory Bank**: a small set of Markdown files that
+together describe the DGBlocks template at every scope from naming
+conventions to overall architecture. The Memory Bank is the canonical
+context to give an AI assistant (or a new contributor) before asking it to
+write or edit a block.
 
-## Memory Bank Files
+---
 
-| File | Purpose |
-|------|---------|
-| [projectBrief.md](./projectBrief.md) | Core goals and "why" of the project |
-| [productContext.md](./productContext.md) | How it works, user experience goals, and target problems |
-| [systemPatterns.md](./systemPatterns.md) | Technical architecture, design patterns, and code structure |
-| [techContext.md](./techContext.md) | Technologies used, dependencies, and development setup |
-| [progress.md](./progress.md) | What is built, what is left, and current status |
-| [activeContext.md](./activeContext.md) | Tracks what we are working on "right now" |
+## Read Order
 
-## Block Documentation
+For a new contributor / new chat session, read in this order:
 
-Each block, either natively included or cloned from git, should have its own README file.
-It should explain the block's purpose, architecture, dependencies, integration points, and any deviations from the standard block format
+1. **`Memory_Bank/projectBrief.md`** — *what* DGBlocks is and *why* it exists.
+2. **`Memory_Bank/productContext.md`** — lifecycle, two-tier data model,
+   inter-block communication, DX/UX goals.
+3. **`Memory_Bank/systemPatterns.md`** — the standards reference. Naming,
+   comments, imports, the Wrapper-Record pattern, the three standard enums,
+   registration boilerplate, hooks, logging, RTC, sync, UI, error handling,
+   and the "where does my code go?" decision matrix.
+4. **`Memory_Bank/techContext.md`** — Blender/Python version targets,
+   stdlib usage, Blender APIs touched, file-by-file roles.
+5. **`Memory_Bank/activeContext.md`** — *current focus, recent changes, open
+   inconsistencies, next steps.* **Update this file every session.**
+6. **`Memory_Bank/progress.md`** — per-block status board.
+7. **`Memory_Bank/blockAuthoringGuide.md`** — step-by-step recipe for
+   authoring a new block, with copy-pasteable skeletons.
 
-## Memory Bank Usage
+---
 
-This Memory Bank serves multiple purposes:
+## Reference Blocks
 
-1. **Onboarding**: Helps new developers understand the system
-2. **Context Retention**: Maintains information across development sessions
-3. **Documentation**: Provides a centralized location for design decisions and patterns
-4. **Progress Tracking**: Documents what has been built and what remains
+Three blocks under `native_blocks/` are intended as canonical examples. Read
+their source alongside the Memory Bank:
 
+- `block_core/` — every framework primitive lives here.
+- `block_debug_console_print/` — the model for hook *subscription* and for
+  drawing developer-facing debug UI.
+- `block_onscreen_drawing/` — the model for managing many RTC instances + GPU
+  resources.
 
-# What to Update (and When)
-You don't need to update everything every time you fix a typo, but you should instruct the AI Assistant to update specific files during these key moments:
+---
 
-## 1. projectbrief.md (The "North Star")
-Update when: Your core goals or project scope changes.
+## Conventions for Editing the Memory Bank
 
-Focus: If you decide to pivot from a local-only tool to a cloud-synced one, or if you add a major new "pillar" to the project, update this immediately. It prevents the AI Assistant from suggesting features that are out of scope.
-
-## 2. productContext.md (The "Why")
-Update when: You change how a user interacts with the tool or its intended "vibe."
-
-Focus: Changes in UX flow, target audience needs, or the "problems" the software is solving.
-
-## 3. systemPatterns.md (The "How" - High Priority)
-Update when: You introduce a new design pattern, library, or architectural decision.
-
-Focus: * New Tech: If you just added a library like Numba or specialized Blender UI logic.
-
-Communication: How data flows between your UI and the backend/operators.
-
-Rules: Specific coding standards (e.g., "Always use bmesh for mesh operations instead of bpy.ops").
-
-## 4. techContext.md (The Stack)
-Update when: You add or remove dependencies.
-
-Focus: Version updates, new external API integrations, or changes in the development environment requirements.
-
-## 5. activeContext.md (The "Now" - Update Daily)
-Update when: You finish a session or start a new major task.
-
-Focus: What was just completed, what the current "headache" is, and what the next three logical steps are. This is the most "living" part of the bank.
-
-## 6. progress.md (The Checklist)
-Update when: A feature goes from "In Progress" to "Done."
-
-Focus: Keeping an accurate roadmap so the AI Assistant doesn't try to "re-build" something that is already 90% finished.
+- **Source of truth = the code.** If a Memory Bank file disagrees with the
+  current state of the reference blocks, the code wins. Update the doc.
+- **Don't duplicate.** A pattern lives in exactly one of these files. Cross-
+  reference instead of copying.
+- **`activeContext.md` and `progress.md` are living docs.** The other four
+  files change rarely.
+- **One commit per Memory Bank update.** Don't bundle Memory Bank edits with
+  feature work — it makes the history harder to read.
