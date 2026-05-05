@@ -51,9 +51,7 @@ def _callback_update_hook_sub_enabled(self, context):
     # Skip further action if a sync is already in progress
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_hook_subscribers):
         return
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
-    Wrapper_Hooks.update_RTC_with_mirrored_BL_data()
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
+    Wrapper_Hooks.update_RTC_with_mirrored_BL_data(event = Enum_Sync_Events.PROPERTY_UPDATE)
 
 class DGBLOCKS_PG_Hook_Reference(bpy.types.PropertyGroup):
     # RTC Mirror = 'RTC_Hook_Subscriber_Instance'
