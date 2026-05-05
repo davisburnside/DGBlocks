@@ -179,7 +179,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         # Create all core loggers
         for new_logger_enum in Core_Block_Loggers:
             cls.create_instance(
-                event = event,
+                event,
                 logger_name = new_logger_enum.name,
                 src_block_id = _BLOCK_ID,
                 level_name = new_logger_enum.value[1],
@@ -190,10 +190,11 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
+        event = Enum_Sync_Events.ADDON_INIT
         
         # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
-        cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.ADDON_INIT) # Causes partial RTC->BL sync
-        cls.update_RTC_with_mirrored_BL_data(event = Enum_Sync_Events.ADDON_INIT) # Causes full BL-RTC resync
+        cls.update_BL_with_mirrored_RTC_data(event) # Causes partial RTC->BL sync
+        cls.update_RTC_with_mirrored_BL_data(event) # Causes full BL-RTC resync
 
     @classmethod
     def destroy_wrapper(cls, event: Enum_Sync_Events) -> bool:
@@ -310,7 +311,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         action_logger.debug(f"Created Logger '{true_logger_id}'")
 
         if is_bpy_ready() and not skip_BL_sync:
-            cls.update_BL_with_mirrored_RTC_data()
+            cls.update_BL_with_mirrored_RTC_data(event)
         
         return new_logger
 
@@ -331,9 +332,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger.debug(f"Removed Logger '{logger_name}'")
 
         if is_bpy_ready() and not skip_BL_sync:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
-            cls.update_BL_with_mirrored_RTC_data()
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
+            cls.update_BL_with_mirrored_RTC_data(event)
 
     # --------------------------------------------------------------
     # Private funcs specific to this class

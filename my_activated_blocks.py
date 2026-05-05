@@ -1,5 +1,5 @@
  
-from .native_blocks import block_core, block_debug_console_print, block_stable_modal, block_onscreen_drawing
+from .native_blocks import block_core, block_debug_console_print, block_pip_library_manager, block_timers
 from .external_blocks import block_flatypus_modes_manager
 
 # Each folder/package is a "block": a swappable, standardized unit. 
@@ -7,7 +7,9 @@ from .external_blocks import block_flatypus_modes_manager
 # Block folder names are arbitrary, but I recommend you follow the existing name standard
 _ordered_blocks_list = [
     block_core,
+    block_timers,
     block_debug_console_print,
+    block_pip_library_manager,
     # block_example_simple,
     # block_example_complex_A,
     # block_stable_modal,

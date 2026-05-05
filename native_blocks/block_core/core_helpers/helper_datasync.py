@@ -7,6 +7,8 @@ from typing import Optional, TypeVar
 from dataclasses import dataclass
 from typing import TypeVar, Union
 
+from ....addon_helpers.data_structures import Enum_Sync_Events
+
 T = TypeVar('T')
 
 _ALLOWED_KEY_TYPES = (str, bool, int)
@@ -256,9 +258,9 @@ def apply_dataclasses_to_match_collectionprop(
     actual_FWC: type[T],
     source,
     target: list[T],
-    actions: list[Action],
     key_fields: list[str],
     data_fields: list[str],
+    actions: list[Action],
 ) -> None:
     """
     Apply actions against a Python list of dataclasses.
@@ -268,11 +270,17 @@ def apply_dataclasses_to_match_collectionprop(
                                                   **key+data kwargs).
     Both are expected to mutate `target` themselves.
     """
+    event = Enum_Sync_Events.PROPERTY_UPDATE
     source_list = list(source)
     all_fields = key_fields + data_fields
     for action in actions:
         if isinstance(action, Remove):
-            actual_FWC.destroy_instance(target, action.from_idx, skip_BL_sync = True)
+            src_item = source_list[action.from_idx]
+            kwargs = {n: getattr(src_item, n) for n in key_fields}
+            actual_FWC.destroy_instance(
+                event = event, 
+                skip_BL_sync = True, 
+                **kwargs)
         elif isinstance(action, Noop):
             pass
         elif isinstance(action, Edit):
@@ -285,7 +293,10 @@ def apply_dataclasses_to_match_collectionprop(
         elif isinstance(action, Create):
             src_item = source_list[action.source_idx]
             kwargs = {n: getattr(src_item, n) for n in all_fields}
-            actual_FWC.create_instance(target, action.to_idx, skip_BL_sync = True, **kwargs)
+            actual_FWC.create_instance(
+                event = event, 
+                skip_BL_sync = True, 
+                **kwargs)
 
 # --------------------------------------------------------------
 # Convenience funcs
@@ -306,7 +317,7 @@ def update_collectionprop_to_match_dataclasses(
     if debug_logger:
         _print_actions(source, target, actions, debug_logger)
 
-    apply_collectionprop_to_match_dataclasses(source, target, actions, key_fields, data_fields)
+    apply_collectionprop_to_match_dataclasses(source, target, key_fields, data_fields, actions)
 
 def update_dataclasses_to_match_collectionprop(
         actual_FWC, 
@@ -323,7 +334,7 @@ def update_dataclasses_to_match_collectionprop(
     if debug_logger:
         _print_actions(source, target, actions, debug_logger)
         
-    apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, actions, key_fields, data_fields)
+    apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, key_fields, data_fields, actions)
 
 # --------------------------------------------------------------
 # Other

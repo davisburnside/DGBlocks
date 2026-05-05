@@ -50,13 +50,13 @@ enum_hook_redo = Core_Block_Hook_Sources.CORE_EVENT_POST_REDO
 
 def _callback_update_block_enabled(self, context):
 
-    logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-
     # Skip further action if a sync is already in progress
-    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks) or not is_bpy_ready():
         return
     
     try:
+
+        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
 
         # Update RTC to match Blender/UI
         Wrapper_Block_Management.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE)
@@ -73,7 +73,7 @@ def _callback_update_block_enabled(self, context):
             block.block_module.unregister_block(event)
 
         # Apply changes back to mirrored Blender data
-        # Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
+        Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
 
         # # Run final-init for new blocks, if needed
         # for block in blocks_to_enable:
@@ -198,7 +198,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             bpy.app.handlers.redo_post.append(_callback_redo_post)
             logger.debug("Func  '_callback_redo_post' added to bpy.app.handlers.redo_post")
         else:
-            logger.debug(f"Func  '_callback_redo_post' already present in 'bpy.app.handlers.redo_post'")
+            logger.debug(f"Func '_callback_redo_post' already present in 'bpy.app.handlers.redo_post'")
 
     @classmethod
     def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:

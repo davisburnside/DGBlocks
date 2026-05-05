@@ -30,7 +30,7 @@ from .constants import Block_Hook_Sources, debug_console_print_dict_key_filter_i
 
 _BLOCK_ID = "block-debug-console-print" # Defined in constants, To Prevent circular imports. Other Blocks can assign directly
 _BLOCK_VERSION = (1,0,0)
-_BLOCK_DEPENDENCIES = [block_core.core_block_id] 
+_BLOCK_DEPENDENCIES = ["block-core"] 
 
 # ==============================================================================================================================
 # BLENDER DATA FOR BLOCK
@@ -133,7 +133,7 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
 
 class DGBLOCKS_PT_Debugging_Panel(bpy.types.Panel):
     bl_label = ""
-    bl_idname = f"{addon_bl_type_prefix}_PT_Debugging_Panel"
+    bl_idname = f"DGBLOCKS_PT_Debugging_Panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = addon_title
