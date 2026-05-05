@@ -338,7 +338,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         all_returns: Dict[str, Any] = {}
         
         # Get hook func name from str/enum input
-        hook_func_name = cls.get_subscriber_blocks_of_hook(hook_func_name)
+        hook_func_name = cls._get_func_name_from_hook_id(hook_func_name)
 
         RTC_subscriber_hooks = Wrapper_Runtime_Cache.get_all_with_key_value_from_registry_list(
             cache_key_hook_subscribers,

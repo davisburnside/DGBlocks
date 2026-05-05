@@ -31,6 +31,9 @@ _BLOCK_ID = "block-pip-manager" # Defined in constants, To Prevent circular impo
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = ["block-core", "block-timers"] 
 
+def hook_core_event_undo():
+    print("undo hook run")
+
 # ==============================================================================================================================
 # UI - Preferences Menu, General Settings, Logging & Debugging
 # ==============================================================================================================================

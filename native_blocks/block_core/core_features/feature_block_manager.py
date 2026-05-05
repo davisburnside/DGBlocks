@@ -765,8 +765,6 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             except Exception:
                 logger.error(f"Exception during RTC sync for '{src_block_id}'", exc_info=True)
 
-        logger.info(f"Finished update_all_FWC_RTC_caches_to_match_BL_data for event='{event}")
-
 # ==============================================================================================================================
 # UI
 # ==============================================================================================================================
