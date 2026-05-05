@@ -200,7 +200,7 @@ def _print_actions(source, target, actions, logger):
         logger.log(logger.level, "Source & target already match, no updates needed")
         return
 
-    logger.log(logger.level, f"updating source (len={len(target)}) to match target (len={len(source)})")
+    logger.log(logger.level, f"updating target (len={len(target)}) to match source (len={len(source)})")
     for action in reformatted_actions:
         logger.log(logger.level, action)
 
@@ -236,7 +236,7 @@ def apply_collectionprop_to_match_dataclasses(
         elif isinstance(action, Move):
             target.move(action.from_idx, action.to_idx)
         elif isinstance(action, Create):
-            new_item = target.add()        # appends at end
+            new_item = target.add()
             _copy_fields(source[action.source_idx], new_item, all_fields)
             last = len(target) - 1
             if last != action.to_idx:
@@ -272,10 +272,11 @@ def apply_dataclasses_to_match_collectionprop(
     """
     event = Enum_Sync_Events.PROPERTY_UPDATE
     source_list = list(source)
+    target_list = list(target)
     all_fields = key_fields + data_fields
     for action in actions:
         if isinstance(action, Remove):
-            src_item = source_list[action.from_idx]
+            src_item = target_list[action.from_idx]
             kwargs = {n: getattr(src_item, n) for n in key_fields}
             actual_FWC.destroy_instance(
                 event = event, 

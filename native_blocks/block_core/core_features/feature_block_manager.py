@@ -52,35 +52,13 @@ def _callback_update_block_enabled(self, context):
 
     # Skip further action if a sync is already in progress
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks) or not is_bpy_ready():
+        print("skip block update")
         return
     
     try:
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-
-        # Update RTC to match Blender/UI
-        Wrapper_Block_Management.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE)
-
-        # Update enabled/disabled status for all block instances, depending on the status of their dependencies
-        cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-        blocks_to_enable, blocks_to_disable = Wrapper_Block_Management.evaluate_block_dependency_tree(cached_blocks)
-        event = Enum_Sync_Events.PROPERTY_UPDATE
-
-        for block in blocks_to_enable:
-            block.block_module.register_block(event)
-
-        for block in blocks_to_disable:
-            block.block_module.unregister_block(event)
-
-        # Apply changes back to mirrored Blender data
-        Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
-
-        # # Run final-init for new blocks, if needed
-        # for block in blocks_to_enable:
-        #     _ = Wrapper_Hooks.run_hooked_funcs(
-        #         hook_func_name = enum_hook_final_init, 
-        #         subscriber_block_id = block._BLOCK_ID,
-        #     )
+        Wrapper_Block_Management.evaluate_and_update_block_statuses(event = Enum_Sync_Events.PROPERTY_UPDATE)
 
     except Exception:
         logger.error(f"Exception when updating 'enabled' status of blocks", exc_info = True)
@@ -637,7 +615,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
         # Loggers - initialized with default log levels
         for idx, enum_logger in enumerate(block_logger_enums):
-            is_last = idx + 1 == len(block_hook_source_enums)
+            is_last = idx + 1 == len(block_logger_enums)
             Wrapper_Loggers.create_instance(
                 event,
                 src_block_id = block_id,
@@ -659,7 +637,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             )
 
     @classmethod
-    def evaluate_block_dependency_tree(
+    def determine_blocks_to_update_status(
         cls,
         cached_blocks: list[RTC_Block_Instance],
     ) -> tuple[list[RTC_Block_Instance], list[str], list[str]]:
@@ -711,6 +689,32 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         return was_enabled, was_disabled
 
     @classmethod
+    def evaluate_and_update_block_statuses(cls, event):
+
+        # Update RTC to match Blender/UI
+        Wrapper_Block_Management.update_RTC_with_mirrored_BL_data(event)
+
+        # Update enabled/disabled status for all block instances, depending on the status of their dependencies
+        cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
+        blocks_to_enable, blocks_to_disable = Wrapper_Block_Management.determine_blocks_to_update_status(cached_blocks)
+
+        for block in blocks_to_enable:
+            block.block_module.register_block(event)
+
+        for block in blocks_to_disable:
+            block.block_module.unregister_block(event)
+
+        # Apply changes back to mirrored Blender data
+        Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
+
+        # # Run final-init for new blocks, if needed
+        # for block in blocks_to_enable:
+        #     _ = Wrapper_Hooks.run_hooked_funcs(
+        #         hook_func_name = enum_hook_final_init, 
+        #         subscriber_block_id = block._BLOCK_ID,
+        #     )
+
+    @classmethod
     def is_block_enabled(cls, block_id: str):
 
         block_instance = cls.get_block_instance(block_id)
@@ -727,7 +731,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         return block_instance
 
     @classmethod
-    def update_all_FWC_RTC_caches_to_match_BL_data(cls, event_type: Enum_Sync_Events) -> None:
+    def update_all_FWC_RTC_caches_to_match_BL_data(cls, event: Enum_Sync_Events) -> None:
         """
         Iterate through all registered Feature_Wrapper_References and call their
         update_RTC_with_mirrored_BL_data(scene) method.
@@ -738,7 +742,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         """
         
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug(f"Starting update_all_FWC_RTC_caches_to_match_BL_data for event='{event_type}'")
+        logger.debug(f"Starting update_all_FWC_RTC_caches_to_match_BL_data for event='{event}'")
         
         cache_all_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
         for FWC_instance in cache_all_FWCs:
@@ -751,12 +755,17 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             try:
                 actual_class_ref = FWC_instance.feature_wrapper_class
                 src_block_id = FWC_instance.src_block_id
-                logger.debug(f"Updating RTC with BL data for '{actual_class_ref.__name__}'")
-                actual_class_ref.update_RTC_with_mirrored_BL_data(event_type)
+
+                if actual_class_ref == cls:
+                    cls.evaluate_and_update_block_statuses(event)
+
+                else:
+                    logger.debug(f"Updating RTC with BL data for '{actual_class_ref.__name__}'")
+                    actual_class_ref.update_RTC_with_mirrored_BL_data(event)
             except Exception:
                 logger.error(f"Exception during RTC sync for '{src_block_id}'", exc_info=True)
 
-        logger.info(f"Finished update_all_FWC_RTC_caches_to_match_BL_data for event='{event_type}")
+        logger.info(f"Finished update_all_FWC_RTC_caches_to_match_BL_data for event='{event}")
 
 # ==============================================================================================================================
 # UI
