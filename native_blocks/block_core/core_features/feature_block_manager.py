@@ -18,7 +18,7 @@ from bpy.app.handlers import persistent  # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State
-from ....addon_helpers.data_tools import fast_deepcopy_with_fallback
+from ....addon_helpers.data_tools import fast_deepcopy_with_fallback, reset_propertygroup
 from ....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
 
 # --------------------------------------------------------------
@@ -52,7 +52,7 @@ def _callback_update_block_enabled(self, context):
 
     # Skip further action if a sync is already in progress
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks) or not is_bpy_ready():
-        print("skip block update")
+        # print("skip block update")
         return
     
     try:
@@ -196,8 +196,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         
         # (Debugging) clear all saved properties
         core_props = bpy.context.scene.dgblocks_core_props
-        if core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
+        if True: #core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
             logger.warning("(Debugging) Clearing all saved properties")
+            reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger = logger)
         
         # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event = event) # Causes partial RTC->BL sync 
@@ -718,6 +719,8 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
     def is_block_enabled(cls, block_id: str):
 
         block_instance = cls.get_block_instance(block_id)
+        if block_instance is None:
+            return False
         return block_instance.is_block_enabled
 
     @classmethod
@@ -725,9 +728,6 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
         cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         block_instance = next((b for b in cached_blocks if b.block_id == block_id), None)
-        if block_instance is None:
-            known_blocks_str = str([b._BLOCK_ID for b in cached_blocks])
-            raise Exception(f"Block '{block_id}' doesn't exist. All known blocks = {known_blocks_str}")
         return block_instance
 
     @classmethod

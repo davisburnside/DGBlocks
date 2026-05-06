@@ -98,7 +98,7 @@ class DGBLOCKS_OT_Copy_To_Clipboard(bpy.types.Operator):
         return {'FINISHED'}
 
 class DGBLOCKS_OT_Force_Reload_Scripts(bpy.types.Operator):
-    bl_idname = "dgblocks.debug_force_reload_scipts"
+    bl_idname = "dgblocks.debug_force_reload_scripts"
     bl_label = "Reload scripts"
     bl_options = {"REGISTER"}
     
@@ -121,7 +121,7 @@ class DGBLOCKS_OT_Force_Reload_Refresh_UI(bpy.types.Operator):
         return {"FINISHED"}
    
 class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
-    bl_idname = "dgblocks.debug_force_reload_scipts"
+    bl_idname = "dgblocks.debug_clear_and_restore_caches"
     bl_label = "Reload scripts"
     bl_options = {"REGISTER"}
     
@@ -275,9 +275,3 @@ def unregister_block(event: Enum_Sync_Events):
 
     logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")
 
-
-
-def func_t1():
-
-    print("sdlfhasfuksdhfuklasfhsuadklfhdukhsaufs@###########3\n\n\n\n sdfjsdhfj")
-    return {"adasdsd" : "4wersdf"}

@@ -184,7 +184,7 @@ def unregister_block(event: Enum_Sync_Events):
     Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
     
     # Delete block-core Scene Properties
-    if hasattr(block_core.DGBLOCKS_PG_Core_Props, "dgblocks_debug_console_print_props"):
+    if hasattr(bpy.types.Scene, "dgblocks_debug_console_print_props"):
         del bpy.types.Scene.dgblocks_debug_console_print_props
     
     logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")

@@ -1,5 +1,3 @@
-
-
 import bpy # type: ignore
 from typing import Optional
 
@@ -7,6 +5,7 @@ from typing import Optional
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_helpers import get_self_block_module, is_bpy_ready
+from ...addon_helpers.data_structures import Enum_Sync_Events
 from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -69,13 +68,14 @@ _block_classes_to_register = [
     DGBLOCKS_PT_Debug_Drawing_Panel,
 ]
 
-def register_block():
+def register_block(event: Enum_Sync_Events):
 
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
     
     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
     Wrapper_Block_Management.create_instance(
+        event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = [Wrapper_Draw_Handlers], 
@@ -86,12 +86,12 @@ def register_block():
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block():
+def unregister_block(event: Enum_Sync_Events):
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
     
     # Remove block components from RTC
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+    Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
     
     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")

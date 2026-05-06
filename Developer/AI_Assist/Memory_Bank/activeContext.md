@@ -109,10 +109,6 @@ The author should pick a single canonical form and propagate it.
   `addon_bl_type_prefix`, or rewriting class names too? Lean toward the former.
     ANSWER: To allow multiple block-based addons in Blender, the developer replaces all "DGBLOCKS_" strings with their own unique one.
 
-- **Logger-name format** — `kebab-case` (`"timer-exec"`) vs `snake_case`
-  (`"shader_batch_events"`). Both forms exist in the codebase. Pick one.
-    
-
 
 ---
 

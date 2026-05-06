@@ -225,7 +225,7 @@ def _make_reset_visitor(clear_collections=True, reset_defaults=True, logger=None
                 except Exception:
                     pass
                 if logger and count > 0:
-                    logger(f"Cleared collection '{path}': removed {count} item(s)")
+                    logger.log(logger.level, f"Cleared collection '{path}': removed {count} item(s)")
             return None
 
         # Simple values
@@ -245,12 +245,11 @@ def _make_reset_visitor(clear_collections=True, reset_defaults=True, logger=None
         if logger:
             for group_path, count in counts.items():
                 if count > 0:
-                    logger(f"Reset {count} value(s) in '{group_path}'")
+                    logger.log(logger.level, f"Reset {count} value(s) in '{group_path}'")
 
     return visitor, flush_logs
 
-def reset_propertygroup(prop_group, clear_collections=True, reset_defaults=True,
-                        prefix=None, logger=None):
+def reset_propertygroup(prop_group, clear_collections=True, reset_defaults=True, prefix:str=None, logger:logging.Logger=None):
     """Reset a PropertyGroup tree to default values."""
     visitor, flush_logs = _make_reset_visitor(clear_collections, reset_defaults, logger)
     _walk_propertygroup(prop_group, visitor, prefix=prefix)

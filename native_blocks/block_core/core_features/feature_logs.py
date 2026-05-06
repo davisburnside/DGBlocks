@@ -189,7 +189,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
     def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-        logger.debug(f"Running post-bpy init for Wrapper_Hooks")
+        logger.debug(f"Running post-bpy init for Wrapper_Loggers")
         event = Enum_Sync_Events.ADDON_INIT
         
         # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
