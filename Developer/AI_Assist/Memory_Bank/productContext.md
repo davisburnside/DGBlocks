@@ -53,7 +53,10 @@ Once `bpy.context` is ready, `Wrapper_Block_Management.init_post_bpy()`:
    their own post-context-ready work.
 4. Marks the addon "started successfully" in the RTC.
 
-### Phase D — Runtime
+### Phase D — Final init hook (optional)
+After 'post_bpy_init' runs for all blocks & their components are registered & the addon is fully ready, the hook function ** will run for any block that subscribes to it.
+
+### Phase E — Runtime
 The addon is alive. Most logic runs through:
 - **Operators** → user-driven actions.
 - **Property update callbacks** → re-sync RTC from Blender, sometimes propagate
@@ -63,7 +66,10 @@ The addon is alive. Most logic runs through:
 - **`bpy.app.handlers`** for undo/redo/load — all consolidated in core-block,
   which fans them out via hooks.
 
-### Phase E — `unregister()`
+During runtime, blocks can still be added & removed, just like during registration/unregistration
+This includes all hook/logger/RTC components of a block. 
+
+### Phase F — `unregister()`
 Blocks unregister in **reverse order** of registration. Each block calls
 `Wrapper_Block_Management.destroy_instance(...)`, which:
 

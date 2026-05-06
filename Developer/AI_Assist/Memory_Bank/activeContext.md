@@ -102,11 +102,17 @@ The author should pick a single canonical form and propagate it.
   `from .external_blocks import block_flatypus_modes_manager` but the folder
   isn't shown in the workspace tree. Confirm whether this folder is intended
   to be commit-tracked or git-ignored.
+  ANSWER: external_blocks is a sibling of native_blocks
+
 - **`DGBLOCKS_*` prefix for re-skinned addons** — should the authoring guide
   recommend leaving the prefix as `DGBLOCKS` and only changing
   `addon_bl_type_prefix`, or rewriting class names too? Lean toward the former.
+    ANSWER: To allow multiple block-based addons in Blender, the developer replaces all "DGBLOCKS_" strings with their own unique one.
+
 - **Logger-name format** — `kebab-case` (`"timer-exec"`) vs `snake_case`
   (`"shader_batch_events"`). Both forms exist in the codebase. Pick one.
+    
+
 
 ---
 

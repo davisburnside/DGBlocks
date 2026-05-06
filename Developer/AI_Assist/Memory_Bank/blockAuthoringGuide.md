@@ -15,7 +15,7 @@ Decide the answers to these. If you can't, your block is probably trying to do
 two things — split it.
 
 1. **What single capability does this block deliver?** (One sentence.)
-2. **Does it depend on any other block?** (Almost always at least `block-core`.)
+2. **Does it depend on any other block?** (Always at least `block-core`.)
 3. **Does it need persistent state in `.blend` files?** (PropertyGroups vs.
    RTC-only.)
 4. **Does it need to publish events to other blocks?** (Hooks.)

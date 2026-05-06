@@ -150,7 +150,7 @@ End-users / addon re-skinners only need to touch four things:
    the package name to disambiguate addons.
 
 Anything inside `addon_helpers/` or `native_blocks/` should be treated as
-"library code" and not edited per-project unless you're authoring a new block.
+"library code" and not edited per-project. Project-specific logic is always added as new blocks under /external_blocks (encouraged to use separate git repos for each block)
 
 ---
 
