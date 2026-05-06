@@ -1,2 +1,0 @@
-
-@/Developer/AI_Assist/cline_prompt.md

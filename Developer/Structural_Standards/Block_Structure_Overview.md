@@ -11,19 +11,20 @@ TODO changes to make:
 ## 1. FILE ORGANIZATION & NAMING
 
 ### Block Structure
-Each block follows a consistent directory layout:
+Each block follows a semi-consistent directory layout:
 ```
 block_name/
 ├── __init__.py              # Registration, UI, operators, hook implementations
-├── constants.py             # Enums for loggers, hooks, RTC members
-├── block_config.py          # Optional: user-configurable settings
-├── feature_*_wrapper.py     # Main feature implementation (Abstract_Feature_Wrapper)
-├── helper_functions.py      # UI drawing & operator execution logic
+├── constants.py             # Enums for loggers, hooks, RTC members, and block-specific data structures
+├── feature_.py              # Main feature implementation (Abstract_Feature_Wrapper)
+├── helpers.py               # UI drawing & operator execution logic
 └── README.md                # Block documentation
 ```
 
+These names are suggestions, not hard rules. For certain blocks, it may be more logical to create subfolders for helpers / functions
+
 ### Canonical Example Blocks
-The three `_example_usecase_*` blocks under `native_blocks/_example_usecases/` are the **authoritative templates** for all new blocks:
+The `_example_usecase_*` blocks under `native_blocks/_example_usecases/` are the **authoritative templates** for all new blocks:
 
 | Example | Purpose | Key Patterns Demonstrated |
 |---------|---------|---------------------------|
