@@ -11,7 +11,7 @@ from .native_blocks import block_core, block_debug_console_print, block_pip_libr
 # --------------------------------------------------------------
 # Builtin blocks for demos / learning
 # --------------------------------------------------------------
-from .native_blocks._example_usecases import _block_usecase_01_minimal, _block_usecase_02_basic
+from .native_blocks._example_usecases import _block_usecase_01_minimal, _block_usecase_02_basic, _block_usecase_02B_basic
 
 # --------------------------------------------------------------
 # Builtin unfinished block prototypes
@@ -37,4 +37,5 @@ _ordered_blocks_list = [
     # block_pip_library_manager,
     _block_usecase_01_minimal,
     _block_usecase_02_basic,
+    _block_usecase_02B_basic,
 ]

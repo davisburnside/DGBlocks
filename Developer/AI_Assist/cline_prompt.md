@@ -31,6 +31,17 @@ block_<feature_name>/            # folder: snake_case  |  _BLOCK_ID: kebab-case 
 └── README.md
 ```
 
+## Canonical Example Blocks (Authoritative Templates)
+The three `_example_usecase_*` blocks under `native_blocks/_example_usecases/` are the **authoritative templates** for all new blocks. Developers and AI tools should copy the closest example and extend from there:
+
+| Example | Purpose | Key Patterns Demonstrated |
+|---------|---------|---------------------------|
+| `_block_usecase_01_minimal` | Absolute minimum viable block | Empty block registration, no features |
+| `_block_usecase_02_basic` | Fully wired standard block | Logger, RTC member, PropertyGroup, operator, panel, hooks |
+| `_block_usecase_02B_basic` | Full BL↔RTC data-mirror | Custom `PropertyGroup` + `UIList`, two-way sync via `Abstract_BL_and_RTC_Data_Syncronizer`, `create_instance` / `destroy_instance` CRUD |
+
+When scaffolding a new block, always start from the closest example above.
+
 # TWO-TIER DATA MODEL
 **Source of Truth** (persistent, saved in .blend):
 - `bpy.props` PropertyGroups attached to `bpy.types.Scene`
