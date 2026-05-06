@@ -5,7 +5,7 @@ import bpy
 class Block_Hook_Sources(Enum):
 
     DEBUG_GET_BLOCK_DATA = ("hook_debug_get_state_data_to_print", {})
-    DEBUG_UI_DRAW_FOR_BLOCK_CONSOLE_PRINT = ("hook_debug_uilayout_draw_console_print_settings", {"layout": bpy.types.UILayout})
+    DEBUG_UI_DRAW_FOR_BLOCK_CONSOLE_PRINT = ("hook_debug_uilayout_draw_console_print_settings", {"ui_container": bpy.types.UILayout})
 
 
 debug_sort_hooks_choice_items = [

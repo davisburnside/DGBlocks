@@ -21,8 +21,9 @@ from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .helper_functions import extract_core_block_data_to_print, uilayout_draw_debug_settings, make_pretty_json_string_from_data
-from .constants import Block_Hook_Sources, debug_console_print_dict_key_filter_items, debug_console_print_data_filter_items, debug_sort_hooks_choice_items, numeric_comparison_enum_items
+from .helpers.constants import Block_Hook_Sources, debug_console_print_dict_key_filter_items, debug_console_print_data_filter_items, debug_sort_hooks_choice_items, numeric_comparison_enum_items
+from .helpers.text_formatting import extract_core_block_data_to_print, make_pretty_json_string_from_data
+from .helpers.ui_drawing import uilayout_draw_debug_settings
 
 # ==============================================================================================================================
 # BLOCK DEFINITION
@@ -31,26 +32,6 @@ from .constants import Block_Hook_Sources, debug_console_print_dict_key_filter_i
 _BLOCK_ID = "block-debug-console-print" # Defined in constants, To Prevent circular imports. Other Blocks can assign directly
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = ["block-core"] 
-
-# ==============================================================================================================================
-# HOOK SUBSCRIPTIONS
-# ==============================================================================================================================
-
-def hook_block_registered(block_instances: list[RTC_Block_Instance]):
-    
-    block_names = [b.block_id for b in block_instances]
-    block_names_str = ",".join(block_names)
-    
-    logger = get_logger(Core_Block_Loggers.HOOKS)
-    logger.info(f"(hook) Registered blocks {block_names_str}")
-
-def hook_block_unregistered(block_instances: list[RTC_Block_Instance]):
-    
-    block_names = [b.block_id for b in block_instances]
-    block_names_str = ",".join(block_names)
-    
-    logger = get_logger(Core_Block_Loggers.HOOKS)
-    logger.info(f"(hook) Unregistered blocks {block_names_str}")
 
 # ==============================================================================================================================
 # BLENDER DATA FOR BLOCK

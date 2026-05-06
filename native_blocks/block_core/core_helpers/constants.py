@@ -27,8 +27,7 @@ class Core_Block_Hook_Sources(Enum):
 # value[0] = logger display name & default level
 # value[1] = logger display name & default level
 class Core_Block_Loggers(Enum):
-    ROOT = ("root", "DEBUG")
-    HOOKS = ("hooks", "DEBUG")
+    HOOKS = ("hooks", "INFO")
     BLOCK_MGMT = ("core-events", "DEBUG")
     DATA_SYNC = ("data-sync", "DEBUG")
     REGISTRATE = ("register", "DEBUG")

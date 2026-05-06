@@ -3,13 +3,13 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.data_structures import Enum_Sync_Events
-from ...addon_helpers.generic_helpers import get_self_block_module
+from ....addon_helpers.data_structures import Enum_Sync_Events
+from ....addon_helpers.generic_helpers import get_self_block_module
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ..block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ...block_core.core_features.feature_block_manager import Wrapper_Block_Management
 
 # ==============================================================================================================================
 # BLOCK DEFINITION

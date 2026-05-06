@@ -3,19 +3,16 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.data_structures import Enum_Sync_Events
-from ...addon_helpers.generic_helpers import get_self_block_module
-from ...my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ....addon_helpers.data_structures import Enum_Sync_Events
+from ....addon_helpers.generic_helpers import get_self_block_module
+from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
+from ....addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ..block_core.core_features.feature_block_manager import Wrapper_Block_Management, RTC_Block_Instance
-from ..block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
-from ..block_core.core_features.feature_hooks import Wrapper_Hooks
-from ..block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from ..block_core.core_helpers.constants import Core_Runtime_Cache_Members
+from ...block_core.core_features.feature_block_manager import Wrapper_Block_Management, RTC_Block_Instance
+from ...block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -35,28 +32,28 @@ _BLOCK_DEPENDENCIES = ["block-core", "block-debug-console-print"]
 # ==============================================================================================================================
 
 def hook_core_event_undo():
-    logger = get_logger(Block_Loggers.DEMO)
+    logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
     logger.info("[hook] undo fired")
 
 def hook_core_event_redo():
-    logger = get_logger(Block_Loggers.DEMO)
+    logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
     logger.info("[hook] redo fired")
 
 def hook_block_registered(block_instances: list[RTC_Block_Instance]):
     block_names = [b.block_id for b in block_instances]
-    logger = get_logger(Block_Loggers.DEMO)
+    logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
     logger.info(f"[hook] registered: {', '.join(block_names)}")
 
 def hook_block_unregistered(block_instances: list[RTC_Block_Instance]):
     block_names = [b.block_id for b in block_instances]
-    logger = get_logger(Block_Loggers.DEMO)
+    logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
     logger.info(f"[hook] unregistered: {', '.join(block_names)}")
 
 def hook_debug_get_state_data_to_print():
     return {"message": "Hello from block-example-simple-2"}
 
-def hook_debug_uilayout_draw_console_print_settings(layout: bpy.types.UILayout):
-    layout.label(text="block-example-simple-2 has no extra print settings")
+def hook_debug_uilayout_draw_console_print_settings(ui_container: bpy.types.UILayout):
+    ui_container.label(text="block-example-simple-2 has no extra print settings")
 
 # ==============================================================================================================================
 # BLENDER DATA FOR BLOCK
@@ -75,7 +72,7 @@ class DGBLOCKS_OT_Example_Simple_2_Demo(bpy.types.Operator):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        logger = get_logger(Block_Loggers.DEMO)
+        logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
         logger.info("Demo operator executed")
         return {"FINISHED"}
 

@@ -1,24 +1,40 @@
  
-from .native_blocks import block_core, block_debug_console_print, block_pip_library_manager, block_timers
-from .native_blocks import _example_block_usecase_01_minimal, _example_block_usecase_02_basic
-from .external_blocks import block_flatypus_modes_manager
+# ==============================================================================================================================
+# Block package imports
+# ==============================================================================================================================
 
-# Each folder/package is a "block": a swappable, standardized unit. 
-# Some blocks depend on others. If block-A depends on block-B, then block-B must be listed after block-A
-# Block folder names are arbitrary, but I recommend you follow the existing name standard
+# --------------------------------------------------------------
+# Builtin blocks with actual usecases
+# --------------------------------------------------------------
+from .native_blocks import block_core, block_debug_console_print, block_pip_library_manager, block_timers
+
+# --------------------------------------------------------------
+# Builtin blocks for demos / learning
+# --------------------------------------------------------------
+from .native_blocks._example_usecases import _block_usecase_01_minimal, _block_usecase_02_basic
+
+# --------------------------------------------------------------
+# Builtin unfinished block prototypes
+# --------------------------------------------------------------
+# from unfinished_blocks import <>
+
+# --------------------------------------------------------------
+# Your blocks, used in your addon
+# --------------------------------------------------------------
+# from .external_blocks import block_flatypus_modes_manager
+
+# ==============================================================================================================================
+# Blocks registered at startup
+# ==============================================================================================================================
+
+# List order must respect the block's dependencies. If block-A depends on block-B, then block-B must be listed after block-A
+# In other words, all blocks depend on block_core, so it is the list's first item
+
 _ordered_blocks_list = [
     block_core,
-    block_timers,
+    # block_timers,
     block_debug_console_print,
-    block_pip_library_manager,
-    _example_block_usecase_01_minimal,
-    _example_block_usecase_02_basic,
-    
-    
-    # block_example_complex_A,
-    # block_stable_modal,
-    # block_onscreen_drawing,
-    # block_flatypus_modes_manager,
-    # block_2tone_tests,
-    # ... Add other block defininions here
+    # block_pip_library_manager,
+    _block_usecase_01_minimal,
+    _block_usecase_02_basic,
 ]

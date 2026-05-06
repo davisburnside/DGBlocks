@@ -445,10 +445,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         actual_hook_func_name = hook_src_id.value[0]
         
         # Get registered downstream hooks for a func name
-        all_RTC_hook_subscribers = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS)
-        block_ids = [h.subscriber_block_id for h in all_RTC_hook_subscribers if h.hook_func_name == actual_hook_func_name]
-
-        return block_ids
+        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
+        hook_sub_instances = [h for h in cached_hook_subs if h.hook_func_name == actual_hook_func_name]
+        return hook_sub_instances
 
     # --------------------------------------------------------------
     # Private funcs specific to this class
