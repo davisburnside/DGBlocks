@@ -198,8 +198,11 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # (Debugging) clear all saved properties
         core_props = bpy.context.scene.dgblocks_core_props
         if True: #core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
+            
             logger.warning("(Debugging) Clearing all saved properties")
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger = logger)
+            core_props.debug_log_all_RTC_BL_sync_actions = True
+            core_props.debug_mode_enabled = True
         
         # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event = event) # Causes partial RTC->BL sync 

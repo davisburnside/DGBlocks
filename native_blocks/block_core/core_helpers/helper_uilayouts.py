@@ -88,10 +88,10 @@ def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.U
         grid.prop(core_scene_props, "debug_mode_enabled")
         grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
         grid.prop(core_scene_props, "documentation_weblinks_enabled")
-        op_rtc_clear = grid.operator("dgblocks.debug_force_reload_scipts", text = "Clear RTC")
+        op_rtc_clear = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Clear RTC")
         op_rtc_clear.target = "RTC"
         op_rtc_clear.action = "CLEAR"
-        op_rtc_restore = grid.operator("dgblocks.debug_force_reload_scipts", text = "Restore RTC")
+        op_rtc_restore = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Restore RTC")
         op_rtc_restore.target = "RTC"
         op_rtc_restore.action = "RESTORE"
         
