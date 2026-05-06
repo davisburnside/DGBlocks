@@ -14,7 +14,7 @@ from ...addon_helpers.data_structures import Enum_Sync_Events
 from .. import block_core
 from ..block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
 from ..block_core.core_features.feature_hooks import Wrapper_Hooks
-from ..block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ..block_core.core_features.feature_block_manager import Wrapper_Block_Management, RTC_Block_Instance
 from ..block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
@@ -31,6 +31,26 @@ from .constants import Block_Hook_Sources, debug_console_print_dict_key_filter_i
 _BLOCK_ID = "block-debug-console-print" # Defined in constants, To Prevent circular imports. Other Blocks can assign directly
 _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = ["block-core"] 
+
+# ==============================================================================================================================
+# HOOK SUBSCRIPTIONS
+# ==============================================================================================================================
+
+def hook_block_registered(block_instances: list[RTC_Block_Instance]):
+    
+    block_names = [b.block_id for b in block_instances]
+    block_names_str = ",".join(block_names)
+    
+    logger = get_logger(Core_Block_Loggers.HOOKS)
+    logger.info(f"(hook) Registered blocks {block_names_str}")
+
+def hook_block_unregistered(block_instances: list[RTC_Block_Instance]):
+    
+    block_names = [b.block_id for b in block_instances]
+    block_names_str = ",".join(block_names)
+    
+    logger = get_logger(Core_Block_Loggers.HOOKS)
+    logger.info(f"(hook) Unregistered blocks {block_names_str}")
 
 # ==============================================================================================================================
 # BLENDER DATA FOR BLOCK

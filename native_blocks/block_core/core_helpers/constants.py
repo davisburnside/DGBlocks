@@ -4,7 +4,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, Optional
 import bpy #type: ignore
 
-from ....addon_helpers.data_structures import Global_Addon_State
+from ....addon_helpers.data_structures import Global_Addon_State, Abstract_Feature_Wrapper
 
 _BLOCK_ID = "block-core"
 
@@ -18,11 +18,10 @@ _BLOCK_ID = "block-core"
 # value[0] = hooked function name (caps included)
 # value[1] = expected function arguments & types
 class Core_Block_Hook_Sources(Enum):
-    CORE_EVENT_POST_REG_INIT = ("hook_post_register_init", {})
     CORE_EVENT_POST_UNDO = ("hook_core_event_undo", {})
     CORE_EVENT_POST_REDO = ("hook_core_event_redo", {})
-    CORE_EVENT_BLOCK_REGISTERED = ("hook_block_registered", {"block_name": str, "block_version": tuple})
-    CORE_EVENT_BLOCK_UNREGISTERED = ("hook_block_unregistered", {"block_name": str, "block_version": tuple})
+    CORE_EVENT_BLOCKS_REGISTERED = ("hook_block_registered", {"block_instances": list})
+    CORE_EVENT_BLOCKS_UNREGISTERED = ("hook_block_unregistered", {"block_instances": list})
 
 # name = logger ID
 # value[0] = logger display name & default level

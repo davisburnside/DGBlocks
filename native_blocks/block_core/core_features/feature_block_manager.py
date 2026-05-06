@@ -36,7 +36,8 @@ from .feature_hooks import Wrapper_Hooks
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
-enum_hook_final_init = Core_Block_Hook_Sources.CORE_EVENT_POST_REG_INIT
+enum_hook_blocks_registered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_REGISTERED
+enum_hook_blocks_unregistered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_UNREGISTERED
 enum_hook_undo = Core_Block_Hook_Sources.CORE_EVENT_POST_UNDO
 enum_hook_redo = Core_Block_Hook_Sources.CORE_EVENT_POST_REDO
 
@@ -220,11 +221,13 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         Wrapper_Runtime_Cache.set_cache(cache_key_metadata, ADDON_METADATA)
 
         # Step 3: Run post-register initialization actions for all blocks with "hook_post_register_init" function in their __init__.py
-        try:
-            logger.info(f"Running final-init hook for all subscriber Blocks")
-            _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name = enum_hook_final_init)
-        except Exception as e:
-            logger.error(f"Exception occurred when propagating post-register init hook function", exc_info=True)
+        logger.info(f"Running final-init hook for all subscriber Blocks")
+        blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy = True)
+        kwargs = {"block_instances": blocks_cache}
+        _ = Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name = enum_hook_blocks_registered,
+            should_halt_on_exception = False,
+            **kwargs)
         
         force_redraw_ui(bpy.context)
         logger.info(f"Finished all init actions. The Addon is ready to use")
@@ -707,13 +710,20 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
         # Apply changes back to mirrored Blender data
         Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
-
-        # # Run final-init for new blocks, if needed
-        # for block in blocks_to_enable:
-        #     _ = Wrapper_Hooks.run_hooked_funcs(
-        #         hook_func_name = enum_hook_final_init, 
-        #         subscriber_block_id = block._BLOCK_ID,
-        #     )
+        
+        # Final step, Run hook to notify subscribers of block registration/unregistration
+        if len(blocks_to_enable) > 0:
+            kwargs = {"block_instances": blocks_to_enable}
+            _ = Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name = enum_hook_blocks_registered,
+                should_halt_on_exception = False,
+                **kwargs)
+        if len(blocks_to_disable) > 0:
+            kwargs = {"block_instances": blocks_to_disable}
+            _ = Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name = enum_hook_blocks_unregistered,
+                should_halt_on_exception = False,
+                **kwargs)
 
     @classmethod
     def is_block_enabled(cls, block_id: str):

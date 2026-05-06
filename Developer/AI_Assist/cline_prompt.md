@@ -119,3 +119,4 @@ Function verb semantics:
 - Do **NOT** cache `bpy.types.ID` references in RTC. Cache names/paths and re-resolve.
 - `__init__.py` should not own variables/functions sibling files need to import — use `constants.py`.
 - Property `update=` callbacks must guard with `is_bpy_ready()` and syncing flag checks.
+- Do not attempt to update files in /unfinished_blocks. They may only be used as reference when writing to something else

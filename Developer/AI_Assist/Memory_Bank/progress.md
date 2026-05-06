@@ -69,14 +69,13 @@
 - Per-feature loggers writable to via the dev-only Loggers UIList.
 - Onscreen GPU drawing of arbitrary shader instances per draw phase.
 - Debug console-print of any block's RTC + scene properties.
-
+- Runtime enable/disable of blocks — verified to work, clears disabled and invalid blocks (due to a dependency now missing)
+- Automatic syncronization between Blender Data & RTC on undo/redo events.
 ---
 
 ## What Doesn't Work Yet (or Is Brittle)
 
-- **Runtime enable/disable of blocks** — half-wired (the UIList exists, the
-  `_callback_update_block_enabled` exists, the dependency-graph propagation
-  exists). End-to-end on/off has not been thoroughly tested. The signature
+ End-to-end on/off has not been thoroughly tested. The signature
   mismatch in `activeContext.md` item #1 actively breaks it for
   `block_onscreen_drawing`.
 - **Pip dependency installs** — gated on `block_pip_library_manager` finishing.
