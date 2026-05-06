@@ -1,5 +1,6 @@
  
 from .native_blocks import block_core, block_debug_console_print, block_pip_library_manager, block_timers
+from .native_blocks import _example_block_usecase_01_minimal, _example_block_usecase_02_basic
 from .external_blocks import block_flatypus_modes_manager
 
 # Each folder/package is a "block": a swappable, standardized unit. 
@@ -10,7 +11,10 @@ _ordered_blocks_list = [
     block_timers,
     block_debug_console_print,
     block_pip_library_manager,
-    # block_example_simple,
+    _example_block_usecase_01_minimal,
+    _example_block_usecase_02_basic,
+    
+    
     # block_example_complex_A,
     # block_stable_modal,
     # block_onscreen_drawing,
