@@ -91,7 +91,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 should_copy = should_copy, 
                 should_use_thread_lock = should_use_thread_lock,
             )
-    
+
     @classmethod
     def get_cache(
         cls,
@@ -106,7 +106,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             if should_copy and value is not None:
                 return fast_deepcopy_with_fallback(value)
             return value
-    
+
     @classmethod
     def set_cache(
         cls, 
@@ -129,6 +129,46 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             true_key = get_actual_rtc_key(key, fail_gracefully = False)
             if true_key in cls._cache:
                 del cls._cache[true_key]
+
+     # --------------------------------------------------------------
+    # Funcs specific to this class, for non-unique list members
+    # --------------------------------------------------------------
+
+    @classmethod
+    def append_to_cached_list(
+        cls, 
+        cache_key: str, 
+        new_instance: Any,
+        should_use_thread_lock:bool = True # Parallel threads are bottlenecked for read/write access when this is True
+    ):
+        
+        with cls._lock if should_use_thread_lock else nullcontext():
+            true_key = get_actual_rtc_key(cache_key, fail_gracefully = False)
+            cls._cache[true_key].append(new_instance)
+
+    @classmethod
+    def remove_from_cached_list(
+        cls, 
+        cache_key: str, 
+        instance_key_field_names: tuple[str],
+        instance_key_field_values: tuple[any],
+        should_use_thread_lock:bool = True # Parallel threads are bottlenecked for read/write access when this is True
+    ):
+        
+        with cls._lock if should_use_thread_lock else nullcontext():
+
+            # Get indices to remove
+            true_key = get_actual_rtc_key(cache_key, fail_gracefully = False)
+            cached_list = cls._cache[true_key]
+            idxs_to_remove = []
+            for idx, instance in enumerate(cached_list):
+                eval_instance_key_values = tuple([instance[k] for k in instance_key_field_names])
+                if eval_instance_key_values == instance_key_field_values:
+                    idxs_to_remove.append(idx)
+
+            # Perform removal
+            for idx in idxs_to_remove.reversed():
+                del idxs_to_remove[idx]
 
     # --------------------------------------------------------------
     # Funcs specific to this class, for getting/setting unique list members
@@ -170,7 +210,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         if idx >= 0:
             del all_RTC_list_members[idx]
         cls.set_cache(member_key, all_RTC_list_members)
-        
+
     @classmethod
     def get_all_with_key_value_from_registry_list(cls, member_key:str, key_field_name:str, key_field_value: any, should_use_thread_lock:bool = True):
 
@@ -186,7 +226,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 return_instances.append(existing_instance)
 
         return return_instances
-    
+
     @classmethod
     def destroy_all_with_key_value_from_registry_list(cls, member_key:str, key_field_name:str, key_field_value: any, should_use_thread_lock:bool = True):
      
@@ -213,7 +253,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             return True
         else:
             return False
-        
+
     @classmethod
     def flag_cache_as_syncing(cls, member_key: str, is_actively_syncing: bool):
 

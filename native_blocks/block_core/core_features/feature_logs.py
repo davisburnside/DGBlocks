@@ -16,7 +16,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helpers.generic_helpers import is_bpy_ready
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
 from .... import my_addon_config
 from ....my_addon_config import base_linebreak_length
 
@@ -31,6 +31,7 @@ from ..core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Block_L
 # Aliases
 # --------------------------------------------------------------
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
+cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS
@@ -165,7 +166,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
     @classmethod
     def init_pre_bpy(cls, event: Enum_Sync_Events) -> bool:
 
-        # Define Monkeypatch func to allow custom features
+        # Define Monkeypatch func to allow custom logger functionality
         def log_with_linebreak(self, log_message:str, length_factor:int = 4):
             log_level = self.getEffectiveLevel()
             linebreak_str = "-" * length_factor * base_linebreak_length
@@ -190,7 +191,15 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Loggers")
-        event = Enum_Sync_Events.ADDON_INIT
+
+        # Setup data mirror reference
+        self_feature_name = cls.__name__
+        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+            FWC_name = self_feature_name,
+            BL_collectionprop_path = "dgblocks_core_props.managed_hooks", 
+            RTC_key = cache_key_loggers
+        )
+        Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
         
         # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event) # Causes partial RTC->BL sync
@@ -359,11 +368,12 @@ def _uilayout_draw_logger_settings(context, container):
     box = container.box()
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_scene_loggers", default_closed=True)
     panel_header.label(text = f"All Loggers ({len(context.scene.dgblocks_core_props.managed_loggers)})")
-    if panel_body is not None:        
-        col_names = ("Source Block", "Logger Name", "Log Level")
+    if panel_body is not None:    
+
+        # Draw column titles
         ui_draw_list_headers(panel_body, col_names, col_widths)
 
-        # Draw the UIList
+        # Draw UIList body
         row = panel_body.row()
         row_count = len(core_props.managed_loggers)
         row.template_list(

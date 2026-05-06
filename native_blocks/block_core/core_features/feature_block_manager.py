@@ -17,7 +17,7 @@ from bpy.app.handlers import persistent  # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from ....addon_helpers.data_tools import fast_deepcopy_with_fallback, reset_propertygroup
 from ....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
 
@@ -34,6 +34,7 @@ from .feature_hooks import Wrapper_Hooks
 # Aliases
 # --------------------------------------------------------------
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
+cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
 enum_hook_blocks_registered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_REGISTERED
@@ -107,6 +108,11 @@ class RTC_Block_Instance:
     block_RTC_member_names: list[str]
 
 # Used during RTC <-> BL data sync
+feature_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+    BL_collectionprop_path = "dgblocks_core_props.managed_blocks",
+    RTC_key = cache_key_blocks
+)
+{DGBLOCKS_PG_Debug_Block_Reference, RTC_Block_Instance}
 rtc_sync_key_fields = ["block_id"]
 rtc_sync_data_fields = [
     "should_block_be_enabled",
@@ -115,22 +121,6 @@ rtc_sync_data_fields = [
     "is_block_dependencies_valid_and_enabled",
     "block_disabled_reason",
 ]
-
-# ==============================================================================================================================
-# UNMIRRORED DATA
-# ==============================================================================================================================
-
-@dataclass
-class RTC_FWC_Instance:
-    """
-    Record — instance state only, no manager logic
-    This dataclass also stores the callable subscriber hook func.
-    """
-
-    src_block_id: str
-    feature_name: str
-    feature_wrapper_class: Abstract_Feature_Wrapper
-    has_BL_mirrored_data: bool
 
 # ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
@@ -195,7 +185,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             logger.info("Already completed post-bpy init for Wrapper_Block_Management, returning early")
             return
         
-        # (Debugging) clear all saved properties
+        # (Debugging) clear all saved properties if needed
         core_props = bpy.context.scene.dgblocks_core_props
         if True: #core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
             
@@ -204,11 +194,24 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             core_props.debug_log_all_RTC_BL_sync_actions = True
             core_props.debug_mode_enabled = True
         
-        # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 1: setup data mirror reference for Wrapper_Block_Management
+
+        self_feature_name = Wrapper_Block_Management.__name__
+        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+            FWC_name = self_feature_name,
+            BL_collectionprop_path = "dgblocks_core_props.managed_blocks", 
+            RTC_key = cache_key_blocks
+        )
+        Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
+
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 2: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event = event) # Causes partial RTC->BL sync 
         cls.update_RTC_with_mirrored_BL_data(event = event) # Causes full BL-RTC resync
 
-        # 2: run post_bpy_init() of all Feature Wrapper Classes, of all blocks. The order is deterministic, based on block/FWC list order
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 3: run post_bpy_init() of all Feature Wrapper Classes, of all blocks. The order is deterministic, based on block/FWC list order
         # Some FWCs need to sync a feature's RTC data with its supporting Blender data using 'update_RTC_with_mirrored_BL_data' function
         # This sync action can happen either in 'post_bpy_init', or the post-bpy-init-hook function of the next step. Developer's preference
         cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
@@ -217,13 +220,15 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                 continue
             FWC_instance.feature_wrapper_class.init_post_bpy(event = event)
 
-        # 3: Update addon metadata
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 4: Update addon metadata
         ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
         ADDON_METADATA.POST_REG_INIT_HAS_RUN = True
         ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY = True
         Wrapper_Runtime_Cache.set_cache(cache_key_metadata, ADDON_METADATA)
 
-        # Step 3: Run post-register initialization actions for all blocks with "hook_post_register_init" function in their __init__.py
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 5: Run post-register initialization actions for all blocks with "hook_block_unregistered" function in their __init__.py
         logger.info(f"Running final-init hook for all subscriber Blocks")
         blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy = True)
         kwargs = {"block_instances": blocks_cache}
@@ -232,6 +237,8 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             should_halt_on_exception = False,
             **kwargs)
         
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 6: refresh UI, finish init
         force_redraw_ui(bpy.context)
         logger.info(f"Finished all init actions. The Addon is ready to use")
             
@@ -316,7 +323,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
                 # trigger final init hook for block, if needed
                 try:
-                    Wrapper_Hooks.run_hooked_funcs(hook_func_name = enum_hook_final_init, subscriber_block_id = block_id)
+                    Wrapper_Hooks.run_hooked_funcs(hook_func_name = enum_hook_blocks_registered, subscriber_block_id = block_id)
                 except Exception as e:
                     logger.error(f"Exception occurred when propagating post-register init hook function", exc_info=True)
 
@@ -385,7 +392,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
     # ------------------------------------------------------------------
     #  Implemented from Abstract_BL_and_RTC_Data_Syncronizer
     # ------------------------------------------------------------------
-    
+
     @classmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
 
@@ -574,12 +581,12 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             # Create & cache a new FWC instance
             FWC_instance = RTC_FWC_Instance(
                 src_block_id = block_id,
-                feature_name = class_actual.__name__,
+                feature_name = feature_name,
                 feature_wrapper_class = class_actual,
                 has_BL_mirrored_data = has_BL_mirrored_data
             )
             cached_FWCs_list.append(FWC_instance)
-            Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs_list)
+        Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs_list)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 3: Add block module to global block registry in RTC

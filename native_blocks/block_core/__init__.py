@@ -6,7 +6,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_helpers import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State
+from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -19,6 +19,13 @@ from .core_features.feature_hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hoo
 from .core_features.feature_runtime_cache import Wrapper_Runtime_Cache
 from .core_helpers.helper_uilayouts import uilayout_draw_core_block_settings
 
+# --------------------------------------------------------------
+# Aliases
+# --------------------------------------------------------------
+cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
+cache_key_hook_subs = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS
+cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
+
 # ==============================================================================================================================
 # BLOCK DEFINITION
 # ==============================================================================================================================
@@ -28,7 +35,7 @@ _BLOCK_VERSION = (1,0,0)
 _BLOCK_DEPENDENCIES = [] # Core block depends on no others
 
 # ==============================================================================================================================
-# BLENDER DATA FOR BLOCK
+# BLOCK PROPERTIES
 # ==============================================================================================================================
 
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):

@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
+from typing import Type
 import bpy # type: ignore
 
 @dataclass
@@ -42,7 +43,6 @@ class Enum_Sync_Events(StrEnum):
     PROPERTY_UPDATE_UNDO = auto()
     PROPERTY_UPDATE_REDO = auto()
     
-
 class Enum_Sync_Actions(StrEnum):
     CREATE = auto()
     REMOVE = auto()
@@ -50,7 +50,7 @@ class Enum_Sync_Actions(StrEnum):
     MOVE = auto()
 
 # ==============================================================================================================================
-# FEATURE WRAPPER PARENT CLASSES
+# FEATURE WRAPPER ABSTRACT PARENT CLASSES
 # ==============================================================================================================================
 
 # Addon Features (logging, event-listeners, hooks...) are often bundled into a single wrapper class that inherits from these Abstract classes
@@ -95,6 +95,12 @@ class Abstract_BL_and_RTC_Data_Syncronizer(ABC):
 
     @classmethod
     @abstractmethod
+    def get_owner_datablock():
+
+        pass
+
+    @classmethod
+    @abstractmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
         # Used by Wrapper_Block_Management on undo/redo/load, and by certain property update callbacks
         # Rebuild RTC from scene/obj/datablock properties. Blender is the source of truth
@@ -130,3 +136,21 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
         # Should return None
         pass
 
+# ==============================================================================================================================
+# FEATURE WRAPPER SUPPORT CLASSES
+# ==============================================================================================================================
+
+@dataclass
+class RTC_FWC_Instance:
+    src_block_id: str
+    feature_name: str
+    feature_wrapper_class: Type[Abstract_Feature_Wrapper]
+    data_mirrors: bool
+
+@dataclass 
+class RTC_FWC_Data_Mirror_List_Reference:
+    FWC_name: str
+    RTC_key: str # top-level cache key
+    BL_collectionprop_path: str # Relative to owner, not full path
+    timestamp_last_BL_refresh: int = field(default = -1)
+    timestamp_last_RTC_refresh: int = field(default = -1)

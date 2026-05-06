@@ -21,7 +21,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helpers.generic_helpers import is_bpy_ready, find_blocks_owning_func_with_name
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, RTC_FWC_Data_Mirror_List_Reference, Enum_Sync_Events, Enum_Sync_Actions
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -37,6 +37,7 @@ from .feature_runtime_cache import Wrapper_Runtime_Cache
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_hook_sources = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
 cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS
+cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 
 # ==============================================================================================================================
 # MIRRORED DATA FOR RTC & BLENDER
@@ -158,8 +159,18 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
 
-        # All hook sources have been added by now. Rebuild Subscription cache from sources
+        # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
+        # It will immediately be synced to it's data mirror
         cls._rebuild_hook_subs_cache()
+
+        # Setup data mirror reference
+        self_feature_name = cls.__name__
+        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+            FWC_name = self_feature_name,
+            BL_collectionprop_path = "dgblocks_core_props.managed_hooks", 
+            RTC_key = cache_key_hook_subscribers
+        )
+        Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
 
         # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event = Enum_Sync_Events.ADDON_INIT) # Causes partial RTC->BL sync
@@ -284,22 +295,20 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         skip_subscriber_cache_rebuild:bool = False,
     ) -> None:
         """
-        Remove hook registration
+        Remove hook source & derived subscribers
         """
 
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug(f"Removing hook source '{hook_func_name}'")
 
         # Remove source hook from registry
-        hook_func_name = cls._get_func_name_from_hook_id(hook_func_name)
-        all_source_instances = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
-        instances_to_destroy = (i for i in all_source_instances if i.hook_func_name == hook_func_name)
-        for instance in instances_to_destroy:
-            list_idx = all_source_instances.index(instance)
-            del all_source_instances[list_idx]
-        Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_source_instances)
+        Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
+            member_key = cache_key_hook_sources, 
+            uniqueness_field = "hook_func_name",
+            uniqueness_field_value = hook_func_name,
+        )
 
-        # Update subscribers
+        # Rebuild subscribers after updating sources
         if not skip_subscriber_cache_rebuild:
             cls._rebuild_hook_subs_cache()
 
