@@ -325,7 +325,7 @@ Defined in `addon_helpers/data_structures.py`:
 |---|---|
 | `Abstract_Feature_Wrapper` | **Every** wrapper. Forces `init_pre_bpy`, `init_post_bpy`, `destroy_wrapper`. |
 | `Abstract_Datawrapper_Instance_Manager` | Wrappers that manage 0-to-many records via CRUD. Forces `create_instance`, `destroy_instance`. |
-| `Abstract_BL_and_RTC_Data_Syncronizer` | Wrappers whose records mirror Scene PropertyGroup data. Forces `update_RTC_with_mirrored_BL_data`, `update_BL_with_mirrored_RTC_data`. |
+| `Abstract_BL_RTC_List_Syncronizer` | Wrappers whose records mirror Scene PropertyGroup data. Forces `update_RTC_with_mirrored_BL_data`, `update_BL_with_mirrored_RTC_data`. |
 
 ---
 
@@ -558,7 +558,7 @@ idx, instance, full_list = Wrapper_Runtime_Cache.get_unique_instance_from_regist
 
 ## 13. Two-Way BL ↔ RTC Sync (Macro)
 
-Inheriting `Abstract_BL_and_RTC_Data_Syncronizer` opts a wrapper into automatic
+Inheriting `Abstract_BL_RTC_List_Syncronizer` opts a wrapper into automatic
 sync on file-load / undo / redo. The wrapper must implement:
 
 ```python

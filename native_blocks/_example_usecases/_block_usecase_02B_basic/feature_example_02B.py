@@ -4,7 +4,7 @@ from dataclasses import dataclass
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_structures import  Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
+from ....addon_helpers.data_structures import  Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
 from ....addon_helpers.generic_helpers import get_self_block_module, is_bpy_ready
 from ....addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header, ui_draw_list_headers
 from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
@@ -69,7 +69,7 @@ class RTC_Example_Mirror_Item:
 # FEATURE WRAPPER CLASS
 # ==============================================================================================================================
 
-class Wrapper_Example_Mirror_02B(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager):
+class Wrapper_Example_Mirror_02B(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager):
     """
     Manager — classmethods only, no instance state.
     Demonstrates a full BL↔RTC data mirror for a custom collection.
@@ -111,7 +111,7 @@ class Wrapper_Example_Mirror_02B(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_D
         return True
 
     # --------------------------------------------------------------
-    # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
+    # Implemented from Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod

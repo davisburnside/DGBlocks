@@ -30,7 +30,7 @@ The `_example_usecase_*` blocks under `native_blocks/_example_usecases/` are the
 |---------|---------|---------------------------|
 | `_block_usecase_01_minimal` | Absolute minimum viable block | Empty block registration, no features |
 | `_block_usecase_02_basic` | Fully wired standard block | Logger, RTC member, PropertyGroup, operator, panel, hooks |
-| `_block_usecase_02B_basic` | Full BL↔RTC data-mirror | Custom `PropertyGroup` + `UIList`, two-way sync via `Abstract_BL_and_RTC_Data_Syncronizer`, `create_instance` / `destroy_instance` CRUD |
+| `_block_usecase_02B_basic` | Full BL↔RTC data-mirror | Custom `PropertyGroup` + `UIList`, two-way sync via `Abstract_BL_RTC_List_Syncronizer`, `create_instance` / `destroy_instance` CRUD |
 
 **All developers and AI tools should use these three blocks as the standard reference** when scaffolding a new block. Copy the closest example and extend from there.
 

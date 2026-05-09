@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
-from typing import Type
+from typing import Optional, Type
 import bpy # type: ignore
 
 @dataclass
@@ -74,12 +74,14 @@ class Abstract_Feature_Wrapper(ABC):
         # Is automatically called during register_block_components for all registered features
         # Must have no extra arguments
         # Must return True if init is successful
+        raise NotImplementedError("Please Implement this method")
         pass
     
     @classmethod
     @abstractmethod
     def init_post_bpy(cls, **kwargs):
         # Should be called from post-init hook function in each block
+        raise NotImplementedError("Please Implement this method")
         pass
     
     @classmethod
@@ -87,25 +89,30 @@ class Abstract_Feature_Wrapper(ABC):
     def destroy_wrapper(cls):
         # Is automatically called during unregister_block_components for all registered features
         # Must have no extra arguments
+        raise NotImplementedError("Please Implement this method")
         pass
 
-class Abstract_BL_and_RTC_Data_Syncronizer(ABC):
+class Abstract_BL_RTC_List_Syncronizer(ABC):
+    # All functions are optional. If not implemented, Wrapper_Block_Management handles logic
     # Inhertited by all FWCs that sync data between the RTC and Blender (Scene, Preferences, WindowManager, Object... almost any bpy.* object )
     # Children of this class will automatically update RTC data with Blender's source-of-truth upon UNDO/REDO events
 
     @classmethod
     @abstractmethod
-    def get_owner_datablock():
-
+    def get_owners_list() -> list[Type[bpy.props]]:
+        # Optional func: if not implemented in the FWC, context.scene is used (Where BL-mirrored data commonly lives)
+        # Executes once per FWC, per resync event
+        # Returns are ignored
         pass
 
     @classmethod
     @abstractmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
+        # Optional func: if not implemented in the FWC, context.scene is used (Where BL-mirrored data commonly lives)
         # Used by Wrapper_Block_Management on undo/redo/load, and by certain property update callbacks
-        # Rebuild RTC from scene/obj/datablock properties. Blender is the source of truth
-        # Should use 'update_dataclasses_to_match_collectionprop' for convenience
+        # Rebuild an RTC list from the child propertygroup of a parent propertygroup/datablock. Blender is the source of truth
         # Args must match exactly
+        # Returns are ignored
         pass
 
     @classmethod
@@ -115,6 +122,7 @@ class Abstract_BL_and_RTC_Data_Syncronizer(ABC):
         # RTC data overwries scene/obj/datablock properties. Data is reused/modified instead of recreated, when possible
         # Should use 'update_collectionprop_to_match_dataclasses' for convenience
         # Args must match exactly
+        # Returns are ignored
         pass
 
 class Abstract_Datawrapper_Instance_Manager(ABC):
@@ -140,17 +148,30 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 # FEATURE WRAPPER SUPPORT CLASSES
 # ==============================================================================================================================
 
+class Enum_Optional_FWC_Function_Names(StrEnum):
+    update_RTC_with_mirrored_BL_data = auto()
+    update_BL_with_mirrored_RTC_data = auto()
+
+@dataclass 
+class RTC_FWC_Data_Mirror_List_Reference:
+    
+    RTC_key: str # top-level cache key
+    BL_property_path: str # Relative to owner, not full path
+    BL_property_owner_type: str # bpy.types.*
+
+
+    should_use_default_sync_logic: bool
+    sync_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
+    sync_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
+    timestamp_last_BL_data_refresh: int = field(default = -1)
+    timestamp_last_RTC_data_refresh: int = field(default = -1)
+
 @dataclass
 class RTC_FWC_Instance:
     src_block_id: str
     feature_name: str
-    feature_wrapper_class: Type[Abstract_Feature_Wrapper]
-    data_mirrors: bool
+    actual_class: Type[Abstract_Feature_Wrapper]
+    has_BL_mirrored_data: bool
+    # data_mirror_instance: Optional[Type[RTC_FWC_Data_Mirror_List_Reference]] = field(default = None)
 
-@dataclass 
-class RTC_FWC_Data_Mirror_List_Reference:
-    FWC_name: str
-    RTC_key: str # top-level cache key
-    BL_collectionprop_path: str # Relative to owner, not full path
-    timestamp_last_BL_refresh: int = field(default = -1)
-    timestamp_last_RTC_refresh: int = field(default = -1)
+

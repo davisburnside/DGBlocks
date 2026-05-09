@@ -73,7 +73,7 @@ my_activated_blocks.py         _ordered_blocks_list — the addon's "block manif
 addon_helpers/
   data_structures.py           Global_Addon_State, Enum_Sync_Events, Enum_Sync_Actions,
                                Enum_Log_Levels, Abstract_Feature_Wrapper,
-                               Abstract_BL_and_RTC_Data_Syncronizer,
+                               Abstract_BL_RTC_List_Syncronizer,
                                Abstract_Datawrapper_Instance_Manager
   data_tools.py                fast_deepcopy_with_fallback, propertygroup utilities,
                                CSV-string parsers used by debug filters

@@ -69,7 +69,7 @@ For framework internals and real-world patterns, inspect:
 
 Sync conventions:
 
-- `Abstract_BL_and_RTC_Data_Syncronizer` is used when RTC records mirror BL PropertyGroup/CollectionProperty data.
+- `Abstract_BL_RTC_List_Syncronizer` is used when RTC records mirror BL PropertyGroup/CollectionProperty data.
 - `update_RTC_with_mirrored_BL_data(event)` rebuilds RTC from BL; __BL wins__ on register/load/undo/redo.
 - `update_BL_with_mirrored_RTC_data(event)` pushes RTC changes to BL only for explicit RTC-driven workflows.
 - Property update callbacks call `update_RTC_with_mirrored_BL_data(...)` only after guards pass.
@@ -83,7 +83,7 @@ __Wrapper / Manager:__ stateless, `@classmethod` only, owns behavior, reads/writ
 
 - Always inherits `Abstract_Feature_Wrapper`: `init_pre_bpy(event)`, `init_post_bpy(event)`, `destroy_wrapper(event)`.
 - Also inherit `Abstract_Datawrapper_Instance_Manager` for multi-instance CRUD.
-- Also inherit `Abstract_BL_and_RTC_Data_Syncronizer` for BL↔RTC mirrored data.
+- Also inherit `Abstract_BL_RTC_List_Syncronizer` for BL↔RTC mirrored data.
 
 __Record:__ `@dataclass`, data only, no manager logic, stored in RTC.
 

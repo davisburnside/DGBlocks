@@ -17,7 +17,7 @@ from bpy.app.handlers import persistent  # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from ....addon_helpers.data_tools import fast_deepcopy_with_fallback, reset_propertygroup
 from ....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
 
@@ -108,11 +108,6 @@ class RTC_Block_Instance:
     block_RTC_member_names: list[str]
 
 # Used during RTC <-> BL data sync
-feature_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
-    BL_collectionprop_path = "dgblocks_core_props.managed_blocks",
-    RTC_key = cache_key_blocks
-)
-{DGBLOCKS_PG_Debug_Block_Reference, RTC_Block_Instance}
 rtc_sync_key_fields = ["block_id"]
 rtc_sync_data_fields = [
     "should_block_be_enabled",
@@ -126,7 +121,7 @@ rtc_sync_data_fields = [
 # MODULE MAIN FEATURE WRAPPER CLASS
 # ==============================================================================================================================
 
-class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager):
+class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager):
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Feature_Wrapper
@@ -169,6 +164,14 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         else:
             logger.debug(f"Func '_callback_redo_post' already present in 'bpy.app.handlers.redo_post'")
 
+
+        if _callback_depsgraph_post not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.append(_callback_depsgraph_post)
+            logger.debug("Func  '_callback_depsgraph_post' added to bpy.app.handlers.depsgraph_update_post")
+        else:
+            logger.debug(f"Func '_callback_depsgraph_post' already present in 'bpy.app.handlers.depsgraph_update_post'")
+        
+
     @classmethod
     def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
         """
@@ -198,12 +201,12 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # 1: setup data mirror reference for Wrapper_Block_Management
 
         self_feature_name = Wrapper_Block_Management.__name__
-        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
-            FWC_name = self_feature_name,
-            BL_collectionprop_path = "dgblocks_core_props.managed_blocks", 
-            RTC_key = cache_key_blocks
-        )
-        Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
+        # FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+        #     FWC_name = self_feature_name,
+        #     BL_collectionprop_path = "dgblocks_core_props.managed_blocks", 
+        #     RTC_key = cache_key_blocks
+        # )
+        # Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 2: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
@@ -216,9 +219,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # This sync action can happen either in 'post_bpy_init', or the post-bpy-init-hook function of the next step. Developer's preference
         cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
         for FWC_instance in cached_FWCs:
-            if FWC_instance.feature_wrapper_class == cls: # Already inside init_post_bpy for this FWC, avoid recursion
+            if FWC_instance.actual_class == cls: # Already inside init_post_bpy for this FWC, avoid recursion
                 continue
-            FWC_instance.feature_wrapper_class.init_post_bpy(event = event)
+            FWC_instance.actual_class.init_post_bpy(event = event)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 4: Update addon metadata
@@ -252,6 +255,19 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # if logger is None:
         #     return
 
+
+
+
+        if _callback_depsgraph_post not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.remove(_callback_depsgraph_post)
+            logger.debug("Func '_callback_depsgraph_post' removed from 'bpy.app.handlers.depsgraph_update_post'")
+        else:
+            logger.debug("Func '_callback_depsgraph_post' not present in 'bpy.app.handlers.depsgraph_update_post'")
+        
+
+
+
+
         if _callback_undo_post in bpy.app.handlers.undo_post:
             bpy.app.handlers.undo_post.remove(_callback_undo_post)
             logger.debug("Func '_callback_undo_post' removed from 'bpy.app.handlers.undo_post'")
@@ -262,13 +278,14 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             bpy.app.handlers.redo_post.remove(_callback_redo_post)
             logger.debug("Func '_callback_redo_post' removed from 'bpy.app.handlers.redo_post'")
         else:
-            logger.debug("Func '_callback_undo_post' not present in 'bpy.app.handlers.undo_post'")
+            logger.debug("Func '_callback_redo_post' not present in 'bpy.app.handlers.redo_post'")
             
         if _callback_load_post in bpy.app.handlers.load_post:
             bpy.app.handlers.load_post.remove(_callback_load_post)
             logger.debug("Func '_callback_load_post' removed from 'bpy.app.handlers.load_post'")
         else:
             logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
+
 
         # Clear the RTC of feature wrappers
         Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, {})
@@ -319,7 +336,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
                 # perform final init step for all FWCs
                 for FWC_instance in block_feature_wrapper_classes:
-                    FWC_instance.feature_wrapper_class.init_post_bpy(event = event)
+                    FWC_instance.actual_class.init_post_bpy(event = event)
 
                 # trigger final init hook for block, if needed
                 try:
@@ -357,9 +374,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
         # 2: Remove FWCs. First call FWC-specific removal logic, then remove FWC from RTC. Only core-block skips this step.
         if block_id != core_block_id:
-            for class_actual in reversed(block_to_remove.block_feature_wrapper_classes):
-                feature_name= class_actual.__name__ # The feature's name = the feature's wrapper class name
-                class_actual.destroy_wrapper(event = event)
+            for actual_class in reversed(block_to_remove.block_feature_wrapper_classes):
+                feature_name= actual_class.__name__ # The feature's name = the feature's wrapper class name
+                actual_class.destroy_wrapper(event = event)
                 Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
                     member_key = cache_key_FWCs, 
                     uniqueness_field = "feature_name", 
@@ -390,7 +407,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         logger.info(f"Finished removal of block '{block_id}'")
 
     # ------------------------------------------------------------------
-    #  Implemented from Abstract_BL_and_RTC_Data_Syncronizer
+    #  Implemented from Abstract_BL_RTC_List_Syncronizer
     # ------------------------------------------------------------------
 
     @classmethod
@@ -496,12 +513,12 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         return valid_blocks
 
     @classmethod
-    def determine_FWC_missing_abstract_funcs(cls, feature_wrapper_class: type) -> list[str]:
+    def determine_FWC_abstract_funcs(cls, actual_class: type) -> list[str]:
 
         # Collect all ABC bases (excluding the class itself and object)
         abc_bases = [
-            base for base in inspect.getmro(feature_wrapper_class)
-            if base not in (feature_wrapper_class, object) and issubclass(base, ABC)
+            base for base in inspect.getmro(actual_class)
+            if base not in (actual_class, object) and issubclass(base, ABC)
         ]
 
         # Collect all abstract method names defined in those bases
@@ -512,14 +529,24 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
             if getattr(member, "__isabstractmethod__", False)
         }
 
-        # Filter to methods not concretely implemented as a classmethod on cls
-        return [
+        missing_func_implementations = [
             name for name in abstract_methods
             if not (
-                isinstance(vars(feature_wrapper_class).get(name), classmethod)
-                and not getattr(vars(feature_wrapper_class).get(name), "__isabstractmethod__", False)
+                isinstance(vars(actual_class).get(name), classmethod)
+                and not getattr(vars(actual_class).get(name), "__isabstractmethod__", False)
             )
         ]
+
+        present_func_implementations = [
+            name for name in abstract_methods
+            if (
+                isinstance(vars(actual_class).get(name), classmethod)
+                and not getattr(vars(actual_class).get(name), "__isabstractmethod__", False)
+            )
+        ]
+
+        # Filter to methods not concretely implemented as a classmethod on cls
+        return present_func_implementations, missing_func_implementations
 
     @classmethod
     def init_and_register_block_components(
@@ -551,42 +578,45 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
 
         # For core-block, these FWCs were already init'd in main addon register(). 'Wrapper_Hooks' is the only one needing init
         core_FWC_already_init = [cls, Wrapper_Loggers, Wrapper_Runtime_Cache] 
-        for class_actual in block_feature_wrapper_classes:
-            feature_name = class_actual.__name__ # The feature's name = the feature's wrapper class name
 
+        cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs) # get existing FWCs
+        for actual_class in block_feature_wrapper_classes:
+            feature_name = actual_class.__name__ # The feature's name = the feature's wrapper class name
+
+            if actual_class in core_FWC_already_init:
+                continue
+            
+            # Validate FWC uniqueness
+            all_FWC_names = [f.feature_name for f in cached_FWCs]
+            if feature_name in all_FWC_names:
+                all_FWCs_str = "', '".join(all_FWC_names)
+                raise Exception(f"Feature Wrapper '{feature_name}' already exists in RTC, unable to create duplicate. All features: '{all_FWCs_str}'")
+            
             # Validate presence of required abstract func implementations of wrapper classes
-            if class_actual not in core_FWC_already_init:
-                missing_abstract_funcs = cls.determine_FWC_missing_abstract_funcs(class_actual)
-                if len(missing_abstract_funcs) > 0:
-                    missing_func_str = "'" + "', '".join(missing_abstract_funcs) + "'"
-                    raise Exception(f"Feature Wrapper Class {class_actual} is missing required class functions: {missing_func_str}")
-                class_actual.init_pre_bpy(event = event)
+            missing_func_impls, present_func_impls = cls.determine_FWC_abstract_funcs(actual_class)
+            if len(missing_func_impls) > 0:
+                missing_func_str = "'" + "', '".join(missing_func_impls) + "'"
+                raise Exception(f"Feature Wrapper Class {actual_class} is missing required class functions: {missing_func_str}")
 
             # Determine if the FWC will need BL<->RTC data sync actions
             has_BL_mirrored_data = False
-            all_parent_classes = get_names_of_parent_classes(class_actual)
-            if Abstract_BL_and_RTC_Data_Syncronizer.__name__ in all_parent_classes:
+            all_parent_classes = get_names_of_parent_classes(actual_class)
+            if Abstract_BL_RTC_List_Syncronizer.__name__ in all_parent_classes:
                 has_BL_mirrored_data = True
             
-            # Validate FWC uniqueness
-            idx, FWC_instance, cached_FWCs_list = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-                member_key = cache_key_FWCs, 
-                uniqueness_field = "feature_name", 
-                uniqueness_field_value = feature_name,
-            )
-            if FWC_instance:
-                logger.debug(f"FWC '{feature_name}' already exists in RTC. Skipping duplication")
-                continue
+            # data_mirror_instance = actual_class.init_pre_bpy(event)
 
             # Create & cache a new FWC instance
             FWC_instance = RTC_FWC_Instance(
                 src_block_id = block_id,
                 feature_name = feature_name,
-                feature_wrapper_class = class_actual,
-                has_BL_mirrored_data = has_BL_mirrored_data
+                actual_class = actual_class,
+                has_BL_mirrored_data = has_BL_mirrored_data,
             )
-            cached_FWCs_list.append(FWC_instance)
-        Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs_list)
+            cached_FWCs.append(FWC_instance)
+            
+
+        Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 3: Add block module to global block registry in RTC
@@ -620,13 +650,6 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         # ----------------------------------------------------------------------------------------------------------------------------
         # 4: Register the new block's RTC members, loggers, and hook sources. Only Sync to Blender on the last iteration
 
-        # RTC Registries - initialized with empty data containers, commonly an dict or list
-        for enum_cache_key in block_RTC_member_enums:
-            Wrapper_Runtime_Cache.create_cache(
-                new_key = enum_cache_key.name, 
-                new_value = fast_deepcopy_with_fallback(enum_cache_key.value[1]),
-            )
-
         # Loggers - initialized with default log levels
         for idx, enum_logger in enumerate(block_logger_enums):
             is_last = idx + 1 == len(block_logger_enums)
@@ -648,6 +671,13 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                 new_hook_func_named_args = enum_hook.value[1],
                 skip_BL_sync = not is_last, 
                 skip_subscriber_cache_rebuild = not is_last,
+            )
+
+        # RTC Registries - initialized with empty data containers, commonly an dict or list
+        for enum_cache_key in block_RTC_member_enums:
+            Wrapper_Runtime_Cache.create_cache(
+                new_key = enum_cache_key.name, 
+                new_value = fast_deepcopy_with_fallback(enum_cache_key.value[1]),
             )
 
     @classmethod
@@ -764,8 +794,8 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Starting update_all_FWC_RTC_caches_to_match_BL_data for event='{event}'")
         
-        cache_all_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
-        for FWC_instance in cache_all_FWCs:
+        cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+        for FWC_instance in cached_FWCs:
 
             # Ignore feature wrapper classes without BL<-->RTC sync capability
             if not FWC_instance.has_BL_mirrored_data:
@@ -784,6 +814,13 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Dat
                     actual_class_ref.update_RTC_with_mirrored_BL_data(event)
             except Exception:
                 logger.error(f"Exception during RTC sync for '{src_block_id}'", exc_info=True)
+
+    
+
+        def default_FWC_list_sync_actions():
+
+            pass
+
 
 # ==============================================================================================================================
 # UI
@@ -859,8 +896,12 @@ class DGBLOCKS_UL_Blocks(bpy.types.UIList):
         sub.label(text="", icon='CHECKMARK' if item.is_block_enabled else 'X')
 
 # ==============================================================================================================================
-# PRIVATE API — init/load/undo/redo callbacks 
+# PRIVATE API — init/load/
 # ==============================================================================================================================
+
+# --------------------------------------------------------------
+# Startup / New file load callbacks
+# --------------------------------------------------------------
 
 def _delayed_callback_load_post():
     """
@@ -898,6 +939,10 @@ def _callback_load_post(dummy):
         logger.debug(f"Calling core init logic from @persistent '_callback_load_post'")
         Wrapper_Block_Management.init_post_bpy(event = Enum_Sync_Events.ADDON_INIT)
 
+# --------------------------------------------------------------
+# Undo / redo callbacks 
+# --------------------------------------------------------------
+
 @persistent
 def _callback_undo_post(dummy):
     """
@@ -934,3 +979,87 @@ def _callback_redo_post(dummy):
 
     # 2: Blocks with UNDO hook subscription to process last
     _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name = enum_hook_redo)
+
+# --------------------------------------------------------------
+# Depsgraph update callbacks 
+# --------------------------------------------------------------
+
+TRACKED_TYPES = {
+    'OBJECT': bpy.types.Object,
+    'IMAGE': bpy.types.Image,
+    'MATERIAL': bpy.types.Material,
+    # Always track scenes
+}
+TYPE_TO_COLLECTION = {
+    'OBJECT': 'objects',
+    'IMAGE': 'images',
+    'MATERIAL': 'materials',
+    'MESH': 'meshes',
+    # Add all needed mappings
+}
+
+@persistent
+def _callback_depsgraph_post(scene, depsgraph):
+    cache = {} #get_your_cache()  # Thread-safe, addon-global
+    
+    # Static variable initialization
+    if not hasattr(_callback_depsgraph_post, '_state'):
+        _callback_depsgraph_post._state = {
+            'current_scene': None,
+            'snapshots': {},  # type_name -> set(name_full)
+            'pointer_maps': {},  # type_name -> {ptr_str: name_full}
+        }
+    
+    state = _callback_depsgraph_post._state
+    
+    # 1. Scene change detection (always tracked, O(1))
+    if state['current_scene'] != (scene_name := scene.name_full):
+        if state['current_scene']:
+            print(f"Scene changed: {state['current_scene']} -> {scene_name}")
+        state['current_scene'] = scene_name
+    
+    # 2. Process only types that Blender tells us changed
+    for type_name in TRACKED_TYPES:
+        if not depsgraph.id_type_updated(type_name):
+            continue
+            
+        # Get collection with one attribute access
+        collection = getattr(bpy.data, TYPE_TO_COLLECTION[type_name])
+        
+        # Build current state in one pass
+        current_ptrs = {}
+        current_names = set()
+        
+        for item in collection:
+            ptr = str(item.as_pointer())
+            current_ptrs[ptr] = item.name_full
+            current_names.add(item.name_full)
+        
+        # Get previous state (lazy initialization)
+        prev_ptrs = state['pointer_maps'].get(type_name, {})
+        prev_names = state['snapshots'].get(type_name, set())
+        
+        # Diff operations (each O(len(collection)))
+        new_ptrs = current_ptrs.keys() - prev_ptrs.keys()
+        deleted_ptrs = prev_ptrs.keys() - current_ptrs.keys()
+        created_names = current_names - prev_names
+        deleted_names = prev_names - current_names
+        
+        # Report with minimal iterations
+        for ptr in new_ptrs:
+            name = current_ptrs[ptr]
+            # Could be creation or rename - distinguish if needed
+            if name not in prev_names:
+                print(f"{type_name} created: {name}")
+                # cache.create(...)
+            else:
+                print(f"{type_name} renamed to: {name}")
+                # cache.rename(...)
+        
+        for ptr in deleted_ptrs:
+            print(f"{type_name} deleted: {prev_ptrs[ptr]}")
+            # cache.delete(...)
+        
+        # Update state
+        state['pointer_maps'][type_name] = current_ptrs
+        state['snapshots'][type_name] = current_names

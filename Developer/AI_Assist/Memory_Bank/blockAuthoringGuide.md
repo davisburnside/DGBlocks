@@ -179,7 +179,7 @@ class Wrapper_Example_Things(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         return True
 ```
 
-Add `Abstract_BL_and_RTC_Data_Syncronizer` only if your records mirror a
+Add `Abstract_BL_RTC_List_Syncronizer` only if your records mirror a
 `bpy.types.PropertyGroup` collection. See `feature_block_manager.py` for the
 canonical example.
 
@@ -349,7 +349,7 @@ A block is "ready" when:
 - [ ] No string literals for hook names / logger ids / RTC keys outside the enums.
 - [ ] All wrappers extend `Abstract_Feature_Wrapper`. Wrappers with multiple
       instances also extend `Abstract_Datawrapper_Instance_Manager`. Wrappers
-      that mirror BL data also extend `Abstract_BL_and_RTC_Data_Syncronizer`.
+      that mirror BL data also extend `Abstract_BL_RTC_List_Syncronizer`.
 - [ ] All bpy classes use the `DGBLOCKS_<TYPE>_*` prefix and `# type: ignore`
       on prop fields.
 - [ ] Section banners (`BLOCK DEFINITION`, etc.) in canonical order.

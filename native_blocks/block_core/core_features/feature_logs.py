@@ -16,7 +16,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helpers.generic_helpers import is_bpy_ready
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
 from .... import my_addon_config
 from ....my_addon_config import base_linebreak_length
 
@@ -154,7 +154,7 @@ class RTC_Logger_Instance:
 # MAIN MODULE FEATURE
 # ==============================================================================================================================
 
-class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager):
+class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager):
     
     _fallback_logger: logging.Logger = None
     _log_linebreak_monkeypatch_func: Callable = None
@@ -193,13 +193,13 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         logger.debug(f"Running post-bpy init for Wrapper_Loggers")
 
         # Setup data mirror reference
-        self_feature_name = cls.__name__
-        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
-            FWC_name = self_feature_name,
-            BL_collectionprop_path = "dgblocks_core_props.managed_hooks", 
-            RTC_key = cache_key_loggers
-        )
-        Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
+        # self_feature_name = cls.__name__
+        # FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+        #     FWC_name = self_feature_name,
+        #     BL_collectionprop_path = "dgblocks_core_props.managed_hooks", 
+        #     RTC_key = cache_key_loggers
+        # )
+        # Wrapper_Runtime_Cache.append_to_cached_list(cache_key_FWC_data_mirrors, FWC_data_mirror_ref)
         
         # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
         cls.update_BL_with_mirrored_RTC_data(event) # Causes partial RTC->BL sync
@@ -210,7 +210,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncron
         "No action to take. Loggers exist until the addon's final unregister() steps"
     
     # --------------------------------------------------------------
-    # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
+    # Implemented from Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod

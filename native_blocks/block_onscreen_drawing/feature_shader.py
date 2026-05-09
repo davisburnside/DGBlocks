@@ -18,7 +18,7 @@ from .constants import Shader_Types, Builtin_Shader_Names
 # SHADER INSTANCE
 #================================================================
 
-# Wrapper_Shader differs from most other wrapper classes. It is not a subclass of Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, or Abstract_Datawrapper_Instance_Manager
+# Wrapper_Shader differs from most other wrapper classes. It is not a subclass of Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, or Abstract_Datawrapper_Instance_Manager
 # Each shader's lifecycle is 100% managed though Wrapper_Draw_Handlers, so Wrapper_Shader does not need any instance-mgmt funcs 
 @dataclass
 class Shader_Instance:

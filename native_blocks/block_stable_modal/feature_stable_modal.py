@@ -7,7 +7,7 @@ from typing import Callable, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_and_RTC_Data_Syncronizer, Abstract_Datawrapper_Instance_Manager
+from ...addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager
 
 from ...addon_helpers.generic_helpers import should_draw_delevoper_panel, get_self_block_module
 from ...my_addon_config import addon_name, addon_title
@@ -65,7 +65,7 @@ class BL_Modal_Instance(bpy.types.PropertyGroup):
 # MODULE MAIN FEATURE WRAPPER CLASS
 # ==============================================================================================================================
 
-class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_and_RTC_Data_Syncronizer):
+class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer):
     # Manager — classmethods only, no instance state
 
     # --------------------------------------------------------------
@@ -138,7 +138,7 @@ class Wrapper_Modals_Manager(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         pass
 
     # --------------------------------------------------------------
-    # Implemented from Abstract_BL_and_RTC_Data_Syncronizer
+    # Implemented from Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod

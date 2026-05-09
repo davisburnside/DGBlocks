@@ -101,7 +101,7 @@ This is the single most important mental model in the codebase.
   Cache identifiers (names/paths) and re-resolve on use.
 
 A wrapper that needs both layers inherits from
-`Abstract_BL_and_RTC_Data_Syncronizer` and implements
+`Abstract_BL_RTC_List_Syncronizer` and implements
 `update_RTC_with_mirrored_BL_data` and `update_BL_with_mirrored_RTC_data`.
 
 ---
