@@ -5,7 +5,7 @@
 # ==============================================================================================================================
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import inspect
 from typing import Type
 from types import ModuleType
@@ -24,11 +24,12 @@ from ....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ..core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
+from ..core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members, Core_Block_Tracked_Datablock_Types
 from ..core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from .feature_logs import Wrapper_Loggers, get_logger
 from .feature_runtime_cache import Wrapper_Runtime_Cache
 from .feature_hooks import Wrapper_Hooks
+from .feature_tracked_datablock_types import Wrapper_Tracked_Datablock_Types
 
 # --------------------------------------------------------------
 # Aliases
@@ -37,10 +38,14 @@ cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
+cache_key_tracked_types = Core_Runtime_Cache_Members.REGISTRY_ALL_TRACKED_DATABLOCK_TYPES
 enum_hook_blocks_registered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_REGISTERED
 enum_hook_blocks_unregistered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_UNREGISTERED
 enum_hook_undo = Core_Block_Hook_Sources.CORE_EVENT_POST_UNDO
 enum_hook_redo = Core_Block_Hook_Sources.CORE_EVENT_POST_REDO
+enum_hook_db_changed = Core_Block_Hook_Sources.SCENE_MONITOR_DATA_BLOCKS_CHANGED
+enum_hook_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_SCENE_CHANGED
+enum_hook_scene_objects_changed = Core_Block_Hook_Sources.SCENE_MONITOR_SCENE_OBJECTS_CHANGED
 
 # ==============================================================================================================================
 # MIRRORED DATA FOR RTC & BLENDER
@@ -106,6 +111,7 @@ class RTC_Block_Instance:
     block_hook_source_names: list[str]
     block_logger_names: list[str]
     block_RTC_member_names: list[str]
+    tracked_datablock_types: list[str] = field(default_factory=list) # type_names from Core_Block_Tracked_Datablock_Types
 
 # Used during RTC <-> BL data sync
 rtc_sync_key_fields = ["block_id"]
@@ -164,14 +170,13 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         else:
             logger.debug(f"Func '_callback_redo_post' already present in 'bpy.app.handlers.redo_post'")
 
-
+        # Add a depsgraph listener, which is used by 'Wrapper_Tracked_Datablock_Types'
         if _callback_depsgraph_post not in bpy.app.handlers.depsgraph_update_post:
             bpy.app.handlers.depsgraph_update_post.append(_callback_depsgraph_post)
             logger.debug("Func  '_callback_depsgraph_post' added to bpy.app.handlers.depsgraph_update_post")
         else:
             logger.debug(f"Func '_callback_depsgraph_post' already present in 'bpy.app.handlers.depsgraph_update_post'")
-        
-
+    
     @classmethod
     def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
         """
@@ -252,21 +257,13 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         Called during core-block unregistration.
         """
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        # if logger is None:
-        #     return
 
-
-
-
-        if _callback_depsgraph_post not in bpy.app.handlers.depsgraph_update_post:
+        # Remove scene monitor depsgraph handler
+        if _callback_depsgraph_post in bpy.app.handlers.depsgraph_update_post:
             bpy.app.handlers.depsgraph_update_post.remove(_callback_depsgraph_post)
             logger.debug("Func '_callback_depsgraph_post' removed from 'bpy.app.handlers.depsgraph_update_post'")
         else:
             logger.debug("Func '_callback_depsgraph_post' not present in 'bpy.app.handlers.depsgraph_update_post'")
-        
-
-
-
 
         if _callback_undo_post in bpy.app.handlers.undo_post:
             bpy.app.handlers.undo_post.remove(_callback_undo_post)
@@ -285,7 +282,6 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             logger.debug("Func '_callback_load_post' removed from 'bpy.app.handlers.load_post'")
         else:
             logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
-
 
         # Clear the RTC of feature wrappers
         Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, {})
@@ -365,6 +361,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             uniqueness_field = "block_id", 
             uniqueness_field_value = block_id,
         )
+
+        if block_to_remove is None:
+            pass
 
         # 1: Unregister bpy classes
         for bpy_class in reversed(block_to_remove.block_bpy_types_classes):
@@ -596,7 +595,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             missing_func_impls, present_func_impls = cls.determine_FWC_abstract_funcs(actual_class)
             if len(missing_func_impls) > 0:
                 missing_func_str = "'" + "', '".join(missing_func_impls) + "'"
-                raise Exception(f"Feature Wrapper Class {actual_class} is missing required class functions: {missing_func_str}")
+                # raise Exception(f"Feature Wrapper Class {actual_class} is missing required class functions: {missing_func_str}")
 
             # Determine if the FWC will need BL<->RTC data sync actions
             has_BL_mirrored_data = False
@@ -981,85 +980,160 @@ def _callback_redo_post(dummy):
     _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name = enum_hook_redo)
 
 # --------------------------------------------------------------
-# Depsgraph update callbacks 
+# Depsgraph update callbacks — Scene Monitor
 # --------------------------------------------------------------
 
-TRACKED_TYPES = {
-    'OBJECT': bpy.types.Object,
-    'IMAGE': bpy.types.Image,
-    'MATERIAL': bpy.types.Material,
-    # Always track scenes
-}
-TYPE_TO_COLLECTION = {
-    'OBJECT': 'objects',
-    'IMAGE': 'images',
-    'MATERIAL': 'materials',
-    'MESH': 'meshes',
-    # Add all needed mappings
-}
+def _reset_scene_monitor_state(scene_name: str):
+    """
+    Reset the scene monitor RTC state to defaults.
+    Called during destroy_wrapper and on new file load.
+    """
+    initial_state = {
+        'current_scene': scene_name,
+        'snapshots': {},       # type_name -> set(name_full)
+        'pointer_maps': {},    # type_name -> {ptr_str: name_full}
+        'scene_objects': set(),  # set of object name_full currently in scene
+    }
+    Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE, initial_state)
+
+def _ensure_scene_monitor_state(scene_name: str):
+    """
+    Get or initialize the scene monitor state from RTC.
+    Returns the state dict.
+    """
+    state = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE)
+    if state is None or len(state) == 0:
+        _reset_scene_monitor_state(scene_name)
+        state = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE)
+    return state
 
 @persistent
 def _callback_depsgraph_post(scene, depsgraph):
-    cache = {} #get_your_cache()  # Thread-safe, addon-global
+    """
+    Scene monitor depsgraph callback.
+    Detects:
+      - Scene changes
+      - Datablock create / rename / delete (for tracked types)
+      - Objects added to / removed from the current scene
+    Publishes changes via hook system.
+    """
     
-    # Static variable initialization
-    if not hasattr(_callback_depsgraph_post, '_state'):
-        _callback_depsgraph_post._state = {
-            'current_scene': None,
-            'snapshots': {},  # type_name -> set(name_full)
-            'pointer_maps': {},  # type_name -> {ptr_str: name_full}
-        }
-    
-    state = _callback_depsgraph_post._state
-    
+
+    ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
+    if not (ADDON_METADATA.POST_REG_INIT_HAS_RUN and ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY):
+        return
+
+    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
+   
+
+    # ================================================================
     # 1. Scene change detection (always tracked, O(1))
-    if state['current_scene'] != (scene_name := scene.name_full):
-        if state['current_scene']:
-            print(f"Scene changed: {state['current_scene']} -> {scene_name}")
+    # ================================================================
+    scene_name = scene.name_full
+    state = _ensure_scene_monitor_state(scene_name)
+    if state['current_scene'] != scene_name:
+        old_scene = state['current_scene']
+        if old_scene is not None:
+            logger.debug(f"Scene changed: {old_scene} -> {scene_name}")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_scene_changed,
+                old_scene=old_scene,
+                new_scene=scene_name,
+            )
         state['current_scene'] = scene_name
-    
-    # 2. Process only types that Blender tells us changed
-    for type_name in TRACKED_TYPES:
-        if not depsgraph.id_type_updated(type_name):
+
+    # ================================================================
+    # 2. Datablock create / rename / delete for tracked types
+    # ================================================================
+    tracked_types = Wrapper_Tracked_Datablock_Types.get_tracked_type_instances()
+
+    for tracked in tracked_types:
+        type_name = tracked.type_name
+        collection_name = tracked.collection_name
+
+        # Skip if depsgraph says this type didn't change
+        if hasattr(depsgraph, 'id_type_updated') and not depsgraph.id_type_updated(type_name):
             continue
-            
-        # Get collection with one attribute access
-        collection = getattr(bpy.data, TYPE_TO_COLLECTION[type_name])
-        
-        # Build current state in one pass
+
+        # Get current state from bpy.data
+        try:
+            collection = getattr(bpy.data, collection_name)
+        except AttributeError:
+            continue
+
         current_ptrs = {}
         current_names = set()
-        
         for item in collection:
             ptr = str(item.as_pointer())
             current_ptrs[ptr] = item.name_full
             current_names.add(item.name_full)
-        
-        # Get previous state (lazy initialization)
+
+        # Get previous state
         prev_ptrs = state['pointer_maps'].get(type_name, {})
         prev_names = state['snapshots'].get(type_name, set())
-        
-        # Diff operations (each O(len(collection)))
+
+        # Diff
         new_ptrs = current_ptrs.keys() - prev_ptrs.keys()
         deleted_ptrs = prev_ptrs.keys() - current_ptrs.keys()
         created_names = current_names - prev_names
         deleted_names = prev_names - current_names
-        
-        # Report with minimal iterations
+
+        # Build consolidated changes dict
+        # Key = current name_full, Value = list of action dicts
+        changes = {}
+
+        # Created datablocks
         for ptr in new_ptrs:
             name = current_ptrs[ptr]
-            # Could be creation or rename - distinguish if needed
             if name not in prev_names:
-                print(f"{type_name} created: {name}")
-                # cache.create(...)
+                # Creation
+                changes.setdefault(name, []).append({"action": "created"})
             else:
-                print(f"{type_name} renamed to: {name}")
-                # cache.rename(...)
-        
+                # Rename: the ptr existed before but name is new (must have been renamed from something)
+                # Find the old name from prev_ptrs where ptr matches
+                old_name = prev_ptrs.get(ptr, "(unknown)")
+                changes.setdefault(name, []).append({"action": "renamed", "old_name": old_name})
+
+        # Deleted datablocks
         for ptr in deleted_ptrs:
-            print(f"{type_name} deleted: {prev_ptrs[ptr]}")
-            # cache.delete(...)
-        
+            name = prev_ptrs[ptr]
+            changes.setdefault(name, []).append({"action": "deleted"})
+
+        # Publish changes hook if there are any changes
+        if changes:
+            logger.debug(f"Datablock changes for '{type_name}': {changes}")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_db_changed,
+                changes=changes,
+            )
+
         # Update state
         state['pointer_maps'][type_name] = current_ptrs
         state['snapshots'][type_name] = current_names
+
+    # ================================================================
+    # 3. Objects added to / removed from the current scene
+    # ================================================================
+    current_scene_objects = set(obj.name_full for obj in scene.objects)
+    prev_scene_objects = state.get('scene_objects', set())
+
+    added = current_scene_objects - prev_scene_objects
+    removed = prev_scene_objects - current_scene_objects
+
+    scene_object_changes = {}
+    for name in added:
+        scene_object_changes.setdefault(name, []).append("added")
+    for name in removed:
+        scene_object_changes.setdefault(name, []).append("removed")
+
+    if scene_object_changes:
+        logger.debug(f"Scene object changes: {scene_object_changes}")
+        Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name=enum_hook_scene_objects_changed,
+            changes=scene_object_changes,
+        )
+
+    state['scene_objects'] = current_scene_objects
+
+    # Persist updated state back to RTC
+    Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE, state)

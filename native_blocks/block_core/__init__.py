@@ -17,6 +17,7 @@ from .core_features.feature_logs import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL
 from .core_features.feature_block_manager import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
 from .core_features.feature_hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
 from .core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from .core_features.feature_tracked_datablock_types import Wrapper_Tracked_Datablock_Types
 from .core_helpers.helper_uilayouts import uilayout_draw_core_block_settings
 
 # --------------------------------------------------------------
@@ -239,6 +240,7 @@ _feature_wrapper_classes_to_register = [
     Wrapper_Runtime_Cache,
     Wrapper_Loggers,
     Wrapper_Hooks,
+    Wrapper_Tracked_Datablock_Types,  
 ]
 
 def register_block(event: Enum_Sync_Events):
@@ -269,7 +271,7 @@ def register_block(event: Enum_Sync_Events):
 def unregister_block(event: Enum_Sync_Events):
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
+    logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
     Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
     

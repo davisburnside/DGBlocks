@@ -354,7 +354,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         )
 
         if len(RTC_subscriber_hooks) == 0:
-            logger.info(f"No subscriber listeners found for hook '{hook_func_name}'")
+            logger.debug(f"No subscriber listeners found for hook '{hook_func_name}'")
             return all_returns
         
         current_time_ms = int(time.time() * 1000)
