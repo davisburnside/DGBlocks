@@ -6,7 +6,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_helpers import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
+from ...addon_helpers.data_structures import Core_Block_Tracked_Datablock_Types, Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -243,6 +243,11 @@ _feature_wrapper_classes_to_register = [
     Wrapper_Tracked_Datablock_Types,  
 ]
 
+_tracked_datablocks = [
+    Core_Block_Tracked_Datablock_Types.SCENE,
+    Core_Block_Tracked_Datablock_Types.OBJECT
+]
+
 def register_block(event: Enum_Sync_Events):
 
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
@@ -257,9 +262,10 @@ def register_block(event: Enum_Sync_Events):
         event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
-        block_feature_wrapper_classes = _feature_wrapper_classes_to_register, 
-        block_hook_source_enums = Core_Block_Hook_Sources,
+        block_feature_wrapper_classes = _feature_wrapper_classes_to_register,
+        block_tracked_datablock_enums = _tracked_datablocks,
         block_RTC_member_enums = Core_Runtime_Cache_Members,
+        block_hook_source_enums = Core_Block_Hook_Sources,
         block_logger_enums = Core_Block_Loggers 
     )
     

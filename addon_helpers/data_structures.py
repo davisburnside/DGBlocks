@@ -49,6 +49,47 @@ class Enum_Sync_Actions(StrEnum):
     EDIT = auto()
     MOVE = auto()
 
+class Core_Block_Tracked_Datablock_Types(Enum):
+    # TRACKED DATABLOCK TYPES - New block primitive, like hooks & loggers
+    # Hardcoded list of all possible bpy.data.* datablock types.
+    # Downstream blocks call create_instance/destroy_instance to enable/disable tracking.
+    # name = type identifier (matches depsgraph.id_type_updated name)
+    # value[0] = type_name for depsgraph check
+    # value[1] = bpy.data collection attribute name
+    # value[2] = bpy.types.* class
+
+    ACTION = ("ACTION", "actions", bpy.types.Action)
+    ARMATURE = ("ARMATURE", "armatures", bpy.types.Armature)
+    BRUSH = ("BRUSH", "brushes", bpy.types.Brush)
+    CACHEFILE = ("CACHEFILE", "cache_files", bpy.types.CacheFile)
+    CAMERA = ("CAMERA", "cameras", bpy.types.Camera)
+    COLLECTION = ("COLLECTION", "collections", bpy.types.Collection)
+    CURVE = ("CURVE", "curves", bpy.types.Curve)
+    FONT = ("FONT", "fonts", bpy.types.VectorFont)
+    GREASEPENCIL = ("GREASEPENCIL", "grease_pencils", bpy.types.GreasePencil)
+    IMAGE = ("IMAGE", "images", bpy.types.Image)
+    LATTICE = ("LATTICE", "lattices", bpy.types.Lattice)
+    LIGHT = ("LIGHT", "lights", bpy.types.Light)
+    LIGHT_PROBE = ("LIGHTPROBE", "lightprobes", bpy.types.LightProbe)
+    LINESTYLE = ("LINESTYLE", "linestyles", bpy.types.FreestyleLineStyle)
+    MATERIAL = ("MATERIAL", "materials", bpy.types.Material)
+    MESH = ("MESH", "meshes", bpy.types.Mesh)
+    METABALL = ("METABALL", "metaballs", bpy.types.MetaBall)
+    MOVIECLIP = ("MOVIECLIP", "movieclips", bpy.types.MovieClip)
+    NODETREE = ("NODETREE", "node_groups", bpy.types.NodeTree)
+    OBJECT = ("OBJECT", "objects", bpy.types.Object)
+    PAINTCURVE = ("PAINTCURVE", "paint_curves", bpy.types.PaintCurve)
+    PALETTE = ("PALETTE", "palettes", bpy.types.Palette)
+    PARTICLE = ("PARTICLE", "particles", bpy.types.ParticleSettings)
+    POINTCLOUD = ("POINTCLOUD", "pointclouds", bpy.types.PointCloud)
+    SCENE = ("SCENE", "scenes", bpy.types.Scene)
+    SPEAKER = ("SPEAKER", "speakers", bpy.types.Speaker)
+    TEXT = ("TEXT", "texts", bpy.types.Text)
+    TEXTURE = ("TEXTURE", "textures", bpy.types.Texture)
+    VOLUME = ("VOLUME", "volumes", bpy.types.Volume)
+    WORLD = ("WORLD", "worlds", bpy.types.World)
+    WORKSPACE = ("WORKSPACE", "workspaces", bpy.types.WorkSpace)
+
 # ==============================================================================================================================
 # FEATURE WRAPPER ABSTRACT PARENT CLASSES
 # ==============================================================================================================================
@@ -147,10 +188,6 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 # ==============================================================================================================================
 # FEATURE WRAPPER SUPPORT CLASSES
 # ==============================================================================================================================
-
-class Enum_Optional_FWC_Function_Names(StrEnum):
-    update_RTC_with_mirrored_BL_data = auto()
-    update_BL_with_mirrored_RTC_data = auto()
 
 @dataclass 
 class RTC_FWC_Data_Mirror_List_Reference:

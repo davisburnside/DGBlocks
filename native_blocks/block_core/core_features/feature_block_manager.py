@@ -17,14 +17,14 @@ from bpy.app.handlers import persistent  # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
+from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Core_Block_Tracked_Datablock_Types, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from ....addon_helpers.data_tools import fast_deepcopy_with_fallback, reset_propertygroup
 from ....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ..core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members, Core_Block_Tracked_Datablock_Types
+from ..core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ..core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from .feature_logs import Wrapper_Loggers, get_logger
 from .feature_runtime_cache import Wrapper_Runtime_Cache
@@ -283,9 +283,6 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         else:
             logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
 
-        # Clear the RTC of feature wrappers
-        Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, {})
-
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
     # --------------------------------------------------------------
@@ -297,9 +294,11 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         block_module: ModuleType,
         block_bpy_types_classes: list[Type[Abstract_Feature_Wrapper]] = [],
         block_feature_wrapper_classes: list[Type[Abstract_Feature_Wrapper]] = [],
-        block_hook_source_enums: list[Type[Enum]] = [],
         block_RTC_member_enums:list[Enum] = [],
+        block_tracked_datablock_enums:list[Enum] = [],
+        block_hook_source_enums: list[Type[Enum]] = [],
         block_logger_enums:list[Enum] = [],
+
     ):
         """
         Blocks are created during addon startup/refresh. They can also be removed/recreated during runtime
@@ -320,8 +319,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
                 block_module,
                 block_bpy_types_classes,
                 block_feature_wrapper_classes,
-                block_hook_source_enums,
                 block_RTC_member_enums,
+                block_tracked_datablock_enums,
+                block_hook_source_enums,
                 block_logger_enums,
             )
 
@@ -554,8 +554,9 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         block_module,
         block_bpy_types_classes,
         block_feature_wrapper_classes,
-        block_hook_source_enums,
         block_RTC_member_enums,
+        block_tracked_datablock_enums,
+        block_hook_source_enums,
         block_logger_enums,
     ):
         
@@ -670,6 +671,12 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
                 new_hook_func_named_args = enum_hook.value[1],
                 skip_BL_sync = not is_last, 
                 skip_subscriber_cache_rebuild = not is_last,
+            )
+
+        for enum_tracked_datablock in block_tracked_datablock_enums:
+            Wrapper_Tracked_Datablock_Types.create_instance(
+                event,
+                datablock_type_enum = enum_tracked_datablock, 
             )
 
         # RTC Registries - initialized with empty data containers, commonly an dict or list
@@ -802,15 +809,15 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
 
             # Call sync function in class
             try:
-                actual_class_ref = FWC_instance.feature_wrapper_class
+                actual_class = FWC_instance.actual_class
                 src_block_id = FWC_instance.src_block_id
 
-                if actual_class_ref == cls:
+                if actual_class == cls:
                     cls.evaluate_and_update_block_statuses(event)
 
                 else:
-                    logger.debug(f"Updating RTC with BL data for '{actual_class_ref.__name__}'")
-                    actual_class_ref.update_RTC_with_mirrored_BL_data(event)
+                    logger.debug(f"Updating RTC with BL data for '{actual_class.__name__}'")
+                    actual_class.update_RTC_with_mirrored_BL_data(event)
             except Exception:
                 logger.error(f"Exception during RTC sync for '{src_block_id}'", exc_info=True)
 
@@ -1127,7 +1134,7 @@ def _callback_depsgraph_post(scene, depsgraph):
         scene_object_changes.setdefault(name, []).append("removed")
 
     if scene_object_changes:
-        logger.debug(f"Scene object changes: {scene_object_changes}")
+        logger.info(f"Scene object changes: {scene_object_changes}")
         Wrapper_Hooks.run_hooked_funcs(
             hook_func_name=enum_hook_scene_objects_changed,
             changes=scene_object_changes,
