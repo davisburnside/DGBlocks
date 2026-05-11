@@ -291,6 +291,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cls, 
         event: Enum_Sync_Events,
         hook_func_name: str, 
+        subscriber_block_id: Optional[str] = None,
         skip_BL_sync:bool = False,
         skip_subscriber_cache_rebuild:bool = False,
     ) -> None:

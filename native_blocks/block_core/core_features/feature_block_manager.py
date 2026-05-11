@@ -48,6 +48,50 @@ enum_hook_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_SCENE_CHANGED
 enum_hook_scene_objects_changed = Core_Block_Hook_Sources.SCENE_MONITOR_SCENE_OBJECTS_CHANGED
 
 # ==============================================================================================================================
+# MSGBUS — Scene-change listener
+# ==============================================================================================================================
+
+@persistent
+def _msgbus_window_scene_changed(*args):
+    """Called by bpy.msgbus when the active scene changes in any window."""
+    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
+    print(f"msgbus: Window Scene changed — now in '{bpy.context.scene.name_full}'")
+
+@persistent
+def _msgbus_window_scene_viewlayer_changed(*args):
+    """Called by bpy.msgbus when the active scene changes in any window."""
+    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
+    print(f"msgbus: Window Scene Viealyer changed — now in '{bpy.context.view_layer.name}'")
+
+@persistent
+def _msgbus_scene_name_changed(*args):
+    """Called by bpy.msgbus when the active scene changes in any window."""
+    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
+    print(f"msgbus: Scene Name changed — now in '{bpy.context.scene.name_full}'")
+
+def _msgbus_test1(*args):
+
+    print(f"TEST1   '")
+
+# Blender's msgbus needs some (any) python object to hold a reference to
+_msgbus_owner_for_active_scene = object()
+_msgbus_owner_for_active_window_scene_viewlayer = object()
+_msgbus_owner_for_scene_names = object()
+_msgbus_T1 = object()
+
+# list of tuples to define msgbus subscriptions
+#tuple[0] = msgbus sub "owner" object
+#tuple[1] = msgbus key: the data being listened to
+#tuple[2] = callback function when the data changes
+msgbus_subs = [
+    # (_msgbus_owner_for_active_scene, (bpy.types.Window, "scene"), _msgbus_window_scene_changed),
+    # (_msgbus_owner_for_active_window_scene_viewlayer, (bpy.types.Window, "view_layer"), _msgbus_window_scene_viewlayer_changed),
+    # (_msgbus_owner_for_scene_names, (bpy.types.Scene, "name"), _msgbus_scene_name_changed),
+    (_msgbus_T1, (bpy.types.BlendData, "scenes"), _msgbus_test1)
+]
+
+
+# ==============================================================================================================================
 # MIRRORED DATA FOR RTC & BLENDER
 # ==============================================================================================================================
 
@@ -246,7 +290,30 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             **kwargs)
         
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 6: refresh UI, finish init
+        # 6: Subscribe msgbus scene-change listener on all open windows
+        cls.clear_msgbuses(msgbus_subs)
+        for (msbus_owner, msgbus_key, msgbus_callback) in msgbus_subs:
+            logger.info(f"Registering msgbus listener for {msgbus_key}")
+            bpy.msgbus.subscribe_rna(
+                key=msgbus_key,
+                owner=msbus_owner,
+                args=(),
+                notify=msgbus_callback,
+            )
+
+        # for window in bpy.context.window_manager.windows:
+        #     print("\n\n\n", window, "\n\n")
+        #     all_scene_names = (bpy.types.Scene, "name")
+        #     bpy.msgbus.subscribe_rna(
+        #         key=all_scene_names,
+        #         owner=_msgbus_owner,
+        #         args=(),
+        #         notify=_msgbus_scene_changed,
+        #     )
+        logger.info("msgbus scene-change listener registered")
+
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 7: refresh UI, finish init
         force_redraw_ui(bpy.context)
         logger.info(f"Finished all init actions. The Addon is ready to use")
             
@@ -282,6 +349,10 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             logger.debug("Func '_callback_load_post' removed from 'bpy.app.handlers.load_post'")
         else:
             logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
+
+        # Remove msgbus scene-change listener
+        cls.clear_msgbuses(msgbus_subs)
+        logger.debug("msgbus scene-change listener cleared")
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
@@ -336,7 +407,12 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
 
                 # trigger final init hook for block, if needed
                 try:
-                    Wrapper_Hooks.run_hooked_funcs(hook_func_name = enum_hook_blocks_registered, subscriber_block_id = block_id)
+                    blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy = True)
+                    kwargs = {"block_instances": blocks_cache}
+                    Wrapper_Hooks.run_hooked_funcs(
+                        hook_func_name = enum_hook_blocks_registered, 
+                        subscriber_block_id = block_id,
+                        **kwargs)
                 except Exception as e:
                     logger.error(f"Exception occurred when propagating post-register init hook function", exc_info=True)
 
@@ -577,13 +653,14 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         # 2: Register the new block's feature-wrapper classes
 
         # For core-block, these FWCs were already init'd in main addon register(). 'Wrapper_Hooks' is the only one needing init
-        core_FWC_already_init = [cls, Wrapper_Loggers, Wrapper_Runtime_Cache] 
+        # core_FWC_already_init = [cls] 
 
         cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs) # get existing FWCs
         for actual_class in block_feature_wrapper_classes:
             feature_name = actual_class.__name__ # The feature's name = the feature's wrapper class name
 
-            if actual_class in core_FWC_already_init:
+            # Skip for self
+            if actual_class == cls:
                 continue
             
             # Validate FWC uniqueness
@@ -827,6 +904,27 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
 
             pass
 
+    @classmethod
+    def clear_msgbuses(cls, msgbus_subs: list[tuple]):
+        
+        for msgbus_owner, msgbus_key, _ in msgbus_subs:
+            try:
+                print(f"clearing msgbus {msgbus_key}")
+                bpy.msgbus.clear_by_owner(msgbus_owner)
+            except Exception as e:
+                print(e)
+
+    @classmethod
+    def add_msgbuses(cls, msgbus_subs: list[tuple]):
+
+        for (msbus_owner, msgbus_key, msgbus_callback) in msgbus_subs:
+            print(f"Registering msgbus listener for {msgbus_key}")
+            bpy.msgbus.subscribe_rna(
+                key=msgbus_key,
+                owner=msbus_owner,
+                args=(),
+                notify=msgbus_callback,
+            )
 
 # ==============================================================================================================================
 # UI
@@ -1025,14 +1123,16 @@ def _callback_depsgraph_post(scene, depsgraph):
     Publishes changes via hook system.
     """
     
-
     ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
     if not (ADDON_METADATA.POST_REG_INIT_HAS_RUN and ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY):
         return
 
+    # testing
+    handle_possible_scene_change(scene)
+    # end testing
+
     logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
    
-
     # ================================================================
     # 1. Scene change detection (always tracked, O(1))
     # ================================================================
@@ -1144,3 +1244,25 @@ def _callback_depsgraph_post(scene, depsgraph):
 
     # Persist updated state back to RTC
     Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE, state)
+
+
+
+
+
+
+
+def handle_possible_scene_change(scene):
+
+    needs_update = False
+    cached_addon_metadata = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
+    if cached_addon_metadata.CURRENT_SCENE_ID == None:
+        needs_update = True
+        print("set initial scene")
+        
+    elif cached_addon_metadata.CURRENT_SCENE_ID[0] != scene.name or cached_addon_metadata.CURRENT_SCENE_ID[1] != scene.session_uid:
+        needs_update = True
+        print("needs update scene")
+
+    if needs_update:
+        cached_addon_metadata.CURRENT_SCENE_ID = (scene.name, scene.session_uid)
+        Wrapper_Runtime_Cache.set_cache(cache_key_metadata, cached_addon_metadata)

@@ -9,7 +9,8 @@ import bpy # type: ignore
 class Global_Addon_State():
     POST_REG_INIT_HAS_RUN: bool = False
     ADDON_STARTED_SUCCESSFULLY: bool = False
-    SESSION_EVENTS: list = field(default_factory = list)
+    CURRENT_SCENE_ID: tuple[str, str] = None
+    CURRENT_WORKSPACE_ID: tuple[str, str] = None
 
 # ==============================================================================================================================
 # COMMON ENUMS
@@ -42,6 +43,7 @@ class Enum_Sync_Events(StrEnum):
     PROPERTY_UPDATE = auto()
     PROPERTY_UPDATE_UNDO = auto()
     PROPERTY_UPDATE_REDO = auto()
+    FORCE_RESTORE_RTC = auto()
     
 class Enum_Sync_Actions(StrEnum):
     CREATE = auto()

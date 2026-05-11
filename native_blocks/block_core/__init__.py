@@ -152,10 +152,15 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
                     if isinstance(cache_data, list):
                         print(f"Clearing RTC list {cache_key}")
                         Wrapper_Runtime_Cache.set_cache(cache_key, [])
+                    elif isinstance(cache_data, dict):
+                        print(f"Clearing RTC dict {cache_key}")
+                        Wrapper_Runtime_Cache.set_cache(cache_key, {})
+                    else:
+                        print(f"Ignoring RTC list {cache_key}")
 
             # Use Block-mgmt FWC's native restoration feature
             elif self.action == "RESTORE":
-                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "debug-restore") 
+                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
 
         # Clear or restore Blender data, RTC is unaffected
         if self.target == "BL":
@@ -167,7 +172,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
                         print(f"Clearing RTC list {cache_key}")
                         Wrapper_Runtime_Cache.set_cache(cache_key, [])
             elif self.action == "RESTORE":
-                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(event_type = "debug-restore") 
+                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
 
         return {"FINISHED"}
 
