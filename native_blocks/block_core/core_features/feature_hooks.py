@@ -190,7 +190,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
 
         core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
         logger.debug(f"Updating hooks RTC with mirrored BL Data")
         debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
         
@@ -214,7 +214,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
 
         core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
         logger.debug(f"Updating hooks BL data with mirrored RTC")
         debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
 

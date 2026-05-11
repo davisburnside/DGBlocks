@@ -221,7 +221,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         #TODO finish
         
         core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
         logger.debug(f"Updating loggers RTC with mirrored BL Data")
         debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
 
@@ -247,7 +247,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         """
 
         core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
         logger.debug(f"Updating loggers BL Data with mirrored RTC")
         debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
         

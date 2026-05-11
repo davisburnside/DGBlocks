@@ -46,6 +46,12 @@ enum_hook_redo = Core_Block_Hook_Sources.CORE_EVENT_POST_REDO
 enum_hook_db_changed = Core_Block_Hook_Sources.SCENE_MONITOR_DATA_BLOCKS_CHANGED
 enum_hook_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_SCENE_CHANGED
 enum_hook_scene_objects_changed = Core_Block_Hook_Sources.SCENE_MONITOR_SCENE_OBJECTS_CHANGED
+enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SCENE_CHANGED
+enum_hook_active_viewlayer_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_VIEWLAYER_CHANGED
+enum_hook_active_workspace_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED
+enum_hook_active_mode_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_CHANGED
+enum_hook_active_mode_objs_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_OBJS_CHANGED
+enum_hook_active_obj_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_OBJ_CHANGED
 
 # ==============================================================================================================================
 # MSGBUS — Scene-change listener
@@ -87,7 +93,7 @@ msgbus_subs = [
     # (_msgbus_owner_for_active_scene, (bpy.types.Window, "scene"), _msgbus_window_scene_changed),
     # (_msgbus_owner_for_active_window_scene_viewlayer, (bpy.types.Window, "view_layer"), _msgbus_window_scene_viewlayer_changed),
     # (_msgbus_owner_for_scene_names, (bpy.types.Scene, "name"), _msgbus_scene_name_changed),
-    (_msgbus_T1, (bpy.types.BlendData, "scenes"), _msgbus_test1)
+    # (_msgbus_T1, (bpy.types.BlendData, "scenes"), _msgbus_test1)
 ]
 
 
@@ -489,7 +495,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
 
         core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
         logger.debug(f"Updating block-mgmt RTC with mirrored Blender data")
         debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
         
@@ -512,7 +518,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
     def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
 
         core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.DATA_SYNC)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
         logger.debug(f"Updating block-mgmt BL Data with mirrored RTC")
         debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
 
@@ -1000,7 +1006,7 @@ class DGBLOCKS_UL_Blocks(bpy.types.UIList):
         sub.label(text="", icon='CHECKMARK' if item.is_block_enabled else 'X')
 
 # ==============================================================================================================================
-# PRIVATE API — init/load/
+# PRIVATE API — init/load/undo/redo/depsgraph callbacks
 # ==============================================================================================================================
 
 # --------------------------------------------------------------
@@ -1088,6 +1094,89 @@ def _callback_redo_post(dummy):
 # Depsgraph update callbacks — Scene Monitor
 # --------------------------------------------------------------
 
+def _update_addon_state_trackers(scene):
+    """
+    Update all Global_Addon_State context trackers stored in ADDON_METADATA.
+
+    Compares each tracker against the current Blender context and, when a change
+    is detected, writes the new value to the cached state and fires the
+    corresponding hook so subscribers can react.
+
+    Called once per depsgraph_update_post tick, after the early-return guard.
+    bpy.context is guaranteed available at this point.
+    """
+
+    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
+    metadata = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
+
+    try:
+        ctx = bpy.context
+
+        # ------------------------------------------------------------------
+        # CURRENT_SCENE_ID  (scene arg is the depsgraph scene — most reliable)
+        # ------------------------------------------------------------------
+        new_scene_id = (scene.name, scene.session_uid)
+        if metadata.CURRENT_SCENE_ID != new_scene_id:
+            old_id = metadata.CURRENT_SCENE_ID
+            metadata.CURRENT_SCENE_ID = new_scene_id
+            logger.debug(f"Active scene changed: {old_id} -> {new_scene_id}")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_active_scene_changed,
+                old_id=old_id,
+                new_id=new_scene_id,
+            )
+
+        # ------------------------------------------------------------------
+        # CURRENT_WORKSPACE_ID
+        # WorkSpace is a proper bpy.types.ID — session_uid available.
+        # ------------------------------------------------------------------
+        ws = ctx.workspace
+        new_ws_id = (ws.name, ws.session_uid) if ws else None
+        if metadata.CURRENT_WORKSPACE_ID != new_ws_id:
+            old_id = metadata.CURRENT_WORKSPACE_ID
+            metadata.CURRENT_WORKSPACE_ID = new_ws_id
+            logger.debug(f"Active workspace changed: {old_id} -> {new_ws_id}")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_active_workspace_changed,
+                old_id=old_id,
+                new_id=new_ws_id,
+            )
+
+        # ------------------------------------------------------------------
+        # CURRENT_MODE
+        # ctx.mode is a plain string ('OBJECT', 'EDIT_MESH', …).
+        # Store (mode_string, mode_string) to match the (name, session_uid) tuple shape.
+        # ------------------------------------------------------------------
+        if metadata.CURRENT_MODE != ctx.mode:
+            old_id = metadata.CURRENT_MODE
+            metadata.CURRENT_MODE = ctx.mode
+            logger.debug(f"Active mode changed: {old_id} -> {ctx.mode}")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_active_mode_changed,
+                old_id=old_id,
+                new_id=ctx.mode,
+            )
+
+        # ------------------------------------------------------------------
+        # CURRENT_ACTIVE_OBJ
+        # ------------------------------------------------------------------
+        active_obj = ctx.active_object
+        new_active_id = (active_obj.name, active_obj.session_uid) if active_obj else None
+        if metadata.CURRENT_ACTIVE_OBJ != new_active_id:
+            old_id = metadata.CURRENT_ACTIVE_OBJ
+            metadata.CURRENT_ACTIVE_OBJ = new_active_id
+            logger.debug(f"Active object changed: {old_id} -> {new_active_id}")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_active_obj_changed,
+                old_id=old_id,
+                new_id=new_active_id,
+            )
+
+        Wrapper_Runtime_Cache.set_cache(cache_key_metadata, metadata)
+
+    except Exception:
+        logger.error("Exception in _update_addon_state_trackers", exc_info=True)
+
 def _reset_scene_monitor_state(scene_name: str):
     """
     Reset the scene monitor RTC state to defaults.
@@ -1114,155 +1203,9 @@ def _ensure_scene_monitor_state(scene_name: str):
 
 @persistent
 def _callback_depsgraph_post(scene, depsgraph):
-    """
-    Scene monitor depsgraph callback.
-    Detects:
-      - Scene changes
-      - Datablock create / rename / delete (for tracked types)
-      - Objects added to / removed from the current scene
-    Publishes changes via hook system.
-    """
-    
+
     ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
     if not (ADDON_METADATA.POST_REG_INIT_HAS_RUN and ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY):
         return
 
-    # testing
-    handle_possible_scene_change(scene)
-    # end testing
-
-    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
-   
-    # ================================================================
-    # 1. Scene change detection (always tracked, O(1))
-    # ================================================================
-    scene_name = scene.name_full
-    state = _ensure_scene_monitor_state(scene_name)
-    if state['current_scene'] != scene_name:
-        old_scene = state['current_scene']
-        if old_scene is not None:
-            logger.debug(f"Scene changed: {old_scene} -> {scene_name}")
-            Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name=enum_hook_scene_changed,
-                old_scene=old_scene,
-                new_scene=scene_name,
-            )
-        state['current_scene'] = scene_name
-
-    # ================================================================
-    # 2. Datablock create / rename / delete for tracked types
-    # ================================================================
-    tracked_types = Wrapper_Tracked_Datablock_Types.get_tracked_type_instances()
-
-    for tracked in tracked_types:
-        type_name = tracked.type_name
-        collection_name = tracked.collection_name
-
-        # Skip if depsgraph says this type didn't change
-        if hasattr(depsgraph, 'id_type_updated') and not depsgraph.id_type_updated(type_name):
-            continue
-
-        # Get current state from bpy.data
-        try:
-            collection = getattr(bpy.data, collection_name)
-        except AttributeError:
-            continue
-
-        current_ptrs = {}
-        current_names = set()
-        for item in collection:
-            ptr = str(item.as_pointer())
-            current_ptrs[ptr] = item.name_full
-            current_names.add(item.name_full)
-
-        # Get previous state
-        prev_ptrs = state['pointer_maps'].get(type_name, {})
-        prev_names = state['snapshots'].get(type_name, set())
-
-        # Diff
-        new_ptrs = current_ptrs.keys() - prev_ptrs.keys()
-        deleted_ptrs = prev_ptrs.keys() - current_ptrs.keys()
-        created_names = current_names - prev_names
-        deleted_names = prev_names - current_names
-
-        # Build consolidated changes dict
-        # Key = current name_full, Value = list of action dicts
-        changes = {}
-
-        # Created datablocks
-        for ptr in new_ptrs:
-            name = current_ptrs[ptr]
-            if name not in prev_names:
-                # Creation
-                changes.setdefault(name, []).append({"action": "created"})
-            else:
-                # Rename: the ptr existed before but name is new (must have been renamed from something)
-                # Find the old name from prev_ptrs where ptr matches
-                old_name = prev_ptrs.get(ptr, "(unknown)")
-                changes.setdefault(name, []).append({"action": "renamed", "old_name": old_name})
-
-        # Deleted datablocks
-        for ptr in deleted_ptrs:
-            name = prev_ptrs[ptr]
-            changes.setdefault(name, []).append({"action": "deleted"})
-
-        # Publish changes hook if there are any changes
-        if changes:
-            logger.debug(f"Datablock changes for '{type_name}': {changes}")
-            Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name=enum_hook_db_changed,
-                changes=changes,
-            )
-
-        # Update state
-        state['pointer_maps'][type_name] = current_ptrs
-        state['snapshots'][type_name] = current_names
-
-    # ================================================================
-    # 3. Objects added to / removed from the current scene
-    # ================================================================
-    current_scene_objects = set(obj.name_full for obj in scene.objects)
-    prev_scene_objects = state.get('scene_objects', set())
-
-    added = current_scene_objects - prev_scene_objects
-    removed = prev_scene_objects - current_scene_objects
-
-    scene_object_changes = {}
-    for name in added:
-        scene_object_changes.setdefault(name, []).append("added")
-    for name in removed:
-        scene_object_changes.setdefault(name, []).append("removed")
-
-    if scene_object_changes:
-        logger.info(f"Scene object changes: {scene_object_changes}")
-        Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name=enum_hook_scene_objects_changed,
-            changes=scene_object_changes,
-        )
-
-    state['scene_objects'] = current_scene_objects
-
-    # Persist updated state back to RTC
-    Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE, state)
-
-
-
-
-
-
-
-def handle_possible_scene_change(scene):
-
-    needs_update = False
-    cached_addon_metadata = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
-    if cached_addon_metadata.CURRENT_SCENE_ID == None:
-        needs_update = True
-        print("set initial scene")
-        
-    elif cached_addon_metadata.CURRENT_SCENE_ID[0] != scene.name or cached_addon_metadata.CURRENT_SCENE_ID[1] != scene.session_uid:
-        needs_update = True
-        print("needs update scene")
-
-    if needs_update:
-        cached_addon_metadata.CURRENT_SCENE_ID = (scene.name, scene.session_uid)
-        Wrapper_Runtime_Cache.set_cache(cache_key_metadata, cached_addon_metadata)
+    _update_addon_state_trackers(scene)

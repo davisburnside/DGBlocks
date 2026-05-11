@@ -9,8 +9,10 @@ import bpy # type: ignore
 class Global_Addon_State():
     POST_REG_INIT_HAS_RUN: bool = False
     ADDON_STARTED_SUCCESSFULLY: bool = False
-    CURRENT_SCENE_ID: tuple[str, str] = None
-    CURRENT_WORKSPACE_ID: tuple[str, str] = None
+    CURRENT_MODE: str = None
+    CURRENT_SCENE_ID: tuple[str, str] = None # (name, session_uid)
+    CURRENT_WORKSPACE_ID: tuple[str, str] = None # (name, session_uid)
+    CURRENT_ACTIVE_OBJ: tuple[str, str] = None # (name, session_uid)
 
 # ==============================================================================================================================
 # COMMON ENUMS

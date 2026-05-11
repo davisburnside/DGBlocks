@@ -24,6 +24,10 @@ class Core_Block_Hook_Sources(Enum):
     SCENE_MONITOR_DATA_BLOCKS_CHANGED = ("hook_scene_monitor_datablocks_changed", {"changes": dict})
     SCENE_MONITOR_SCENE_CHANGED = ("hook_scene_monitor_scene_changed", {"old_scene": str, "new_scene": str})
     SCENE_MONITOR_SCENE_OBJECTS_CHANGED = ("hook_scene_monitor_scene_objects_changed", {"changes": dict})
+    SCENE_MONITOR_ACTIVE_SCENE_CHANGED = ("hook_scene_monitor_active_scene_changed", {"old_id": tuple, "new_id": tuple})
+    SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED = ("hook_scene_monitor_active_workspace_changed", {"old_id": tuple, "new_id": tuple})
+    SCENE_MONITOR_ACTIVE_MODE_CHANGED = ("hook_scene_monitor_active_mode_changed", {"old_id": tuple, "new_id": tuple})
+    SCENE_MONITOR_ACTIVE_OBJ_CHANGED = ("hook_scene_monitor_active_obj_changed", {"old_id": tuple, "new_id": tuple})
 
 # name = logger ID
 # value[0] = logger display name & default level
@@ -31,7 +35,7 @@ class Core_Block_Hook_Sources(Enum):
 class Core_Block_Loggers(Enum):
     HOOKS = ("hooks", "INFO")
     BLOCK_MGMT = ("core-events", "DEBUG")
-    DATA_SYNC = ("data-sync", "DEBUG")
+    RTC_DATA_SYNC = ("data-sync", "DEBUG")
     REGISTRATE = ("register", "DEBUG")
     POST_REGISTRATE = ("post-reg", "DEBUG")
     UI = ("ui", "WARNING")
@@ -50,7 +54,6 @@ class Core_Runtime_Cache_Members(Enum):
     REGISTRY_ALL_HOOK_SUBSCRIBERS = ("REGISTRY_ALL_HOOK_SUBSCRIBERS", [])
     REGISTRY_ALL_LOGGERS = ("REGISTRY_ALL_LOGGERS", [])
     REGISTRY_ALL_TRACKED_DATABLOCK_TYPES = ("REGISTRY_ALL_TRACKED_DATABLOCK_TYPES", [])
-    SCENE_MONITOR_STATE = ("SCENE_MONITOR_STATE", {})
     META_REGISTRIES_BEING_SYNCED = ("META_REGISTRIES_BEING_SYNCED", [])
     UI_ALERTS = ("UI_ALERTS", {})
     UI_WORDWRAP_WIDTHS = ("UI_WORDWRAP_WIDTHS", {})
