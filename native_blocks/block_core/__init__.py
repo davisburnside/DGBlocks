@@ -6,18 +6,17 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_helpers import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...addon_helpers.data_structures import Core_Block_Tracked_Datablock_Types, Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
+from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Core block imports
 # --------------------------------------------------------------
 from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
-from .core_features.feature_logs import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL_Loggers, Wrapper_Loggers, get_logger
-from .core_features.feature_block_manager import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
-from .core_features.feature_hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
-from .core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from .core_features.feature_tracked_datablock_types import Wrapper_Tracked_Datablock_Types
+from .core_features.loggers import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL_Loggers, Wrapper_Loggers, get_logger
+from .core_features.control_plane import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
+from .core_features.hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
+from .core_features.runtime_cache import Wrapper_Runtime_Cache
 from .core_helpers.helper_uilayouts import uilayout_draw_core_block_settings
 
 # --------------------------------------------------------------
@@ -245,12 +244,6 @@ _feature_wrapper_classes_to_register = [
     Wrapper_Runtime_Cache,
     Wrapper_Loggers,
     Wrapper_Hooks,
-    Wrapper_Tracked_Datablock_Types,  
-]
-
-_tracked_datablocks = [
-    Core_Block_Tracked_Datablock_Types.SCENE,
-    Core_Block_Tracked_Datablock_Types.OBJECT
 ]
 
 def register_block(event: Enum_Sync_Events):
@@ -268,7 +261,6 @@ def register_block(event: Enum_Sync_Events):
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = _feature_wrapper_classes_to_register,
-        block_tracked_datablock_enums = _tracked_datablocks,
         block_RTC_member_enums = Core_Runtime_Cache_Members,
         block_hook_source_enums = Core_Block_Hook_Sources,
         block_logger_enums = Core_Block_Loggers 

@@ -13,8 +13,8 @@ from ....addon_helpers.generic_helpers import print_section_separator
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.feature_hooks import Wrapper_Hooks
-from ...block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ...block_core.core_features.hooks import Wrapper_Hooks
+from ...block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from ...block_core.core_helpers.constants import Core_Runtime_Cache_Members
 
 # --------------------------------------------------------------

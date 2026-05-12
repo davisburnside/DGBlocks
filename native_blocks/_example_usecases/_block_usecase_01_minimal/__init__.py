@@ -9,7 +9,7 @@ from ....addon_helpers.generic_helpers import get_self_block_module
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.feature_block_manager import Wrapper_Block_Management
+from ...block_core.core_features.control_plane import Wrapper_Block_Management
 
 # ==============================================================================================================================
 # BLOCK DEFINITION

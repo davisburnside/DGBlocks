@@ -12,10 +12,10 @@ from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addo
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import block_core
-from ..block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
-from ..block_core.core_features.feature_hooks import Wrapper_Hooks
-from ..block_core.core_features.feature_block_manager import Wrapper_Block_Management
-from ..block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
+from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
+from ..block_core.core_features.hooks import Wrapper_Hooks
+from ..block_core.core_features.control_plane import Wrapper_Block_Management
+from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------

@@ -2,7 +2,7 @@ import bpy
 import subprocess
 import json
 import os
-from ...native_blocks.block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ...native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 
 
 def run_blender_test(module_path, function_name, blend_path, addon_name):

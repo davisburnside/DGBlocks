@@ -11,8 +11,8 @@ from ....addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.feature_block_manager import Wrapper_Block_Management, RTC_Block_Instance
-from ...block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
+from ...block_core.core_features.control_plane import Wrapper_Block_Management, RTC_Block_Instance
+from ...block_core.core_features.loggers import Core_Block_Loggers, get_logger
 
 # --------------------------------------------------------------
 # Intra-block imports

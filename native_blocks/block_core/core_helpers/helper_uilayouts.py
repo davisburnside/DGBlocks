@@ -7,10 +7,10 @@ import bpy # type: ignore
 import blf # type: ignore
 
 from .constants import Core_Runtime_Cache_Members
-from ..core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from ..core_features.feature_hooks import _uilayout_draw_hooks_settings
-from ..core_features.feature_block_manager import _uilayout_draw_block_manager_settings
-from ..core_features.feature_logs import _uilayout_draw_logger_settings
+from ..core_features.runtime_cache import Wrapper_Runtime_Cache
+from ..core_features.hooks import _uilayout_draw_hooks_settings
+from ..core_features.control_plane import _uilayout_draw_block_manager_settings
+from ..core_features.loggers import _uilayout_draw_logger_settings
 
 def uilayout_template_columns_for_propertygroup(
         context:bpy.context, 

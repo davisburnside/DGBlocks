@@ -14,9 +14,9 @@ from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ..block_core.core_features.feature_runtime_cache  import Wrapper_Runtime_Cache
-from ..block_core.core_features.feature_hooks import Wrapper_Hooks
-from ..block_core.core_features.feature_logs import get_logger
+from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
+from ..block_core.core_features.hooks import Wrapper_Hooks
+from ..block_core.core_features.loggers import get_logger
 
 # --------------------------------------------------------------
 # Intra-block imports

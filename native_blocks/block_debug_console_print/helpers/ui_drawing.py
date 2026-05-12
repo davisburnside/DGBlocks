@@ -11,8 +11,8 @@ from ....addon_helpers.ui_drawing_helpers import create_ui_box_with_header, uila
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.feature_hooks import Wrapper_Hooks
-from ...block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
+from ...block_core.core_features.hooks import Wrapper_Hooks
+from ...block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from ...block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2
 from ...block_core.core_helpers.constants import _BLOCK_ID as core_block_id
 

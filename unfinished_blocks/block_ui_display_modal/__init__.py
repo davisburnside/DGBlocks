@@ -21,9 +21,9 @@ from ...my_addon_config import (
         addon_name, 
         addon_title,
         Documentation_URLs)
-from ...native_blocks.block_core.core_features.feature_runtime_cache import Wrapper_Runtime_Cache
-from ...native_blocks.block_core.core_features.feature_block_manager import Wrapper_Block_Management
-from ...native_blocks.block_core.core_features.feature_logs import get_logger
+from ...native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
+from ...native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
+from ...native_blocks.block_core.core_features.loggers import get_logger
 
 from .rendered_ui_modal import DGBLOCKS_DISPLAY_MODAL_PROPS, DGBLOCKS_OT_DisplayModal, DGBLOCKS_PT_Modal_Display
 

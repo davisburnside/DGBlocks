@@ -11,8 +11,8 @@ from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_p
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.feature_block_manager import Wrapper_Block_Management
-from ...block_core.core_features.feature_logs import Core_Block_Loggers, get_logger
+from ...block_core.core_features.control_plane import Wrapper_Block_Management
+from ...block_core.core_features.loggers import Core_Block_Loggers, get_logger
 
 # --------------------------------------------------------------
 # Intra-block imports
