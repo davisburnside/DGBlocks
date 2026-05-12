@@ -13,7 +13,7 @@ from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addo
 from ...native_blocks import block_core
 from ...native_blocks.block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ...native_blocks.block_core.core_features.hooks import Wrapper_Hooks
-from ...native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
+from ...native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
 from ...native_blocks.block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
@@ -73,7 +73,7 @@ class DGBLOCKS_PT_Unit_Test_Panel(bpy.types.Panel):
     
     # @classmethod
     # def poll(cls, context):
-    #     return Wrapper_Block_Management.is_block_enabled(_BLOCK_ID)
+    #     return Wrapper_Control_Plane.is_block_enabled(_BLOCK_ID)
 
     def draw_header(self, context):
 
@@ -100,8 +100,8 @@ def register_block():
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
     # Register all block classes & components
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
-    Wrapper_Block_Management.create_instance(
+    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
+    Wrapper_Control_Plane.create_instance(
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
     )
@@ -113,6 +113,6 @@ def unregister_block():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+    Wrapper_Control_Plane.destroy_instance(_BLOCK_ID)
     
     logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")

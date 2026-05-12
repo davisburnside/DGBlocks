@@ -15,7 +15,7 @@ from ...my_addon_config import Documentation_URLs, should_show_developer_ui_pane
 from .. import block_core
 from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ..block_core.core_features.hooks import Wrapper_Hooks
-from ..block_core.core_features.control_plane import Wrapper_Block_Management
+from ..block_core.core_features.control_plane import Wrapper_Control_Plane
 from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 
@@ -65,8 +65,8 @@ def register_block():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
     
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
-    Wrapper_Block_Management.create_instance(
+    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
+    Wrapper_Control_Plane.create_instance(
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = [Wrapper_Modals_Manager], 
@@ -87,7 +87,7 @@ def unregister_block():
     
     
     # Remove block components from RTC
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+    Wrapper_Control_Plane.destroy_instance(_BLOCK_ID)
     
     # Delete Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_modal_props"):

@@ -102,7 +102,7 @@ Rules:
 
 - Enum member names are `SCREAMING_SNAKE_CASE`.
 - Enum values are unique tuples; duplicate enum values alias in Python.
-- Pass enum classes verbatim to `Wrapper_Block_Management.create_instance(...)`.
+- Pass enum classes verbatim to `Wrapper_Control_Plane.create_instance(...)`.
 - Use enum members for hook names, logger IDs, and RTC keys — __never string literals__.
 
 Hook rules:
@@ -134,15 +134,15 @@ def unregister_block(event: Enum_Sync_Events): ...
 
 `register_block(event)`:
 
-1. Gets `block_module = get_self_block_module(block_manager_wrapper=Wrapper_Block_Management)`.
-2. Calls `Wrapper_Block_Management.create_instance(event, block_module=..., block_bpy_types_classes=..., block_feature_wrapper_classes=..., block_hook_source_enums=..., block_RTC_member_enums=..., block_logger_enums=...)`.
+1. Gets `block_module = get_self_block_module(block_manager_wrapper=Wrapper_Control_Plane)`.
+2. Calls `Wrapper_Control_Plane.create_instance(event, block_module=..., block_bpy_types_classes=..., block_feature_wrapper_classes=..., block_hook_source_enums=..., block_RTC_member_enums=..., block_logger_enums=...)`.
 3. Attaches block PropertyGroups to `bpy.types.Scene` with `PointerProperty` if needed.
 4. `init_post_bpy(event)` is deferred until `bpy.context` is ready, then `hook_post_register_init` fires.
 
 `unregister_block(event)`:
 
 1. Destroys wrappers/runtime resources through block management.
-2. Calls `Wrapper_Block_Management.destroy_instance(event, block_id=_BLOCK_ID)`.
+2. Calls `Wrapper_Control_Plane.destroy_instance(event, block_id=_BLOCK_ID)`.
 3. Deletes Scene properties with `hasattr(bpy.types.Scene, "...")` guards.
 
 # 10. NAMING, IMPORT, UI, OPERATOR CONVENTIONS
@@ -203,6 +203,6 @@ Expected Blender smoke test when possible:
 - Do not use `magic string` literals for hook names, RTC keys, or logger IDs outside enums.
 - Do not use `print()` for diagnostics; use loggers.
 - Do not cache `bpy.types.ID` objects in RTC; cache names/paths and re-resolve.
-- Do not register bpy classes outside `Wrapper_Block_Management` / `_block_classes_to_register` flow.
+- Do not register bpy classes outside `Wrapper_Control_Plane` / `_block_classes_to_register` flow.
 - Do not let wrapper exceptions escape into Blender event callbacks; log and degrade except during registration, where block management handles failures.
 - Do not silently catch `Exception`; always log at minimum. '@ | Set-Content -Path 'Developer/AI_Assist/Summarized_Memory_Bank.md' -Encoding UTF8"

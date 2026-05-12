@@ -11,7 +11,7 @@ from ....addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.control_plane import Wrapper_Block_Management, RTC_Block_Instance
+from ...block_core.core_features.control_plane import Wrapper_Control_Plane, RTC_Block_Instance
 from ...block_core.core_features.loggers import Core_Block_Loggers, get_logger
 
 # --------------------------------------------------------------
@@ -111,8 +111,8 @@ def register_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management)
-    Wrapper_Block_Management.create_instance(
+    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane)
+    Wrapper_Control_Plane.create_instance(
         event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
@@ -129,7 +129,7 @@ def unregister_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
+    Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
 
     if hasattr(bpy.types.Scene, "dgblocks_example_simple_2_props"):
         del bpy.types.Scene.dgblocks_example_simple_2_props

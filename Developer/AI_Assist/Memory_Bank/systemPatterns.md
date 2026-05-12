@@ -77,7 +77,7 @@ def unregister_block(event):  ...           # Tears it down
 
 `register_block` and `unregister_block` must accept a single positional arg
 `event: Enum_Sync_Events`. Most of the time, that argument is just passed
-through to `Wrapper_Block_Management.create_instance()` /
+through to `Wrapper_Control_Plane.create_instance()` /
 `destroy_instance()`.
 
 Optional but commonly present:
@@ -367,7 +367,7 @@ class Block_RTC_Members(Enum):
 - All three enum *names* are in `SCREAMING_SNAKE_CASE`.
 - Enum *values* are unique tuples (Python aliases enums with duplicate values).
 - The first enum member should be the most-fundamental one.
-- These enums are passed verbatim into `Wrapper_Block_Management.create_instance(...)`.
+- These enums are passed verbatim into `Wrapper_Control_Plane.create_instance(...)`.
 
 ---
 
@@ -390,8 +390,8 @@ def register_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
-    block_module = get_self_block_module(block_manager_wrapper=Wrapper_Block_Management)
-    Wrapper_Block_Management.create_instance(
+    block_module = get_self_block_module(block_manager_wrapper=Wrapper_Control_Plane)
+    Wrapper_Control_Plane.create_instance(
         event,
         block_module                  = block_module,
         block_bpy_types_classes       = _block_classes_to_register,
@@ -410,7 +410,7 @@ def unregister_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(event, block_id=_BLOCK_ID)
+    Wrapper_Control_Plane.destroy_instance(event, block_id=_BLOCK_ID)
 
     if hasattr(bpy.types.Scene, "<addon>_<block>_props"):
         del bpy.types.Scene.<addon>_<block>_props
@@ -719,7 +719,7 @@ if name not in registry:
   loop. `try/except/log/continue` instead.
 - `finally` blocks reset re-entrancy flags and counters even on exception.
 - An exception during *registration* should be logged with `exc_info=True` and
-  *should* propagate — `Wrapper_Block_Management` will catch and log
+  *should* propagate — `Wrapper_Control_Plane` will catch and log
   per-block, marking the block invalid rather than aborting the whole addon.
 
 ---

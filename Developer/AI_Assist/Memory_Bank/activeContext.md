@@ -37,7 +37,7 @@ The author should pick a single canonical form and propagate it.
    - `block_core` and `block_debug_console_print` accept
      `event: Enum_Sync_Events`.
    - `block_onscreen_drawing` accepts no args.
-   - `Wrapper_Block_Management.evaluate_and_update_block_statuses` calls
+   - `Wrapper_Control_Plane.evaluate_and_update_block_statuses` calls
      `block.register_block(event)`, so the no-arg version will break runtime
      enable/disable.
    - **Resolution:** all `register_block` / `unregister_block` should accept
@@ -66,7 +66,7 @@ The author should pick a single canonical form and propagate it.
    parameter-less. Convention says hooks with no kwargs declare an empty dict
    — this is fine, just noting it for the authoring guide.
 
-7. **`Wrapper_Block_Management.is_block_enabled` calls `cls.get_block_instance(block_id)`
+7. **`Wrapper_Control_Plane.is_block_enabled` calls `cls.get_block_instance(block_id)`
    which raises** instead of returning `None` for unknown blocks. The verb
    table in `systemPatterns.md` §4.3 says `get_*` should return `None`.
    Either rename to `determine_block_instance` (raising) or change the

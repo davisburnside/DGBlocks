@@ -14,7 +14,7 @@ from ...my_addon_config import Documentation_URLs, should_show_developer_ui_pane
 # --------------------------------------------------------------
 from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
 from .core_features.loggers import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL_Loggers, Wrapper_Loggers, get_logger
-from .core_features.control_plane import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Block_Management
+from .core_features.control_plane import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Control_Plane
 from .core_features.hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
 from .core_features.runtime_cache import Wrapper_Runtime_Cache
 from .core_helpers.helper_uilayouts import uilayout_draw_core_block_settings
@@ -159,7 +159,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
 
             # Use Block-mgmt FWC's native restoration feature
             elif self.action == "RESTORE":
-                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
+                Wrapper_Control_Plane.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
 
         # Clear or restore Blender data, RTC is unaffected
         if self.target == "BL":
@@ -171,7 +171,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
                         print(f"Clearing RTC list {cache_key}")
                         Wrapper_Runtime_Cache.set_cache(cache_key, [])
             elif self.action == "RESTORE":
-                Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
+                Wrapper_Control_Plane.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
 
         return {"FINISHED"}
 
@@ -240,7 +240,7 @@ _block_classes_to_register = [
 
 # All core-block feature wrapper
 _feature_wrapper_classes_to_register = [
-    Wrapper_Block_Management,
+    Wrapper_Control_Plane,
     Wrapper_Runtime_Cache,
     Wrapper_Loggers,
     Wrapper_Hooks,
@@ -252,11 +252,11 @@ def register_block(event: Enum_Sync_Events):
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
     initial_state = Global_Addon_State()
-    # Wrapper_Block_Management.set
+    # Wrapper_Control_Plane.set
 
     # Register all block classes & components
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
-    Wrapper_Block_Management.create_instance(
+    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
+    Wrapper_Control_Plane.create_instance(
         event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
@@ -276,7 +276,7 @@ def unregister_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
+    Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
     
     # Delete block-core Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_core_props"):

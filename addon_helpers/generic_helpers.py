@@ -83,7 +83,7 @@ def get_self_block_module(block_manager_wrapper: ModuleType):
     block_module = inspect.getmodule(caller_frame.frame)
     # _is_valid = len(block_manager_wrapper.validate_block_list_before_registration([block_module])) == 1
     # if not _is_valid:
-    #     raise Exception("Wrapper_Block_Management.create_instance must be called directly from a Block's main '__init__.py' Module")
+    #     raise Exception("Wrapper_Control_Plane.create_instance must be called directly from a Block's main '__init__.py' Module")
     return block_module
         
 def get_block_module_by_id(block_id: str, registered_blocks: List[ModuleType]) -> ModuleType:

@@ -60,7 +60,7 @@
 ## What Works End-to-End Today
 
 - Addon installs; `block_core` registers; `Wrapper_Runtime_Cache`,
-  `Wrapper_Loggers`, `Wrapper_Hooks`, `Wrapper_Block_Management` all bootstrap.
+  `Wrapper_Loggers`, `Wrapper_Hooks`, `Wrapper_Control_Plane` all bootstrap.
 - A block declared in `_ordered_blocks_list` gets validated, its bpy classes
   registered, its FWCs init'd, its loggers/hooks/RTC slots created.
 - BL↔RTC sync round-trips on file-load and on undo/redo.

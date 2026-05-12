@@ -1,6 +1,3 @@
-# ==============================================================================================================================
-# IMPORTS
-# ==============================================================================================================================
 
 from abc import ABC
 import inspect
@@ -10,49 +7,58 @@ from enum import Enum
 import bpy  # type: ignore
 from bpy.app.handlers import persistent  # type: ignore
 
-# --------------------------------------------------------------
 # Addon-level imports
-# --------------------------------------------------------------
 from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from .....addon_helpers.data_tools import fast_deepcopy_with_fallback, reset_propertygroup
 from .....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
 
-# --------------------------------------------------------------
 # Intra-block imports
-# --------------------------------------------------------------
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ...core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..runtime_cache import Wrapper_Runtime_Cache
 from ..loggers import Wrapper_Loggers, get_logger
 from ..hooks import Wrapper_Hooks
-from .data_structures import (
-    RTC_Block_Instance,
-    rtc_sync_key_fields,
-    rtc_sync_data_fields,
-    msgbus_subs,
-)
+from .data_structures import RTC_Block_Instance, rtc_sync_key_fields, rtc_sync_data_fields
+from .app_handlers import  _callback_redo_post, _callback_undo_post, _callback_depsgraph_post
+from .msgbus import clear_msgbuses, add_msgbuses, msgbus_subs
 
-# --------------------------------------------------------------
 # Aliases
-# --------------------------------------------------------------
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
-cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
 enum_hook_blocks_registered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_REGISTERED
 enum_hook_blocks_unregistered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_UNREGISTERED
-enum_hook_undo = Core_Block_Hook_Sources.CORE_EVENT_POST_UNDO
-enum_hook_redo = Core_Block_Hook_Sources.CORE_EVENT_POST_REDO
-enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SCENE_CHANGED
-enum_hook_active_workspace_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED
-enum_hook_active_mode_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_CHANGED
-enum_hook_active_obj_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_OBJ_CHANGED
 
 # ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
-# ==============================================================================================================================
 
-class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager):
+def _delayed_callback_load_post():
+    """
+    Timer callback for deferred initialization.
+    If not ready, returns 0.1 to retry in 0.1 seconds. Returns None when done.
+    """
+    if not is_bpy_ready():
+        return 0.1  # Try again in 0.1 seconds
+    logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
+    logger.debug(f"Calling core init logic from _delayed_callback_load_post")
+    Wrapper_Control_Plane.init_post_bpy(event=Enum_Sync_Events.ADDON_INIT)
+    return None
+
+
+@persistent
+def _callback_load_post(dummy):
+    """
+    Persistent handler called on file load events.
+    """
+    if is_bpy_ready():
+        logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
+        logger.debug(f"Calling core init logic from @persistent '_callback_load_post'")
+        Wrapper_Control_Plane.init_post_bpy(event=Enum_Sync_Events.ADDON_INIT)
+
+# ==============================================================================================================================
+# MODULE MAIN FEATURE WRAPPER CLASS
+
+class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager):
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Feature_Wrapper
@@ -65,7 +71,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         """
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.debug("Running pre-bpy init for Wrapper_Block_Management")
+        logger.debug("Running pre-bpy init for Wrapper_Control_Plane")
 
         # Write initial addon state to RTC. It will be updated again after init is finished
         initial_state = Global_Addon_State()
@@ -110,11 +116,11 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
         """
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-        logger.debug("Running post-bpy init for Wrapper_Block_Management")
+        logger.debug("Running post-bpy init for Wrapper_Control_Plane")
 
         ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
         if ADDON_METADATA.POST_REG_INIT_HAS_RUN:
-            logger.info("Already completed post-bpy init for Wrapper_Block_Management, returning early")
+            logger.info("Already completed post-bpy init for Wrapper_Control_Plane, returning early")
             return
 
         # (Debugging) clear all saved properties if needed
@@ -158,15 +164,8 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 5: Subscribe msgbus scene-change listener on all open windows
-        cls.clear_msgbuses(msgbus_subs)
-        for (msbus_owner, msgbus_key, msgbus_callback) in msgbus_subs:
-            logger.info(f"Registering msgbus listener for {msgbus_key}")
-            bpy.msgbus.subscribe_rna(
-                key=msgbus_key,
-                owner=msbus_owner,
-                args=(),
-                notify=msgbus_callback,
-            )
+        clear_msgbuses(msgbus_subs)
+        add_msgbuses(msgbus_subs)
         logger.info("msgbus scene-change listener registered")
 
         # ----------------------------------------------------------------------------------------------------------------------------
@@ -208,7 +207,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
 
         # Remove msgbus scene-change listener
-        cls.clear_msgbuses(msgbus_subs)
+        clear_msgbuses(msgbus_subs)
         logger.debug("msgbus scene-change listener cleared")
 
     # --------------------------------------------------------------
@@ -350,7 +349,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
 
         # BL->RTC Sync
         update_dataclasses_to_match_collectionprop(
-            actual_FWC=Wrapper_Block_Management,
+            actual_FWC=Wrapper_Control_Plane,
             source=scene_blocks,
             target=cached_blocks,
             key_fields=rtc_sync_key_fields,
@@ -394,6 +393,14 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
     # ------------------------------------------------------------------
     # Funcs specific to this class
     # ------------------------------------------------------------------
+
+
+
+
+
+
+
+
 
     @classmethod
     def validate_block_list_before_registration(cls, blocks_to_register: list[any]) -> list[any]:
@@ -653,11 +660,11 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
     def evaluate_and_update_block_statuses(cls, event):
 
         # Update RTC to match Blender/UI
-        Wrapper_Block_Management.update_RTC_with_mirrored_BL_data(event)
+        Wrapper_Control_Plane.update_RTC_with_mirrored_BL_data(event)
 
         # Update enabled/disabled status for all block instances
         cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-        blocks_to_enable, blocks_to_disable = Wrapper_Block_Management.determine_blocks_to_update_status(cached_blocks)
+        blocks_to_enable, blocks_to_disable = Wrapper_Control_Plane.determine_blocks_to_update_status(cached_blocks)
 
         for block in blocks_to_enable:
             block.block_module.register_block(event)
@@ -666,7 +673,7 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
             block.block_module.unregister_block(event)
 
         # Apply changes back to mirrored Blender data
-        Wrapper_Block_Management.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
+        Wrapper_Control_Plane.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
 
         # Final step: Run hook to notify subscribers of block registration/unregistration
         if len(blocks_to_enable) > 0:
@@ -726,200 +733,3 @@ class Wrapper_Block_Management(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sy
                     actual_class.update_RTC_with_mirrored_BL_data(event)
             except Exception:
                 logger.error(f"Exception during RTC sync for '{src_block_id}'", exc_info=True)
-
-    @classmethod
-    def clear_msgbuses(cls, msgbus_subs: list[tuple]):
-
-        for msgbus_owner, msgbus_key, _ in msgbus_subs:
-            try:
-                print(f"clearing msgbus {msgbus_key}")
-                bpy.msgbus.clear_by_owner(msgbus_owner)
-            except Exception as e:
-                print(e)
-
-    @classmethod
-    def add_msgbuses(cls, msgbus_subs: list[tuple]):
-
-        for (msbus_owner, msgbus_key, msgbus_callback) in msgbus_subs:
-            print(f"Registering msgbus listener for {msgbus_key}")
-            bpy.msgbus.subscribe_rna(
-                key=msgbus_key,
-                owner=msbus_owner,
-                args=(),
-                notify=msgbus_callback,
-            )
-
-# ==============================================================================================================================
-# PRIVATE API — init/load/undo/redo/depsgraph callbacks
-# ==============================================================================================================================
-
-# --------------------------------------------------------------
-# Startup / New file load callbacks
-# --------------------------------------------------------------
-
-def _delayed_callback_load_post():
-    """
-    Timer callback for deferred initialization.
-    If not ready, returns 0.1 to retry in 0.1 seconds. Returns None when done.
-    """
-    if not is_bpy_ready():
-        return 0.1  # Try again in 0.1 seconds
-    logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-    logger.debug(f"Calling core init logic from _delayed_callback_load_post")
-    Wrapper_Block_Management.init_post_bpy(event=Enum_Sync_Events.ADDON_INIT)
-    return None
-
-
-@persistent
-def _callback_load_post(dummy):
-    """
-    Persistent handler called on file load events.
-    """
-    if is_bpy_ready():
-        logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-        logger.debug(f"Calling core init logic from @persistent '_callback_load_post'")
-        Wrapper_Block_Management.init_post_bpy(event=Enum_Sync_Events.ADDON_INIT)
-
-# --------------------------------------------------------------
-# Undo / redo callbacks
-# --------------------------------------------------------------
-
-@persistent
-def _callback_undo_post(dummy):
-    """
-    Called by Blender after an undo operation.
-    Scene properties have reverted — rebuild RTC from them.
-    """
-    if not is_bpy_ready():
-        return
-
-    logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-    logger.debug("'Undo' event")
-
-    # 1: FWCs with BL<->RTC data sync to process UNDO event first
-    Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
-
-    # 2: Blocks with UNDO hook subscription to process last
-    _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name=enum_hook_undo)
-
-
-@persistent
-def _callback_redo_post(dummy):
-    """
-    Called by Blender after a redo operation.
-    Scene properties have changed — rebuild RTC from them.
-    """
-    if not is_bpy_ready():
-        return
-    logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-    logger.debug("'Redo' event")
-
-    # 1: FWCs with BL<->RTC data sync to process REDO event first
-    Wrapper_Block_Management.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
-
-    # 2: Blocks with REDO hook subscription to process last
-    _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name=enum_hook_redo)
-
-# --------------------------------------------------------------
-# Depsgraph update callbacks — Scene Monitor
-# --------------------------------------------------------------
-
-def _update_addon_state_trackers(scene):
-    """
-    Update all Global_Addon_State context trackers stored in ADDON_METADATA.
-    Called once per depsgraph_update_post tick, after the early-return guard.
-    """
-    logger = get_logger(Core_Block_Loggers.SCENE_MONITOR)
-    metadata = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
-
-    try:
-        ctx = bpy.context
-
-        # CURRENT_SCENE_ID
-        new_scene_id = (scene.name, scene.session_uid)
-        if metadata.CURRENT_SCENE_ID != new_scene_id:
-            old_id = metadata.CURRENT_SCENE_ID
-            metadata.CURRENT_SCENE_ID = new_scene_id
-            logger.debug(f"Active scene changed: {old_id} -> {new_scene_id}")
-            Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name=enum_hook_active_scene_changed,
-                old_id=old_id,
-                new_id=new_scene_id,
-            )
-
-        # CURRENT_WORKSPACE_ID
-        ws = ctx.workspace
-        new_ws_id = (ws.name, ws.session_uid) if ws else None
-        if metadata.CURRENT_WORKSPACE_ID != new_ws_id:
-            old_id = metadata.CURRENT_WORKSPACE_ID
-            metadata.CURRENT_WORKSPACE_ID = new_ws_id
-            logger.debug(f"Active workspace changed: {old_id} -> {new_ws_id}")
-            Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name=enum_hook_active_workspace_changed,
-                old_id=old_id,
-                new_id=new_ws_id,
-            )
-
-        # CURRENT_MODE
-        if metadata.CURRENT_MODE != ctx.mode:
-            old_id = metadata.CURRENT_MODE
-            metadata.CURRENT_MODE = ctx.mode
-            logger.debug(f"Active mode changed: {old_id} -> {ctx.mode}")
-            Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name=enum_hook_active_mode_changed,
-                old_id=old_id,
-                new_id=ctx.mode,
-            )
-
-        # CURRENT_ACTIVE_OBJ
-        active_obj = ctx.active_object
-        new_active_id = (active_obj.name, active_obj.session_uid) if active_obj else None
-        if metadata.CURRENT_ACTIVE_OBJ != new_active_id:
-            old_id = metadata.CURRENT_ACTIVE_OBJ
-            metadata.CURRENT_ACTIVE_OBJ = new_active_id
-            logger.debug(f"Active object changed: {old_id} -> {new_active_id}")
-            Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name=enum_hook_active_obj_changed,
-                old_id=old_id,
-                new_id=new_active_id,
-            )
-
-        Wrapper_Runtime_Cache.set_cache(cache_key_metadata, metadata)
-
-    except Exception:
-        logger.error("Exception in _update_addon_state_trackers", exc_info=True)
-
-
-def _reset_scene_monitor_state(scene_name: str):
-    """
-    Reset the scene monitor RTC state to defaults.
-    """
-    initial_state = {
-        'current_scene': scene_name,
-        'snapshots': {},
-        'pointer_maps': {},
-        'scene_objects': set(),
-    }
-    Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE, initial_state)
-
-
-def _ensure_scene_monitor_state(scene_name: str):
-    """
-    Get or initialize the scene monitor state from RTC.
-    Returns the state dict.
-    """
-    state = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE)
-    if state is None or len(state) == 0:
-        _reset_scene_monitor_state(scene_name)
-        state = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SCENE_MONITOR_STATE)
-    return state
-
-
-@persistent
-def _callback_depsgraph_post(scene, depsgraph):
-
-    ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
-    if not (ADDON_METADATA.POST_REG_INIT_HAS_RUN and ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY):
-        return
-
-    _update_addon_state_trackers(scene)

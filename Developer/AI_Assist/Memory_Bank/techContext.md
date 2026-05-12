@@ -50,7 +50,7 @@ It is bundled with Blender, so importing it is safe.
 | `bpy.types.{Operator, Panel, UIList, AddonPreferences, Menu}` | Per the prefix table in `systemPatterns.md` §4.4 |
 | `bpy.app.handlers.{load_post, undo_post, redo_post}` | Lifecycle hooks consolidated in core-block |
 | `bpy.app.timers` | Deferred post-bpy init when `load_post` doesn't fire |
-| `bpy.utils.{register_class, unregister_class}` | Always called from `Wrapper_Block_Management` |
+| `bpy.utils.{register_class, unregister_class}` | Always called from `Wrapper_Control_Plane` |
 | `bpy.types.SpaceView3D.draw_handler_add/remove` | Onscreen drawing block |
 | `gpu`, `gpu_extras.batch.batch_for_shader`, `mathutils` | Shader feature only |
 
@@ -99,7 +99,7 @@ native_blocks/
       feature_runtime_cache.py     Wrapper_Runtime_Cache (thread-safe, atomic dict)
       feature_logs.py              Wrapper_Loggers, get_logger, DGBLOCKS_PG_Logger_Instance
       feature_hooks.py             Wrapper_Hooks, run_hooked_funcs, hook_data_filter
-      feature_block_manager.py     Wrapper_Block_Management, RTC_Block_Instance,
+      feature_block_manager.py     Wrapper_Control_Plane, RTC_Block_Instance,
                                    load/undo/redo callbacks
   block_debug_console_print/   Pretty-prints any block's state via hook
   block_onscreen_drawing/      Draw handlers + GPU shader manager
@@ -131,7 +131,7 @@ Developer/
 | Logging | `block-core` | `get_logger(enum)` → wrapped `logging.Logger` |
 | Runtime Cache | `block-core` | `Wrapper_Runtime_Cache.{get_cache, set_cache, create_cache, remove_cache, flag_cache_as_syncing, ...}` |
 | Hook dispatch | `block-core` | `Wrapper_Hooks.run_hooked_funcs(...)`, `@hook_data_filter` |
-| Block lifecycle | `block-core` | `Wrapper_Block_Management.{create_instance, destroy_instance, ...}` |
+| Block lifecycle | `block-core` | `Wrapper_Control_Plane.{create_instance, destroy_instance, ...}` |
 | BL↔RTC sync helpers | `block-core` | `update_dataclasses_to_match_collectionprop`, `update_collectionprop_to_match_dataclasses` |
 | Pretty-print debugging | `block-debug-console-print` | The `DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics` operator + `make_pretty_json_string_from_data` |
 | GPU draw + shaders | `block-onscreen-drawing` | `Wrapper_Draw_Handlers.{enable_draw_handler, disable_draw_handler, add_shader}`, `Shader_Instance` |

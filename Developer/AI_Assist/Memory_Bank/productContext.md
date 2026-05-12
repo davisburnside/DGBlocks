@@ -23,12 +23,12 @@ data. Steps in order:
 
 1. **Bootstrap core feature wrappers** that are needed before any logger/RTC
    call: `Wrapper_Runtime_Cache`, then `Wrapper_Loggers`.
-2. **Bootstrap `Wrapper_Block_Management`.**
+2. **Bootstrap `Wrapper_Control_Plane`.**
 3. **Validate the ordered block list.** A block is rejected if it's missing
    `_BLOCK_ID`, `_BLOCK_VERSION`, `_BLOCK_DEPENDENCIES`, `register_block`, or
    `unregister_block`, or if a declared dependency isn't already registered.
 4. **For each valid block, call `block.register_block(event)`.** Inside, the
-   block calls `Wrapper_Block_Management.create_instance(...)`, which:
+   block calls `Wrapper_Control_Plane.create_instance(...)`, which:
    - Registers all `bpy.types.*` classes
    - Calls `init_pre_bpy()` on each Feature Wrapper Class (FWC)
    - Caches the block's metadata in the RTC
@@ -44,7 +44,7 @@ prevents the second from running:
 - `bpy.app.timers.register(...)` polled every 0.1s — fires for "new file"
   startup, where `load_post` doesn't run.
 
-Once `bpy.context` is ready, `Wrapper_Block_Management.init_post_bpy()`:
+Once `bpy.context` is ready, `Wrapper_Control_Plane.init_post_bpy()`:
 
 1. Performs the initial RTC↔Blender two-way sync (Blender is source of truth).
 2. Calls `init_post_bpy(event)` on every registered FWC, in deterministic
@@ -71,7 +71,7 @@ This includes all hook/logger/RTC components of a block.
 
 ### Phase F — `unregister()`
 Blocks unregister in **reverse order** of registration. Each block calls
-`Wrapper_Block_Management.destroy_instance(...)`, which:
+`Wrapper_Control_Plane.destroy_instance(...)`, which:
 
 1. Unregisters all bpy classes.
 2. Calls `destroy_wrapper()` on each FWC.

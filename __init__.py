@@ -43,7 +43,7 @@ from .addon_helpers.data_structures import Enum_Sync_Events
 from .my_activated_blocks import _ordered_blocks_list
 from .my_addon_config import addon_name
 
-from .native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
+from .native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
 from .native_blocks.block_core.core_features.loggers import Wrapper_Loggers, get_logger
 from .native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
@@ -67,11 +67,11 @@ def register():
     logger.log_with_linebreak(f"Starting main pre-bpy registration for Addon '{addon_name}'")
 
     # Block Managmenet feature-wrapper is created next, and is used immediately after (Triggers init tasks on other core-block features)
-    Wrapper_Block_Management.init_pre_bpy(event)
+    Wrapper_Control_Plane.init_pre_bpy(event)
 
     # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
     # Causes of invalid blocks: TODO webpage link
-    valid_block_packages = Wrapper_Block_Management.validate_block_list_before_registration(_ordered_blocks_list)
+    valid_block_packages = Wrapper_Control_Plane.validate_block_list_before_registration(_ordered_blocks_list)
 
     # Call registration logic of each block, in order. Core-block should always be first in this list
     # Most init tasks for core-block features are already completed by this point, but 
@@ -101,7 +101,7 @@ def unregister():
             logger.error(f"Exception when unregistering block '{block._BLOCK_ID}': ", exc_info = True)
 
     # Block-manager does cleanup tasks for itself & all other core-block features
-    Wrapper_Block_Management.destroy_wrapper(event)
+    Wrapper_Control_Plane.destroy_wrapper(event)
     
     try:
         logger.log_with_linebreak(f"Finished main unregistration for Addon '{addon_name}'")

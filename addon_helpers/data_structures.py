@@ -111,7 +111,7 @@ class Core_Block_Tracked_Datablock_Types(Enum):
 
 class Abstract_Feature_Wrapper(ABC):
     # Inhertited by all FWCs. 
-    # Each FWC's Init/Destroy functions are automatically called during startup/shutdown events by Wrapper_Block_Management.
+    # Each FWC's Init/Destroy functions are automatically called during startup/shutdown events by Wrapper_Control_Plane.
 
     @classmethod
     @abstractmethod
@@ -138,7 +138,7 @@ class Abstract_Feature_Wrapper(ABC):
         pass
 
 class Abstract_BL_RTC_List_Syncronizer(ABC):
-    # All functions are optional. If not implemented, Wrapper_Block_Management handles logic
+    # All functions are optional. If not implemented, Wrapper_Control_Plane handles logic
     # Inhertited by all FWCs that sync data between the RTC and Blender (Scene, Preferences, WindowManager, Object... almost any bpy.* object )
     # Children of this class will automatically update RTC data with Blender's source-of-truth upon UNDO/REDO events
 
@@ -154,7 +154,7 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
     @abstractmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
         # Optional func: if not implemented in the FWC, context.scene is used (Where BL-mirrored data commonly lives)
-        # Used by Wrapper_Block_Management on undo/redo/load, and by certain property update callbacks
+        # Used by Wrapper_Control_Plane on undo/redo/load, and by certain property update callbacks
         # Rebuild an RTC list from the child propertygroup of a parent propertygroup/datablock. Blender is the source of truth
         # Args must match exactly
         # Returns are ignored

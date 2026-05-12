@@ -19,7 +19,7 @@ from ...native_blocks.block_core import Abstract_Datawrapper_Instance_Manager
 from ...native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from ...native_blocks.block_core.core_features.hooks import Wrapper_Hooks
 from ...native_blocks.block_core.core_features.loggers import get_logger
-from ...native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
+from ...native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -198,7 +198,7 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         """
         Called once bpy.context is available (post-register hook).
         Loads saved timer definitions from scene properties into RTC.
-        Registers this wrapper with Wrapper_Block_Management for undo/redo/load sync.
+        Registers this wrapper with Wrapper_Control_Plane for undo/redo/load sync.
         """
         scene = bpy.context.scene
         logger = get_logger(Block_Logger_Definitions.TIMER_LIFECYCLE)
@@ -206,12 +206,12 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cls.update_BL_with_mirrored_RTC_data(scene)
         
         # Register for automatic undo/redo/load sync
-        Wrapper_Block_Management.destroy_instance(
+        Wrapper_Control_Plane.destroy_instance(
             block_id="block-stable-timers",
             wrapper_class=cls,
             scene_propgroup_attr="dgblocks_timer_props",
         )
-        Wrapper_Block_Management.ensure_sync_toggle_exists(scene, "block-stable-timers")
+        Wrapper_Control_Plane.ensure_sync_toggle_exists(scene, "block-stable-timers")
         
         logger.info("Timer_Wrapper.init_post_bpy: done")
         return True
@@ -256,7 +256,7 @@ class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def update_BL_with_mirrored_RTC_data(cls, scene) -> None:
         """
         Rebuild RTC from scene properties. Scene is the source of truth.
-        Called by Wrapper_Block_Management on undo/redo/load, and by property update callbacks.
+        Called by Wrapper_Control_Plane on undo/redo/load, and by property update callbacks.
         Implements Abstract_Feature_Wrapper.update_BL_with_mirrored_RTC_data.
         """
         pass

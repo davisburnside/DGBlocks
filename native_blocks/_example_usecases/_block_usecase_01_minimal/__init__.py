@@ -9,7 +9,7 @@ from ....addon_helpers.generic_helpers import get_self_block_module
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.control_plane import Wrapper_Block_Management
+from ...block_core.core_features.control_plane import Wrapper_Control_Plane
 
 # ==============================================================================================================================
 # BLOCK DEFINITION
@@ -26,12 +26,12 @@ _BLOCK_DEPENDENCIES = ["block-core"]
 _block_classes_to_register = []
 
 def register_block(event: Enum_Sync_Events):
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management)
-    Wrapper_Block_Management.create_instance(
+    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane)
+    Wrapper_Control_Plane.create_instance(
         event,
         block_module = block_module,
         block_bpy_types_classes = _block_classes_to_register,
     )
 
 def unregister_block(event: Enum_Sync_Events):
-    Wrapper_Block_Management.destroy_instance(event, block_id = _BLOCK_ID)
+    Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)

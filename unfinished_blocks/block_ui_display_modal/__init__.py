@@ -22,7 +22,7 @@ from ...my_addon_config import (
         addon_title,
         Documentation_URLs)
 from ...native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
-from ...native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
+from ...native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
 from ...native_blocks.block_core.core_features.loggers import get_logger
 
 from .rendered_ui_modal import DGBLOCKS_DISPLAY_MODAL_PROPS, DGBLOCKS_OT_DisplayModal, DGBLOCKS_PT_Modal_Display
