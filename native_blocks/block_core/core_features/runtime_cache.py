@@ -20,6 +20,8 @@ from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Syn
 # --------------------------------------------------------------
 from ..core_helpers.constants import Core_Runtime_Cache_Members
 
+
+cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 # ==============================================================================================================================
 #  MAIN MODULE FEATURE
 # ==============================================================================================================================
@@ -268,6 +270,17 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     def asset_cache_is_not_syncing(cls, cache_key, wrapper_class):
         if cls.is_cache_flagged_as_syncing(cache_key):
             raise Exception(f"'{wrapper_class.__name__}' is flagged as syncing")
+
+    @classmethod
+    def get_Control_Plane_FWC(cls):
+         # for avoiding circular imports
+        
+        idx, FWC_instance, cached_FWCs = cls.get_unique_instance_from_registry_list(
+            member_key = cached_FWCs,
+            uniqueness_field="feature_name",
+            uniqueness_field_value="Wrapper_Control_Plane",
+        )
+        return FWC_instance
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS

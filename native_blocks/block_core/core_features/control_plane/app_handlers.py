@@ -6,7 +6,7 @@ import bpy
 from .....addon_helpers.data_structures import Enum_Sync_Events
 from .....addon_helpers.generic_helpers import is_bpy_ready
 
-
+# Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ..runtime_cache import Wrapper_Runtime_Cache
 from ..loggers import get_logger
@@ -20,7 +20,6 @@ enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SC
 enum_hook_active_workspace_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED
 enum_hook_active_mode_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_CHANGED
 enum_hook_active_obj_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_OBJ_CHANGED
-
 
 # --------------------------------------------------------------
 # Undo / redo callbacks
@@ -38,7 +37,8 @@ def _callback_undo_post(dummy):
     logger.debug("'Undo' event")
 
     # 1: FWCs with BL<->RTC data sync to process UNDO event first
-    Wrapper_Control_Plane.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
+    instance_FWC_Control_Plane = Wrapper_Runtime_Cache.get_Control_Plane_FWC()
+    instance_FWC_Control_Plane.actual_class.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
 
     # 2: Blocks with UNDO hook subscription to process last
     _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name=enum_hook_undo)
@@ -56,7 +56,8 @@ def _callback_redo_post(dummy):
     logger.debug("'Redo' event")
 
     # 1: FWCs with BL<->RTC data sync to process REDO event first
-    Wrapper_Control_Plane.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
+    instance_FWC_Control_Plane = Wrapper_Runtime_Cache.get_Control_Plane_FWC()
+    instance_FWC_Control_Plane.actual_class.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
 
     # 2: Blocks with REDO hook subscription to process last
     _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name=enum_hook_redo)

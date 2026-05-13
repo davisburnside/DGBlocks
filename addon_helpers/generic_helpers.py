@@ -1,4 +1,5 @@
 
+from collections import defaultdict
 from enum import Enum, EnumMeta
 import inspect
 import os
@@ -81,9 +82,6 @@ def get_self_block_module(block_manager_wrapper: ModuleType):
     
     caller_frame = inspect.stack()[1] # Gets the module which called the current function
     block_module = inspect.getmodule(caller_frame.frame)
-    # _is_valid = len(block_manager_wrapper.validate_block_list_before_registration([block_module])) == 1
-    # if not _is_valid:
-    #     raise Exception("Wrapper_Control_Plane.create_instance must be called directly from a Block's main '__init__.py' Module")
     return block_module
         
 def get_block_module_by_id(block_id: str, registered_blocks: List[ModuleType]) -> ModuleType:
@@ -105,6 +103,48 @@ def find_blocks_owning_func_with_name(func_name: str, registered_blocks:list[Mod
         block_ids = [b._BLOCK_ID for b in blocks]
         logger.debug(f"Found {len(blocks)} blocks with hook func '{blocks}': {block_ids}")
     return blocks
+
+def validate_block_list_before_registration(blocks_to_register: list[any]):
+
+    # A list of variables and functions names, required in a block's __init__.py
+    required_in_block = ["_BLOCK_DEPENDENCIES", "_BLOCK_VERSION", "_BLOCK_ID", "register_block", "unregister_block"]
+    valid_block_names = []
+    valid_blocks = []
+    invalid_blocks = defaultdict(list) 
+    for block_main_file in blocks_to_register:
+
+        # Validate block contents
+        should_skip_package = False
+        for required_ in required_in_block:
+            if not hasattr(block_main_file, required_):
+                file_dunder_name = block_main_file.__name__
+                error_str = f"Could not register {file_dunder_name} as a Block. Its __init__.py is missing a required variable/function: '{required_}'"
+                invalid_blocks[block_id].append(error_str)
+                should_skip_package = True
+        if should_skip_package:
+            continue
+
+        # Validate block ID uniqueness
+        block_id = getattr(block_main_file, "_BLOCK_ID")
+        if block_id in valid_block_names:
+            error_str = f"Block with ID {block_id} is already registered"
+            invalid_blocks[block_id].append(error_str)
+            continue
+
+        # Validate installation of other blocks that the current depends on
+        block_deps = getattr(block_main_file, "_BLOCK_DEPENDENCIES")
+        for dependent_block_id in block_deps:
+            if dependent_block_id not in valid_block_names:
+                error_str = "Block {block_id} depends on {dependent_block_id}, but it is not registered. All registered blocks: [ {', '.join(valid_block_names)} ]"
+                invalid_blocks[block_id].append(error_str)
+                should_skip_package = True
+        if should_skip_package:
+            continue
+
+        valid_blocks.append(block_main_file)
+        valid_block_names.append(block_id)
+
+    return valid_blocks, invalid_blocks
 
 # --------------------------------------------------------------
 # Other

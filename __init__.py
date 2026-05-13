@@ -14,7 +14,8 @@ bl_info = {
 
 import sys
 import importlib
-from .addon_helpers.generic_helpers import clear_console
+
+from .addon_helpers.generic_helpers import clear_console, validate_block_list_before_registration
 clear_console()
 
 # ==============================================================================================================================
@@ -71,7 +72,9 @@ def register():
 
     # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
     # Causes of invalid blocks: TODO webpage link
-    valid_block_packages = Wrapper_Control_Plane.validate_block_list_before_registration(_ordered_blocks_list)
+    valid_block_packages, invalid_blocks_errors = validate_block_list_before_registration(_ordered_blocks_list)
+    for block_id, errors_list in invalid_blocks_errors.items():
+        logger.error(f"Errors registering '{block_id}': {str(errors_list)}")
 
     # Call registration logic of each block, in order. Core-block should always be first in this list
     # Most init tasks for core-block features are already completed by this point, but 
