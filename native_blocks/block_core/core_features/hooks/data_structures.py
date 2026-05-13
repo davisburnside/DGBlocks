@@ -12,7 +12,7 @@ import bpy  # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from .....addon_helpers.data_structures import Enum_Sync_Events
-from .....addon_helpers.generic_helpers import is_bpy_ready
+from .....addon_helpers.generic_tools import is_bpy_ready
 
 # --------------------------------------------------------------
 # Intra-block imports

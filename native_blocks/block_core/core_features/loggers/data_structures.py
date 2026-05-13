@@ -1,29 +1,44 @@
 # ==============================================================================================================================
 # IMPORTS
-# ==============================================================================================================================
 
 from dataclasses import dataclass
 from enum import Enum
 import logging
 import bpy  # type: ignore
 
-# --------------------------------------------------------------
 # Addon-level imports
-# --------------------------------------------------------------
-from .....addon_helpers.data_structures import Enum_Log_Levels, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
 from ..... import my_addon_config
-from .....my_addon_config import base_linebreak_length
 
-# --------------------------------------------------------------
 # Intra-block imports
-# --------------------------------------------------------------
-from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
+from ...core_helpers.constants import  Core_Runtime_Cache_Members
 from ..runtime_cache import Wrapper_Runtime_Cache
 
-# --------------------------------------------------------------
 # Aliases
-# --------------------------------------------------------------
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
+
+# ==============================================================================================================================
+# LOGGER DATA
+
+class Enum_Log_Levels(Enum):
+    DEBUG = ("DEBUG", "Debug", "Show all messages", 10)
+    INFO = ("INFO", "Info", "Show info and above", 20)
+    WARNING = ("WARNING", "Warning", "Show warnings and above", 30)
+    ERROR = ("ERROR", "Error", "Show errors and above", 40)
+    CRITICAL = ("CRITICAL", "Critical", "Show only critical errors", 50)
+    
+    @property
+    def desc(self):
+        return self.value[2]@property
+    
+    @property
+    def weight(self):
+        return self.value[3]@property
+    
+    @classmethod# Used by scene_loggers.level.items
+    def tuple_enum_items(cls):
+        """Helper to return tuples for Blender: (identifier, name, description)"""
+        # We only take the first 3 elements for the UI
+        return [item.value[:3] for item in cls]
 
 # ==============================================================================================================================
 # PRIVATE HELPERS

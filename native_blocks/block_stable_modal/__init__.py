@@ -6,7 +6,7 @@ from bpy.props import BoolProperty, PointerProperty # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_helpers import should_draw_delevoper_panel, get_self_block_module
+from ...addon_helpers.generic_tools import should_draw_delevoper_panel, get_self_block_module
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -17,7 +17,7 @@ from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ..block_core.core_features.hooks import Wrapper_Hooks
 from ..block_core.core_features.control_plane import Wrapper_Control_Plane
 from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports

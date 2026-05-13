@@ -8,7 +8,7 @@ import shutil
 import platform
 from enum import Enum
 from datetime import datetime
-from addon_helpers.generic_helpers import get_addon_preferences
+from addon_helpers.generic_tools import get_addon_preferences
 import bpy
 
 

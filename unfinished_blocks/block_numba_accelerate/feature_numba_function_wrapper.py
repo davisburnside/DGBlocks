@@ -2,7 +2,7 @@ import os
 import sys
 import importlib
 from functools import wraps
-from addon_helpers.generic_helpers import get_addon_preferences
+from addon_helpers.generic_tools import get_addon_preferences
 import bpy
 
 from ..addon_config import addon_name

@@ -8,7 +8,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_helpers import get_names_of_parent_classes
+from ...addon_helpers.generic_tools import get_names_of_parent_classes
 from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------

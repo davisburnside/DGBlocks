@@ -4,8 +4,8 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helpers.data_structures import Enum_Sync_Events
-from ....addon_helpers.generic_helpers import get_self_block_module
-from ....addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ....addon_helpers.generic_tools import get_self_block_module
+from ....addon_helpers.ui import ui_draw_block_panel_header
 from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------

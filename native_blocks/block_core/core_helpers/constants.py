@@ -55,8 +55,6 @@ class Core_Runtime_Cache_Members(Enum):
     REGISTRY_ALL_LOGGERS = ("REGISTRY_ALL_LOGGERS", [])
     REGISTRY_ALL_TRACKED_DATABLOCK_TYPES = ("REGISTRY_ALL_TRACKED_DATABLOCK_TYPES", [])
     META_REGISTRIES_BEING_SYNCED = ("META_REGISTRIES_BEING_SYNCED", [])
-    UI_ALERTS = ("UI_ALERTS", {})
-    UI_WORDWRAP_WIDTHS = ("UI_WORDWRAP_WIDTHS", {})
 
 # ==============================================================================================================================
 # OTHER

@@ -10,11 +10,11 @@ from bpy.app.handlers import persistent
 # Addon-level imports
 from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from .....addon_helpers.data_tools import reset_propertygroup
-from .....addon_helpers.generic_helpers import is_bpy_ready, force_redraw_ui
+from .....addon_helpers.generic_tools import is_bpy_ready, force_redraw_ui
 
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
-from ...core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
+from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..runtime_cache import Wrapper_Runtime_Cache
 from ..loggers import Wrapper_Loggers, get_logger
 from ..hooks import Wrapper_Hooks
@@ -433,11 +433,15 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
                 actual_class = FWC_instance.actual_class
                 src_block_id = FWC_instance.src_block_id
 
+                # Perform sync on self. That this should always be the first operation, because Wrapper_Control_Plane is always the first FWC in its cache
                 if actual_class == cls:
                     evaluate_and_update_block_statuses(event, cls)
+                    
+                # Perform sync on all other syncable FWCs of all blocks
                 else:
                     logger.debug(f"Updating RTC with BL data for '{actual_class.__name__}'")
                     actual_class.update_RTC_with_mirrored_BL_data(event)
+                    
             except Exception:
                 logger.error(f"Exception during RTC sync for '{src_block_id}'", exc_info=True)
 

@@ -9,19 +9,19 @@ from typing import Callable, Optional
 # --------------------------------------------------------------
 from ...addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager
 
-from ...addon_helpers.generic_helpers import should_draw_delevoper_panel, get_self_block_module
+from ...addon_helpers.generic_tools import should_draw_delevoper_panel, get_self_block_module
 from ...my_addon_config import addon_name, addon_title
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import block_core
-from ..block_core.core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
+from ..block_core.core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ..block_core.core_features.hooks import Wrapper_Hooks
 from ..block_core.core_features.control_plane import Wrapper_Control_Plane
 from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports

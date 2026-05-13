@@ -4,7 +4,7 @@ from typing import Optional
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_helpers import get_self_block_module, is_bpy_ready
+from ...addon_helpers.generic_tools import get_self_block_module, is_bpy_ready
 from ...addon_helpers.data_structures import Enum_Sync_Events
 from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 
@@ -16,7 +16,7 @@ from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ..block_core.core_features.hooks import Wrapper_Hooks
 from ..block_core.core_features.control_plane import Wrapper_Control_Plane
 from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports

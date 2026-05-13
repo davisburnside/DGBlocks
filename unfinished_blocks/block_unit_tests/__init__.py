@@ -4,7 +4,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_helpers import get_self_block_module, clear_console
+from ...addon_helpers.generic_tools import get_self_block_module, clear_console
 from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -15,7 +15,7 @@ from ...native_blocks.block_core.core_features.loggers import Core_Block_Loggers
 from ...native_blocks.block_core.core_features.hooks import Wrapper_Hooks
 from ...native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
 from ...native_blocks.block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports

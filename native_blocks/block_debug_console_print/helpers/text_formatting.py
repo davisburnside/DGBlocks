@@ -8,7 +8,7 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ....addon_helpers.data_tools import get_propertygroup_values, create_simplified_list_from_csv_string
-from ....addon_helpers.generic_helpers import print_section_separator
+from ....addon_helpers.generic_tools import print_section_separator
 
 # --------------------------------------------------------------
 # Inter-block imports

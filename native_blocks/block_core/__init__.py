@@ -1,11 +1,11 @@
 import os
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header
 import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_helpers import force_reload_all_scripts, get_self_block_module, force_redraw_ui
+from ...addon_helpers.generic_tools import force_reload_all_scripts, get_self_block_module, force_redraw_ui
 from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
@@ -17,7 +17,7 @@ from .core_features.loggers import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL_Logg
 from .core_features.control_plane import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Control_Plane
 from .core_features.hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
 from .core_features.runtime_cache import Wrapper_Runtime_Cache
-from .core_helpers.helper_uilayouts import uilayout_draw_core_block_settings
+from .core_helpers.ui import uilayout_draw_core_block_settings
 
 # --------------------------------------------------------------
 # Aliases

@@ -3,7 +3,7 @@
 # ==============================================================================================================================
 
 import bpy  # type: ignore
-from .....addon_helpers.ui_drawing_helpers import ui_draw_list_headers
+from .....addon_helpers.ui import ui_draw_list_headers
 from ...core_helpers.constants import _BLOCK_ID as core_block_id
 
 # ==============================================================================================================================

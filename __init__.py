@@ -15,7 +15,7 @@ bl_info = {
 import sys
 import importlib
 
-from .addon_helpers.generic_helpers import clear_console, validate_block_list_before_registration
+from .addon_helpers.generic_tools import clear_console, validate_block_list_before_registration
 clear_console()
 
 # ==============================================================================================================================

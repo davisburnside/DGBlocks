@@ -12,13 +12,13 @@ import time
 # Addon-level imports
 # --------------------------------------------------------------
 from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
-from .....addon_helpers.generic_helpers import is_bpy_ready, find_blocks_owning_func_with_name
+from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
-from ...core_helpers.helper_datasync import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
+from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
 from ..runtime_cache import Wrapper_Runtime_Cache
 from ..loggers import get_logger
 from .data_structures import (

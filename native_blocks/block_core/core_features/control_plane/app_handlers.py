@@ -4,7 +4,7 @@ import bpy
 
 # Addon-level imports
 from .....addon_helpers.data_structures import Enum_Sync_Events
-from .....addon_helpers.generic_helpers import is_bpy_ready
+from .....addon_helpers.generic_tools import is_bpy_ready
 
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members

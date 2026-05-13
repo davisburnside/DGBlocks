@@ -1,24 +1,15 @@
 
 import bpy # type: ignore
 
-# --------------------------------------------------------------
 # Addon-level imports
-# --------------------------------------------------------------
-from ....addon_helpers.data_tools import get_propertygroup_values, create_simplified_list_from_csv_string
-from ....addon_helpers.generic_helpers import print_section_separator
-from ....addon_helpers.ui_drawing_helpers import create_ui_box_with_header, uilayout_section_separator
+from ....addon_helpers.data_tools import  create_simplified_list_from_csv_string
+from ....addon_helpers.ui import create_ui_box_with_header, uilayout_section_separator
 
-# --------------------------------------------------------------
 # Inter-block imports
-# --------------------------------------------------------------
 from ...block_core.core_features.hooks import Wrapper_Hooks
-from ...block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
-from ...block_core.core_helpers.helper_uilayouts import draw_wrapped_text_v2
 from ...block_core.core_helpers.constants import _BLOCK_ID as core_block_id
 
-# --------------------------------------------------------------
 # Intra-block imports
-# --------------------------------------------------------------
 from .constants import Block_Hook_Sources, Core_Debugging_Print_Options
 
 def uilayout_draw_core_block_console_print_panel(context:bpy.context, container:bpy.types.UILayout, block_id:str):
@@ -127,7 +118,9 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
         internal_panel_header.label(text = f"Filter by Dict Keys")
         internal_panel_header.label(text = "", icon = "HIDE_OFF" if (inclusion_filter_on or exclusion_filter_on) else "HIDE_ON")
         if internal_panel_body:
-            draw_wrapped_text_v2(context, internal_panel_body, "Use Comma-Separated Wildcards Strings. Whitespace & capitilization are ignored. Only dicts will be filtered, tables & lists are untouched")
+            internal_panel_body.label(text =  "Use Comma-Separated Wildcards Strings.")
+            internal_panel_body.label(text =  "Whitespace & capitilization are ignored.")
+            internal_panel_body.label(text =  "Only dicts are filtered, tables & lists untouched.")
             box = internal_panel_body.box()
             grid = box.grid_flow(columns=2)
             include_filter_icon = "HIDE_OFF" if inclusion_filter_on > 0 else "HIDE_ON"

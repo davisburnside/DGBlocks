@@ -18,27 +18,6 @@ class Global_Addon_State():
 # COMMON ENUMS
 # ==============================================================================================================================
 
-class Enum_Log_Levels(Enum):
-    DEBUG = ("DEBUG", "Debug", "Show all messages", 10)
-    INFO = ("INFO", "Info", "Show info and above", 20)
-    WARNING = ("WARNING", "Warning", "Show warnings and above", 30)
-    ERROR = ("ERROR", "Error", "Show errors and above", 40)
-    CRITICAL = ("CRITICAL", "Critical", "Show only critical errors", 50)
-    
-    @property
-    def desc(self):
-        return self.value[2]@property
-    
-    @property
-    def weight(self):
-        return self.value[3]@property
-    
-    @classmethod# Used by scene_loggers.level.items
-    def tuple_enum_items(cls):
-        """Helper to return tuples for Blender: (identifier, name, description)"""
-        # We only take the first 3 elements for the UI
-        return [item.value[:3] for item in cls]
-
 class Enum_Sync_Events(StrEnum):
     ADDON_INIT = auto()
     ADDON_SHUTDOWN = auto()
@@ -47,11 +26,13 @@ class Enum_Sync_Events(StrEnum):
     PROPERTY_UPDATE_REDO = auto()
     FORCE_RESTORE_RTC = auto()
     
+
 class Enum_Sync_Actions(StrEnum):
     CREATE = auto()
     REMOVE = auto()
     EDIT = auto()
     MOVE = auto()
+
 
 class Core_Block_Tracked_Datablock_Types(Enum):
     # TRACKED DATABLOCK TYPES - New block primitive, like hooks & loggers
@@ -137,6 +118,7 @@ class Abstract_Feature_Wrapper(ABC):
         raise NotImplementedError("Please Implement this method")
         pass
 
+
 class Abstract_BL_RTC_List_Syncronizer(ABC):
     # All functions are optional. If not implemented, Wrapper_Control_Plane handles logic
     # Inhertited by all FWCs that sync data between the RTC and Blender (Scene, Preferences, WindowManager, Object... almost any bpy.* object )
@@ -169,6 +151,7 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
         # Args must match exactly
         # Returns are ignored
         pass
+
 
 class Abstract_Datawrapper_Instance_Manager(ABC):
     # CRUD-style instance management funcs. Inhertited only by wrappers that hold 0-to-many instances of a @dataclass
@@ -207,6 +190,7 @@ class RTC_FWC_Data_Mirror_List_Reference:
     timestamp_last_BL_data_refresh: int = field(default = -1)
     timestamp_last_RTC_data_refresh: int = field(default = -1)
 
+
 @dataclass
 class RTC_FWC_Instance:
     src_block_id: str
@@ -214,5 +198,3 @@ class RTC_FWC_Instance:
     actual_class: Type[Abstract_Feature_Wrapper]
     has_BL_mirrored_data: bool
     # data_mirror_instance: Optional[Type[RTC_FWC_Data_Mirror_List_Reference]] = field(default = None)
-
-

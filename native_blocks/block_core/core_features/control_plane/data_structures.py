@@ -11,7 +11,7 @@ from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sy
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache import Wrapper_Runtime_Cache
 from ..loggers import get_logger
-from .....addon_helpers.generic_helpers import is_bpy_ready
+from .....addon_helpers.generic_tools import is_bpy_ready
 
 # Aliases
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS

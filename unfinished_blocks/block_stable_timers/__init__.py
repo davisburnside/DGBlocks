@@ -1,12 +1,12 @@
 
-from ...addon_helpers.ui_drawing_helpers import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header
 import bpy # type: ignore
 from bpy.props import StringProperty, IntProperty, BoolProperty, CollectionProperty, PointerProperty # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_helpers import should_draw_delevoper_panel
+from ...addon_helpers.generic_tools import should_draw_delevoper_panel
 from ...my_addon_config import (
         addon_title,
         addon_bl_type_prefix, 
@@ -18,7 +18,7 @@ from ...my_addon_config import (
 # --------------------------------------------------------------
 from ...native_blocks import block_core
 from ...native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
-from ...addon_helpers.ui_drawing_helpers import create_ui_box_with_header
+from ...addon_helpers.ui import create_ui_box_with_header
 from ...native_blocks.block_core.core_features.loggers import get_logger
 from ...native_blocks.block_core.core_helpers.constants import ( Core_Block_Loggers, Core_Block_Hook_Sources)
 

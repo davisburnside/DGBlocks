@@ -6,8 +6,6 @@ import textwrap
 import bpy # type: ignore
 import blf # type: ignore
 
-from .constants import Core_Runtime_Cache_Members
-from ..core_features.runtime_cache import Wrapper_Runtime_Cache
 from ..core_features.hooks import _uilayout_draw_hooks_settings
 from ..core_features.control_plane import _uilayout_draw_block_manager_settings
 from ..core_features.loggers import _uilayout_draw_logger_settings
@@ -40,36 +38,6 @@ def uilayout_template_columns_for_propertygroup(
         # 3. Right side: The Property
         split.prop(prop_owner, prop_name, text="")
 
-def draw_wrapped_text_v2(context, layout, text, font_id=0, padding=10):
-    """
-    Draw word-wrapped text in a Blender UI panel.
-    Word pixel widths are cached in the addon runtime cache.
-
-    Args:
-        layout:    The UI layout to draw into.
-        text:      The string to wrap and display.
-        context:   Blender context (used to get region width and scale).
-        font_id:   BLF font id (0 = default Blender UI font).
-        padding:   Base pixel padding (will be scaled).
-    """
-    if context is None:
-        context = bpy.context
-
-    ui_scale = context.preferences.system.ui_scale
-    dpi_fac = context.preferences.system.dpi / 72
-    pixel_size = context.preferences.system.pixel_size
-    scale = ui_scale * dpi_fac * pixel_size
-
-    width_px = context.region.width if hasattr(context, 'region') else 300
-    max_width = width_px - (padding * scale)
-
-    for paragraph in text.split('\n'):
-        if not paragraph.strip():
-            layout.label(text='')
-            continue
-        for line in _wrap_text(paragraph, max_width, font_id, scale):
-            layout.label(text=line)
-
 # ==============================================================================================================================
 # INTERNAL API - Only used inside this block
 # ==============================================================================================================================
@@ -101,51 +69,3 @@ def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.U
     _uilayout_draw_hooks_settings(context, container)
     _uilayout_draw_logger_settings(context, container)
 
-# --------------------------------------------------------------
-# Used by draw_wrapped_text_v2
-# --------------------------------------------------------------
-
-def _ensure_word_widths(text, font_id=0, scale=1.0):
-    """Ensure the word widths for a given string are computed and cached."""
-    cache = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS)
-    if cache is None:
-        cache = {}
-        Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS, cache)
-
-    if text not in cache:
-        blf.size(font_id, 11 * scale)
-        cache[text] = [blf.dimensions(font_id, w)[0] for w in text.split(' ')]
-        Wrapper_Runtime_Cache.set_cache(Core_Runtime_Cache_Members.UI_WORDWRAP_WIDTHS, cache)
-
-    return cache[text]
-
-def _wrap_text(text, max_width, font_id=0, scale=1.0):
-    """Word-wrap text using pre-cached word widths."""
-    blf.size(font_id, 11 * scale)
-    space_width, _ = blf.dimensions(font_id, ' ')
-
-    words = text.split(' ')
-    word_widths = _ensure_word_widths(text, font_id, scale)
-
-    lines = []
-    current_line_words = []
-    current_width = 0.0
-
-    for word, w_width in zip(words, word_widths):
-        if current_line_words:
-            new_width = current_width + space_width + w_width
-        else:
-            new_width = w_width
-
-        if new_width <= max_width or not current_line_words:
-            current_line_words.append(word)
-            current_width = new_width
-        else:
-            lines.append(' '.join(current_line_words))
-            current_line_words = [word]
-            current_width = w_width
-
-    if current_line_words:
-        lines.append(' '.join(current_line_words))
-
-    return lines

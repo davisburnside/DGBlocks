@@ -4,7 +4,7 @@
 
 from datetime import datetime
 import bpy  # type: ignore
-from .....addon_helpers.ui_drawing_helpers import ui_draw_list_headers
+from .....addon_helpers.ui import ui_draw_list_headers
 
 # --------------------------------------------------------------
 # Intra-block imports
