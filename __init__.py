@@ -44,8 +44,8 @@ from .addon_helpers.data_structures import Enum_Sync_Events
 from .my_activated_blocks import _ordered_blocks_list
 from .my_addon_config import addon_name
 
-from .native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
-from .native_blocks.block_core.core_features.loggers import Wrapper_Loggers, get_logger
+from .native_blocks.block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
+from .native_blocks.block_core.core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from .native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 

@@ -5,7 +5,7 @@ import types
 import logging
 
 # Addon-level imports
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events
 from .....addon_helpers.generic_tools import is_bpy_ready
 from .....my_addon_config import base_linebreak_length
 
@@ -13,13 +13,8 @@ from .....my_addon_config import base_linebreak_length
 from ...core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Runtime_Cache_Members
 from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..runtime_cache import Wrapper_Runtime_Cache, get_actual_rtc_key
-from .data_structures import (
-    DGBLOCKS_PG_Logger_Instance,
-    RTC_Logger_Instance,
-    rtc_sync_key_fields,
-    rtc_sync_data_fields,
-    _setup_logger_console_handler,
-)
+from .data_structures import RTC_Logger_Instance, rtc_sync_key_fields, rtc_sync_data_fields, _setup_logger_console_handler
+
 
 # Aliases
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS

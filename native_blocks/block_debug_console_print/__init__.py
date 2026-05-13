@@ -12,10 +12,10 @@ from ...addon_helpers.data_structures import Enum_Sync_Events
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import block_core
-from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
-from ..block_core.core_features.hooks import Wrapper_Hooks
-from ..block_core.core_features.control_plane import Wrapper_Control_Plane, RTC_Block_Instance
-from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
+from ..block_core.core_features.loggers.feature_wrapper import Core_Block_Loggers, get_logger
+from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
+from ..block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
+from ..block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------

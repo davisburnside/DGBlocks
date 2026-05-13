@@ -18,7 +18,7 @@ from ...addon_helpers.generic_tools import (
 from ...native_blocks.block_core import Abstract_Datawrapper_Instance_Manager
 from ...native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from ...native_blocks.block_core.core_features.hooks import Wrapper_Hooks
-from ...native_blocks.block_core.core_features.loggers import get_logger
+from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from ...native_blocks.block_core.core_features.control_plane import Wrapper_Control_Plane
 
 # --------------------------------------------------------------

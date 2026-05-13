@@ -12,7 +12,7 @@ from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_p
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.loggers import get_logger
+from ...block_core.core_features.loggers.feature_wrapper import get_logger
 from ...block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 from ...block_core.core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ...block_core.core_helpers.constants import Core_Runtime_Cache_Members

@@ -6,16 +6,22 @@ import bpy # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_tools import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference
+from ...addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State
 from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Core block imports
 # --------------------------------------------------------------
 from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
-from .core_features.loggers import DGBLOCKS_PG_Logger_Instance, DGBLOCKS_UL_Loggers, Wrapper_Loggers, get_logger
-from .core_features.control_plane import DGBLOCKS_PG_Debug_Block_Reference, DGBLOCKS_UL_Blocks, Wrapper_Control_Plane
-from .core_features.hooks import DGBLOCKS_PG_Hook_Reference, Wrapper_Hooks, DGBLOCKS_UL_Hooks
+from .core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
+from .core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance
+from .core_features.loggers.ui import DGBLOCKS_UL_Loggers
+from .core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
+from .core_features.control_plane.ui import DGBLOCKS_UL_Blocks
+from .core_features.control_plane.data_structures import DGBLOCKS_PG_Debug_Block_Reference
+from .core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
+from .core_features.hooks.feature_wrapper import Wrapper_Hooks
+from .core_features.hooks.ui import  DGBLOCKS_UL_Hooks
 from .core_features.runtime_cache import Wrapper_Runtime_Cache
 from .core_helpers.ui import uilayout_draw_core_block_settings
 

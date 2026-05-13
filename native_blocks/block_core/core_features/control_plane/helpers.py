@@ -7,16 +7,15 @@ from bpy.app.handlers import persistent
 
 
 # Addon-level imports
-from .....addon_helpers.data_structures import  Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
-from .....addon_helpers.data_tools import fast_deepcopy_with_fallback, reset_propertygroup
-from .....addon_helpers.generic_tools import is_bpy_ready, force_redraw_ui, get_names_of_parent_classes
+from .....addon_helpers.data_structures import  Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Instance
+from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
+from .....addon_helpers.generic_tools import  get_names_of_parent_classes
 
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
-from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..runtime_cache import Wrapper_Runtime_Cache
-from ..loggers import Wrapper_Loggers, get_logger
-from ..hooks import Wrapper_Hooks
+from ..loggers.feature_wrapper import Wrapper_Loggers, get_logger
+from ..hooks.feature_wrapper import Wrapper_Hooks
 from .data_structures import RTC_Block_Instance
 
 # Aliases

@@ -6,7 +6,7 @@
 # --------------------------------------------------------------
 # Builtin blocks with actual usecases
 # --------------------------------------------------------------
-from .native_blocks import block_core #, block_debug_console_print, block_pip_library_manager, block_timers
+from .native_blocks import block_core#, block_debug_console_print #, block_pip_library_manager, block_timers
 
 # --------------------------------------------------------------
 # Builtin blocks for demos / learning

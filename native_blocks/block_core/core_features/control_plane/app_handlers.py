@@ -9,8 +9,8 @@ from .....addon_helpers.generic_tools import is_bpy_ready
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ..runtime_cache import Wrapper_Runtime_Cache
-from ..loggers import get_logger
-from ..hooks import Wrapper_Hooks
+from ..loggers.feature_wrapper import get_logger
+from ..hooks.feature_wrapper import Wrapper_Hooks
 
 # Aliases
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA

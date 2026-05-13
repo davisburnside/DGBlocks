@@ -6,9 +6,9 @@ import textwrap
 import bpy # type: ignore
 import blf # type: ignore
 
-from ..core_features.hooks import _uilayout_draw_hooks_settings
-from ..core_features.control_plane import _uilayout_draw_block_manager_settings
-from ..core_features.loggers import _uilayout_draw_logger_settings
+from ..core_features.hooks.ui import _uilayout_draw_hooks_settings
+from ..core_features.control_plane.ui import _uilayout_draw_block_manager_settings
+from ..core_features.loggers.ui import _uilayout_draw_logger_settings
 
 def uilayout_template_columns_for_propertygroup(
         context:bpy.context, 
