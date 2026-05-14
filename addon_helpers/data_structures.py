@@ -26,54 +26,11 @@ class Enum_Sync_Events(StrEnum):
     PROPERTY_UPDATE_REDO = auto()
     FORCE_RESTORE_RTC = auto()
     
-
 class Enum_Sync_Actions(StrEnum):
     CREATE = auto()
     REMOVE = auto()
     EDIT = auto()
     MOVE = auto()
-
-
-class Core_Block_Tracked_Datablock_Types(Enum):
-    # TRACKED DATABLOCK TYPES - New block primitive, like hooks & loggers
-    # Hardcoded list of all possible bpy.data.* datablock types.
-    # Downstream blocks call create_instance/destroy_instance to enable/disable tracking.
-    # name = type identifier (matches depsgraph.id_type_updated name)
-    # value[0] = type_name for depsgraph check
-    # value[1] = bpy.data collection attribute name
-    # value[2] = bpy.types.* class
-
-    ACTION = ("ACTION", "actions", bpy.types.Action)
-    ARMATURE = ("ARMATURE", "armatures", bpy.types.Armature)
-    BRUSH = ("BRUSH", "brushes", bpy.types.Brush)
-    CACHEFILE = ("CACHEFILE", "cache_files", bpy.types.CacheFile)
-    CAMERA = ("CAMERA", "cameras", bpy.types.Camera)
-    COLLECTION = ("COLLECTION", "collections", bpy.types.Collection)
-    CURVE = ("CURVE", "curves", bpy.types.Curve)
-    FONT = ("FONT", "fonts", bpy.types.VectorFont)
-    GREASEPENCIL = ("GREASEPENCIL", "grease_pencils", bpy.types.GreasePencil)
-    IMAGE = ("IMAGE", "images", bpy.types.Image)
-    LATTICE = ("LATTICE", "lattices", bpy.types.Lattice)
-    LIGHT = ("LIGHT", "lights", bpy.types.Light)
-    LIGHT_PROBE = ("LIGHTPROBE", "lightprobes", bpy.types.LightProbe)
-    LINESTYLE = ("LINESTYLE", "linestyles", bpy.types.FreestyleLineStyle)
-    MATERIAL = ("MATERIAL", "materials", bpy.types.Material)
-    MESH = ("MESH", "meshes", bpy.types.Mesh)
-    METABALL = ("METABALL", "metaballs", bpy.types.MetaBall)
-    MOVIECLIP = ("MOVIECLIP", "movieclips", bpy.types.MovieClip)
-    NODETREE = ("NODETREE", "node_groups", bpy.types.NodeTree)
-    OBJECT = ("OBJECT", "objects", bpy.types.Object)
-    PAINTCURVE = ("PAINTCURVE", "paint_curves", bpy.types.PaintCurve)
-    PALETTE = ("PALETTE", "palettes", bpy.types.Palette)
-    PARTICLE = ("PARTICLE", "particles", bpy.types.ParticleSettings)
-    POINTCLOUD = ("POINTCLOUD", "pointclouds", bpy.types.PointCloud)
-    SCENE = ("SCENE", "scenes", bpy.types.Scene)
-    SPEAKER = ("SPEAKER", "speakers", bpy.types.Speaker)
-    TEXT = ("TEXT", "texts", bpy.types.Text)
-    TEXTURE = ("TEXTURE", "textures", bpy.types.Texture)
-    VOLUME = ("VOLUME", "volumes", bpy.types.Volume)
-    WORLD = ("WORLD", "worlds", bpy.types.World)
-    WORKSPACE = ("WORKSPACE", "workspaces", bpy.types.WorkSpace)
 
 # ==============================================================================================================================
 # FEATURE WRAPPER ABSTRACT PARENT CLASSES
@@ -177,18 +134,26 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 # ==============================================================================================================================
 
 @dataclass 
-class RTC_FWC_Data_Mirror_List_Reference:
+class Abstract_Generic_RTC_FWC_Data_Mirror:
     
-    RTC_key: str # top-level cache key
-    BL_property_path: str # Relative to owner, not full path
-    BL_property_owner_type: str # bpy.types.*
+    RTC_key: str # cache key, must be a unique 
 
+    # Becomes false when the FWC implements 'update_BL_with_mirrored_RTC_data' or 'update_RTC_with_mirrored_BL_data'
+    use_default_BL_update_logic: bool = True
+    use_default_RTC_update_logic: bool = True
 
-    should_use_default_sync_logic: bool
     sync_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
     sync_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
     timestamp_last_BL_data_refresh: int = field(default = -1)
     timestamp_last_RTC_data_refresh: int = field(default = -1)
+
+@dataclass 
+class RTC_FWC_Data_Mirror_Dict_Reference(Abstract_Generic_RTC_FWC_Data_Mirror):
+    default_BL_scene_child_collectionproperty_path: str
+
+@dataclass 
+class RTC_FWC_Data_Mirror_List_Reference(Abstract_Generic_RTC_FWC_Data_Mirror):
+    default_BL_scene_child_propertygroup_path: str
 
 
 @dataclass
@@ -197,4 +162,5 @@ class RTC_FWC_Instance:
     feature_name: str
     actual_class: Type[Abstract_Feature_Wrapper]
     has_BL_mirrored_data: bool
-    # data_mirror_instance: Optional[Type[RTC_FWC_Data_Mirror_List_Reference]] = field(default = None)
+    data_mirror_lists: list[Type[RTC_FWC_Data_Mirror_List_Reference]] = field(default = [])
+    data_mirror_dicts: list[Type[RTC_FWC_Data_Mirror_Dict_Reference]] = field(default = {})

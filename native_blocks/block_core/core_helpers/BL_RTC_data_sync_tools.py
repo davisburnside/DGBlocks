@@ -6,6 +6,9 @@ import logging
 from typing import Optional, TypeVar
 from dataclasses import dataclass
 from typing import TypeVar, Union
+import bpy
+
+from native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
 
 from ....addon_helpers.data_structures import Enum_Sync_Events
 
@@ -336,6 +339,42 @@ def update_dataclasses_to_match_collectionprop(
         _print_actions(source, target, actions, debug_logger)
         
     apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, key_fields, data_fields, actions)
+
+def default_RTC_sync_update_logic(
+        FWC_instance,
+        logger):
+    """
+    Synchronizes RTC with it's Blender data mirror, BL as source of truth
+    """
+
+    core_props = bpy.context.scene.dgblocks_core_props
+    logger.debug(f"Updating loggers RTC with mirrored BL Data")
+    debug_logger = debug_logger if core_props.debug_log_all_RTC_BL_sync_actions else None
+
+    # Get mirrored BL/RTC data (potentially de-synced)
+    cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key)
+    scene_loggers = core_props.managed_loggers
+    # data_BL = 
+
+    # BL->RTC Sync
+
+    actions = plan_dataclasses_to_match_collectionprop(source, target, key_fields, data_fields)
+    
+    if debug_logger:
+        _print_actions(source, target, actions, debug_logger)
+        
+    apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, key_fields, data_fields, actions)
+
+    # update_dataclasses_to_match_collectionprop(
+    #     actual_FWC=FWC_instance.actual_class,
+    #     source=scene_loggers,
+    #     target=cached_loggers,
+    #     key_fields=rtc_sync_key_fields,
+    #     data_fields=rtc_sync_data_fields,
+    #     actions_denied=set(),
+    #     debug_logger=debug_logger,
+    # )
+
 
 # --------------------------------------------------------------
 # Other

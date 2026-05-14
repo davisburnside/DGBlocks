@@ -11,7 +11,7 @@ import time
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------
@@ -85,10 +85,19 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         return True
 
     @classmethod
-    def init_post_bpy(cls, event: Enum_Sync_Events) -> None:
+    def init_post_bpy(cls, event: Enum_Sync_Events, self_FWC_instance: type[RTC_FWC_Instance]) -> None:
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
+
+        # Setup the data mirror for Loggers, then store it directly inside this class's parent FWC instance
+        self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
+            RTC_key = cache_key_blocks,
+            sync_key_field_names = rtc_sync_key_fields, 
+            sync_data_field_names = rtc_sync_data_fields,
+            default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
+        )
+        self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
 
         # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
         cls._rebuild_hook_subs_cache()

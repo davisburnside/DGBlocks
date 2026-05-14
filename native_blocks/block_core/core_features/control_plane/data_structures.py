@@ -27,7 +27,7 @@ def _callback_update_block_enabled(self, context):
 
     try:
         instance_FWC_Control_Plane = Wrapper_Runtime_Cache.get_Control_Plane_FWC()
-        instance_FWC_Control_Plane.actuak_class.update_all_FWC_RTC_caches_to_match_BL_data(event=Enum_Sync_Events.PROPERTY_UPDATE)
+        instance_FWC_Control_Plane.actual_class.update_all_FWC_RTC_caches_to_match_BL_data(event=Enum_Sync_Events.PROPERTY_UPDATE)
 
     except Exception:
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)

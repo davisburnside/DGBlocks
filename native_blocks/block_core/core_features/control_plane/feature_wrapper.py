@@ -6,7 +6,7 @@ import bpy  # type: ignore
 from bpy.app.handlers import persistent
 
 # Addon-level imports
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
 from .....addon_helpers.data_tools import reset_propertygroup
 from .....addon_helpers.generic_tools import is_bpy_ready, force_redraw_ui
 
@@ -107,7 +107,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             logger.debug(f"Func '_callback_depsgraph_post' already present in 'bpy.app.handlers.depsgraph_update_post'")
 
     @classmethod
-    def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
+    def init_post_bpy(cls, event: Enum_Sync_Events, self_FWC_instance: type[RTC_FWC_Instance]) -> bool:
         """
         This function will only be called once for Blender's lifecycle, unless:
         * Opening New file
@@ -124,12 +124,22 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # (Debugging) clear all saved properties if needed
         core_props = bpy.context.scene.dgblocks_core_props
-        if True:  # core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
+        if core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
 
             logger.warning("(Debugging) Clearing all saved properties")
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger=logger)
             core_props.debug_log_all_RTC_BL_sync_actions = True
             core_props.debug_mode_enabled = True
+
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 0: Setup the data mirror for Block-management, then store it directly inside this class's parent FWC instance
+        self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
+            RTC_key = cache_key_blocks,
+            sync_key_field_names = rtc_sync_key_fields, 
+            sync_data_field_names = rtc_sync_data_fields,
+            default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
+        )
+        self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
@@ -248,15 +258,15 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
                 block_logger_enums,
             )
 
-            # If a block is being added during runtime, trigger post-bpy & final hook init early
+            # If a block is being added during runtime (AKA after the registration cycle), trigger its post-bpy logic & final hook init here
             should_peform_final_init_steps_early = event in (Enum_Sync_Events.PROPERTY_UPDATE, Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
             if should_peform_final_init_steps_early:
 
-                # perform final init step for all FWCs
+                # perform final init step for all FWCs of the block
                 for FWC_instance in block_feature_wrapper_classes:
                     FWC_instance.actual_class.init_post_bpy(event=event)
 
-                # trigger final init hook for block, if needed
+                # trigger final init hook, if needed
                 try:
                     blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy=True)
                     kwargs = {"block_instances": blocks_cache}
