@@ -12,10 +12,10 @@ from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_p
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...block_core.core_features.loggers.feature_wrapper import get_logger
-from ...block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
-from ...block_core.core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
-from ...block_core.core_helpers.constants import Core_Runtime_Cache_Members
+from ....native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
+from ....native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ....native_blocks.block_core.core_features.runtime_cache.data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
+from ....native_blocks.block_core.core_helpers.constants import Core_Runtime_Cache_Members
 
 # --------------------------------------------------------------
 # Intra-block imports

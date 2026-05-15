@@ -11,8 +11,8 @@ from .....my_addon_config import base_linebreak_length
 
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Runtime_Cache_Members
-from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
-from ..runtime_cache import Wrapper_Runtime_Cache, get_actual_rtc_key
+from ..runtime_cache.data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
+from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
 from .data_structures import RTC_Logger_Instance, rtc_sync_key_fields, rtc_sync_data_fields, _setup_logger_console_handler
 
 

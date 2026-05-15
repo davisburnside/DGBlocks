@@ -46,7 +46,7 @@ from .my_addon_config import addon_name
 
 from .native_blocks.block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
 from .native_blocks.block_core.core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
-from .native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
+from .native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 
 # ==============================================================================================================================

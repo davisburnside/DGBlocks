@@ -17,7 +17,7 @@ from ...native_blocks import block_core
 from ...native_blocks.block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ...native_blocks.block_core.core_features.hooks import Wrapper_Hooks
 from ...native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
-from ...native_blocks.block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
+from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 from ...native_blocks.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members

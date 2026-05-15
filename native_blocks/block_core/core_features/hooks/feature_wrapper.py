@@ -18,8 +18,8 @@ from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_fu
 # Intra-block imports
 # --------------------------------------------------------------
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
-from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
-from ..runtime_cache import Wrapper_Runtime_Cache
+from ..runtime_cache.data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
+from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance, rtc_sync_key_fields, rtc_sync_data_fields
 

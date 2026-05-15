@@ -12,13 +12,13 @@ from typing import Any, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from ....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
+from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ..core_helpers.constants import Core_Runtime_Cache_Members
+from ...core_helpers.constants import Core_Runtime_Cache_Members
 
 
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS

@@ -11,7 +11,7 @@ from ..... import my_addon_config
 
 # Intra-block imports
 from ...core_helpers.constants import  Core_Runtime_Cache_Members
-from ..runtime_cache import Wrapper_Runtime_Cache
+from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
 # Aliases
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS

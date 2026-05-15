@@ -36,9 +36,9 @@ class RTC_Member_Definition():
 class RTC_Member_Data_Mirror_Definition():
     RTC_key: str
     FWC_name: str
-    mirrored_key_field_names: list[str] = []
-    mirrored_data_field_names: list[str] = []
-    default_data_path_in_scene: Optional[str] = None
+    mirrored_key_field_names: list[str]
+    mirrored_data_field_names: list[str]
+    default_data_path_in_scene: Optional[str]
 
 # ==============================================================================================================================
 # COMMON ENUMS

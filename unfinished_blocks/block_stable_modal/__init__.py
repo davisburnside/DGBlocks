@@ -12,11 +12,11 @@ from ...my_addon_config import Documentation_URLs, should_show_developer_ui_pane
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from .. import block_core
+from ...native_blocks import block_core
 from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ..block_core.core_features.hooks import Wrapper_Hooks
 from ..block_core.core_features.control_plane import Wrapper_Control_Plane
-from ..block_core.core_features.runtime_cache  import Wrapper_Runtime_Cache
+from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper  import Wrapper_Runtime_Cache
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------

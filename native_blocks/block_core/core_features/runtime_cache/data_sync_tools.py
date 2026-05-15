@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from typing import TypeVar, Union
 import bpy
 
-from native_blocks.block_core.core_features.runtime_cache import Wrapper_Runtime_Cache
+from native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
-from ....addon_helpers.data_structures import Enum_Sync_Events
+from .....addon_helpers.data_structures import Enum_Sync_Events
 
 T = TypeVar('T')
 

@@ -22,7 +22,7 @@ from .core_features.control_plane.data_structures import DGBLOCKS_PG_Debug_Block
 from .core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
 from .core_features.hooks.feature_wrapper import Wrapper_Hooks
 from .core_features.hooks.ui import  DGBLOCKS_UL_Hooks
-from .core_features.runtime_cache import Wrapper_Runtime_Cache
+from .core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from .core_helpers.ui import uilayout_draw_core_block_settings
 
 # --------------------------------------------------------------

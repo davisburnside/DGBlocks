@@ -12,8 +12,8 @@ from .....addon_helpers.generic_tools import is_bpy_ready, force_redraw_ui
 
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
-from ...core_helpers.BL_RTC_data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
-from ..runtime_cache import Wrapper_Runtime_Cache
+from ..runtime_cache.data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
+from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from ..hooks.feature_wrapper import Wrapper_Hooks
 from .data_structures import rtc_sync_key_fields, rtc_sync_data_fields
@@ -130,16 +130,6 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger=logger)
             core_props.debug_log_all_RTC_BL_sync_actions = True
             core_props.debug_mode_enabled = True
-
-        # ----------------------------------------------------------------------------------------------------------------------------
-        # 0: Setup the data mirror for Block-management, then store it directly inside this class's parent FWC instance
-        # self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
-        #     RTC_key = cache_key_blocks,
-        #     sync_key_field_names = rtc_sync_key_fields, 
-        #     sync_data_field_names = rtc_sync_data_fields,
-        #     default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
-        # )
-        # self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
