@@ -5,6 +5,9 @@ from enum import Enum, StrEnum, auto
 from typing import Optional, Type
 import bpy # type: ignore
 
+# ==============================================================================================================================
+# ADDON STATE
+
 @dataclass
 class Global_Addon_State():
     POST_REG_INIT_HAS_RUN: bool = False
@@ -15,8 +18,30 @@ class Global_Addon_State():
     CURRENT_ACTIVE_OBJ: tuple[str, str] = None # (name, session_uid)
 
 # ==============================================================================================================================
-# COMMON ENUMS
+# CORE FEATURE DEFINITIONS
+
+@dataclass
+class Hook_Source_Definition():
+    arg_types: dict[str, any]
+
+@dataclass
+class Logger_Definition():
+    default_level: str
+
+@dataclass
+class RTC_Member_Definition():
+    default_value: any
+
+@dataclass
+class RTC_Member_Data_Mirror_Definition():
+    RTC_key: str
+    FWC_name: str
+    mirrored_key_field_names: list[str] = []
+    mirrored_data_field_names: list[str] = []
+    default_data_path_in_scene: Optional[str] = None
+
 # ==============================================================================================================================
+# COMMON ENUMS
 
 class Enum_Sync_Events(StrEnum):
     ADDON_INIT = auto()
@@ -134,27 +159,18 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 # ==============================================================================================================================
 
 @dataclass 
-class Abstract_Generic_RTC_FWC_Data_Mirror:
+class RTC_FWC_Data_Mirror_Instance:
     
     RTC_key: str # cache key, must be a unique 
+    is_valid: bool = False
 
-    # Becomes false when the FWC implements 'update_BL_with_mirrored_RTC_data' or 'update_RTC_with_mirrored_BL_data'
-    use_default_BL_update_logic: bool = True
-    use_default_RTC_update_logic: bool = True
+    # If None, the FWC must implement 'update_BL_with_mirrored_RTC_data' or 'update_RTC_with_mirrored_BL_data'
+    default_BL_scene_data_path: str = None
 
     sync_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
     sync_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
     timestamp_last_BL_data_refresh: int = field(default = -1)
     timestamp_last_RTC_data_refresh: int = field(default = -1)
-
-@dataclass 
-class RTC_FWC_Data_Mirror_Dict_Reference(Abstract_Generic_RTC_FWC_Data_Mirror):
-    default_BL_scene_child_collectionproperty_path: str
-
-@dataclass 
-class RTC_FWC_Data_Mirror_List_Reference(Abstract_Generic_RTC_FWC_Data_Mirror):
-    default_BL_scene_child_propertygroup_path: str
-
 
 @dataclass
 class RTC_FWC_Instance:
@@ -162,5 +178,5 @@ class RTC_FWC_Instance:
     feature_name: str
     actual_class: Type[Abstract_Feature_Wrapper]
     has_BL_mirrored_data: bool
-    data_mirror_lists: list[Type[RTC_FWC_Data_Mirror_List_Reference]] = field(default = [])
-    data_mirror_dicts: list[Type[RTC_FWC_Data_Mirror_Dict_Reference]] = field(default = {})
+    data_mirror_lists: list[Type[RTC_FWC_Data_Mirror_Instance]] = field(default = [])
+    data_mirror_dicts: list[Type[RTC_FWC_Data_Mirror_Instance]] = field(default = {})

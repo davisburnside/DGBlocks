@@ -29,7 +29,6 @@ from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Insta
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_hook_sources = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
 cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS
-cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 
 # ==============================================================================================================================
 # HOOK DATA FILTER DECORATOR
@@ -91,13 +90,13 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
 
         # Setup the data mirror for Loggers, then store it directly inside this class's parent FWC instance
-        self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
-            RTC_key = cache_key_blocks,
-            sync_key_field_names = rtc_sync_key_fields, 
-            sync_data_field_names = rtc_sync_data_fields,
-            default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
-        )
-        self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
+        # self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
+        #     RTC_key = cache_key_blocks,
+        #     sync_key_field_names = rtc_sync_key_fields, 
+        #     sync_data_field_names = rtc_sync_data_fields,
+        #     default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
+        # )
+        # self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
 
         # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
         cls._rebuild_hook_subs_cache()

@@ -12,7 +12,7 @@ from ...my_addon_config import Documentation_URLs, should_show_developer_ui_pane
 # --------------------------------------------------------------
 # Core block imports
 # --------------------------------------------------------------
-from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
+from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
 from .core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from .core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance
 from .core_features.loggers.ui import DGBLOCKS_UL_Loggers
@@ -268,6 +268,7 @@ def register_block(event: Enum_Sync_Events):
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = _feature_wrapper_classes_to_register,
         block_RTC_member_enums = Core_Runtime_Cache_Members,
+        block_RTC_data_mirror_enums = Core_Data_Mirrors,
         block_hook_source_enums = Core_Block_Hook_Sources,
         block_logger_enums = Core_Block_Loggers 
     )

@@ -1,5 +1,5 @@
 
-from typing import Type
+from typing import Callable, Type
 from types import ModuleType
 from enum import Enum
 import bpy  # type: ignore
@@ -25,8 +25,8 @@ from .msgbus import clear_msgbuses, add_msgbuses, msgbus_subs
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
-enum_hook_blocks_registered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_REGISTERED
-enum_hook_blocks_unregistered = Core_Block_Hook_Sources.CORE_EVENT_BLOCKS_UNREGISTERED
+enum_hook_blocks_registered = Core_Block_Hook_Sources.hook_block_registered
+enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
 
 # ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
@@ -133,13 +133,13 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 0: Setup the data mirror for Block-management, then store it directly inside this class's parent FWC instance
-        self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
-            RTC_key = cache_key_blocks,
-            sync_key_field_names = rtc_sync_key_fields, 
-            sync_data_field_names = rtc_sync_data_fields,
-            default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
-        )
-        self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
+        # self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
+        #     RTC_key = cache_key_blocks,
+        #     sync_key_field_names = rtc_sync_key_fields, 
+        #     sync_data_field_names = rtc_sync_data_fields,
+        #     default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
+        # )
+        # self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 1: BL<->RTC 2-way sync, keeping user's saved block enabled/disabled settings if they exist
@@ -228,10 +228,11 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         cls,
         event: Enum_Sync_Events,
         block_module: ModuleType,
-        block_bpy_types_classes: list[Type[Abstract_Feature_Wrapper]] = [],
-        block_feature_wrapper_classes: list[Type[Abstract_Feature_Wrapper]] = [],
+        block_bpy_types_classes: list[bpy.types] = [],
+        block_feature_wrapper_classes: list[Abstract_Feature_Wrapper] = [],
         block_RTC_member_enums: list[Enum] = [],
-        block_hook_source_enums: list[Type[Enum]] = [],
+        block_RTC_data_mirror_enums: list[Enum] = [],
+        block_hook_source_enums: list[Enum] = [],
         block_logger_enums: list[Enum] = [],
     ):
         """
@@ -254,6 +255,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
                 block_bpy_types_classes,
                 block_feature_wrapper_classes,
                 block_RTC_member_enums,
+                block_RTC_data_mirror_enums,
                 block_hook_source_enums,
                 block_logger_enums,
             )

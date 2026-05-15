@@ -18,7 +18,6 @@ from .data_structures import RTC_Logger_Instance, rtc_sync_key_fields, rtc_sync_
 
 # Aliases
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
-cache_key_FWC_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_FWC_DATA_MIRRORS
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS

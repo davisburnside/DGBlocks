@@ -14,8 +14,8 @@ from ..hooks.feature_wrapper import Wrapper_Hooks
 
 # Aliases
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
-enum_hook_undo = Core_Block_Hook_Sources.CORE_EVENT_POST_UNDO
-enum_hook_redo = Core_Block_Hook_Sources.CORE_EVENT_POST_REDO
+enum_hook_undo = Core_Block_Hook_Sources.hook_core_event_undo
+enum_hook_redo = Core_Block_Hook_Sources.hook_core_event_redo
 enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SCENE_CHANGED
 enum_hook_active_workspace_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED
 enum_hook_active_mode_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_CHANGED

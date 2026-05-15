@@ -6,12 +6,12 @@ from bpy.app.handlers import persistent  # type: ignore
 
 # Addon-level imports
 from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
+from .....addon_helpers.generic_tools import is_bpy_ready
 
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import get_logger
-from .....addon_helpers.generic_tools import is_bpy_ready
 
 # Aliases
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
@@ -48,14 +48,14 @@ class DGBLOCKS_PG_Debug_Block_Reference(bpy.types.PropertyGroup):
 # ==============================================================================================================================
 # RTC DATA
 
-rtc_sync_key_fields = ["block_id"]
-rtc_sync_data_fields = [
-    "should_block_be_enabled",
-    "is_block_enabled",
-    "is_block_valid",
-    "is_block_dependencies_valid_and_enabled",
-    "block_disabled_reason",
-]
+# rtc_sync_key_fields = ["block_id"]
+# rtc_sync_data_fields = [
+#     "should_block_be_enabled",
+#     "is_block_enabled",
+#     "is_block_valid",
+#     "is_block_dependencies_valid_and_enabled",
+#     "block_disabled_reason",
+# ]
 
 @dataclass
 class RTC_Block_Instance:
