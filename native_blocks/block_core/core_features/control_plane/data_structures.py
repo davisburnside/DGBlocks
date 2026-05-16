@@ -26,8 +26,7 @@ def _callback_update_block_enabled(self, context):
         return
 
     try:
-        instance_FWC_Control_Plane = Wrapper_Runtime_Cache.get_Control_Plane_FWC()
-        instance_FWC_Control_Plane.actual_class.update_all_FWC_RTC_caches_to_match_BL_data(event=Enum_Sync_Events.PROPERTY_UPDATE)
+        Wrapper_Runtime_Cache.resync_all_data_mirrors(Enum_Sync_Events.FORCE_RESTORE_RT, logger, BL_is_truth_source = True)
 
     except Exception:
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
@@ -47,15 +46,6 @@ class DGBLOCKS_PG_Debug_Block_Reference(bpy.types.PropertyGroup):
 
 # ==============================================================================================================================
 # RTC DATA
-
-# rtc_sync_key_fields = ["block_id"]
-# rtc_sync_data_fields = [
-#     "should_block_be_enabled",
-#     "is_block_enabled",
-#     "is_block_valid",
-#     "is_block_dependencies_valid_and_enabled",
-#     "block_disabled_reason",
-# ]
 
 @dataclass
 class RTC_Block_Instance:

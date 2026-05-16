@@ -44,9 +44,9 @@ from .addon_helpers.data_structures import Enum_Sync_Events
 from .my_activated_blocks import _ordered_blocks_list
 from .my_addon_config import addon_name
 
-from .native_blocks.block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
-from .native_blocks.block_core.core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from .native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from .native_blocks.block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane, early_init_FWCs
+from .native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 
 # ==============================================================================================================================
@@ -58,17 +58,17 @@ from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 def register():
 
     event = Enum_Sync_Events.ADDON_INIT
+    _RTC_dummy = Wrapper_Runtime_Cache # for debugging
     
-    # Two feature-wrapper classes (runtime-cache & loggers) are bootstrapped first, before their owner (block-core) starts registration.
-    # Loggers are used immediately after this step, and loggers are stored inside the Runtime Cache
-    Wrapper_Runtime_Cache.init_pre_bpy(event)
-    Wrapper_Loggers.init_pre_bpy(event)
+    # 3 feature-wrapper classes from are bootstrapped first, before their owner (block-core) starts registration.
+    # The first FWC created is Runtime Cache (RTC), to hold the next created objects.
+    # Next is the Loggers FWC, to write console output
+    # Finally is the Control-Plane FWC, which adds the core app.handler and msgbus listeners
+    for actual_feature_wrapper_class in early_init_FWCs:
+        actual_feature_wrapper_class.init_pre_bpy(event, None)
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting main pre-bpy registration for Addon '{addon_name}'")
-
-    # Block Managmenet feature-wrapper is created next, and is used immediately after (Triggers init tasks on other core-block features)
-    Wrapper_Control_Plane.init_pre_bpy(event)
 
     # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
     # Causes of invalid blocks: TODO webpage link
@@ -102,9 +102,6 @@ def unregister():
             block.unregister_block(event)
         except:
             logger.error(f"Exception when unregistering block '{block._BLOCK_ID}': ", exc_info = True)
-
-    # Block-manager does cleanup tasks for itself & all other core-block features
-    Wrapper_Control_Plane.destroy_wrapper(event)
     
     try:
         logger.log_with_linebreak(f"Finished main unregistration for Addon '{addon_name}'")

@@ -1,4 +1,5 @@
 
+from abc import ABC
 from collections import defaultdict
 from enum import Enum, EnumMeta
 import inspect
@@ -83,14 +84,6 @@ def get_self_block_module(block_manager_wrapper: ModuleType):
     caller_frame = inspect.stack()[1] # Gets the module which called the current function
     block_module = inspect.getmodule(caller_frame.frame)
     return block_module
-        
-def get_block_module_by_id(block_id: str, registered_blocks: List[ModuleType]) -> ModuleType:
-    """Look up a block module by its ID."""
-        
-    return next(
-        (b for b in registered_blocks if b._BLOCK_ID == block_id),
-        None
-    )
 
 def find_blocks_owning_func_with_name(func_name: str, registered_blocks:list[ModuleType], logger: Optional[logging.Logger] = None) -> List[ModuleType]:
     """Find all registered blocks that have a function with the given name."""
@@ -146,6 +139,46 @@ def validate_block_list_before_registration(blocks_to_register: list[any]):
 
     return valid_blocks, invalid_blocks
 
+# --------------------------------------------------------------
+# Feature-Wrapper-Class tools
+# --------------------------------------------------------------
+
+def determine_FWC_abstract_funcs(actual_class: type) -> list[str]:
+
+    # Collect all ABC bases (excluding the class itself and object)
+    abc_bases = [
+        base for base in inspect.getmro(actual_class)
+        if base not in (actual_class, object) and issubclass(base, ABC)
+    ]
+
+    # Collect all abstract method names defined in those bases
+    abstract_methods = {
+        name
+        for base in abc_bases
+        for name, member in vars(base).items()
+        if getattr(member, "__isabstractmethod__", False)
+    }
+
+    missing_func_implementations = [
+        name for name in abstract_methods
+        if not (
+            isinstance(vars(actual_class).get(name), classmethod)
+            and not getattr(vars(actual_class).get(name), "__isabstractmethod__", False)
+        )
+    ]
+
+    present_func_implementations = [
+        name for name in abstract_methods
+        if (
+            isinstance(vars(actual_class).get(name), classmethod)
+            and not getattr(vars(actual_class).get(name), "__isabstractmethod__", False)
+        )
+    ]
+
+    return present_func_implementations, missing_func_implementations
+
+def validate_FWC_data_mirrors_after_init():
+    pass
 # --------------------------------------------------------------
 # Other
 # --------------------------------------------------------------

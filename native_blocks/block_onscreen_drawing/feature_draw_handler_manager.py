@@ -70,7 +70,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls) -> bool:
+    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
         "Define draw-handlers cache structure at startup. The dict will be populated during later init step"
 
         logger = logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
@@ -95,12 +95,12 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         return True
 
     @classmethod
-    def init_post_bpy(cls) -> bool:
+    def init_post_bpy(cls, event, self_FWC_instance) -> bool:
         "no-op"
         return True
 
     @classmethod
-    def destroy_wrapper(cls) -> bool:
+    def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
 
         logger = logger = get_logger(Block_Logger_Definitions.DRAWHANDLER_LIFECYCLE)
         logger.debug("Removing Wrapper 'Wrapper_Draw_Handlers'")

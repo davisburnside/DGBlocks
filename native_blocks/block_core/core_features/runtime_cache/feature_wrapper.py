@@ -1,8 +1,6 @@
-# Sample License, ignore for now
 
 # ==============================================================================================================================
 # IMPORTS
-# ==============================================================================================================================
 
 from enum import Enum
 import threading
@@ -11,20 +9,20 @@ from typing import Any, Optional
 
 # --------------------------------------------------------------
 # Addon-level imports
-# --------------------------------------------------------------
 from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
 
 # --------------------------------------------------------------
 # Intra-block imports
-# --------------------------------------------------------------
 from ...core_helpers.constants import Core_Runtime_Cache_Members
+from .data_sync_tools import default_data_mirror_BL_colprop_update_logic, default_data_mirror_RTC_list_update_logic
 
-
+# --------------------------------------------------------------
+# Aliases
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
+
 # ==============================================================================================================================
 #  MAIN MODULE FEATURE
-# ==============================================================================================================================
 
 class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     """
@@ -43,27 +41,25 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event: Enum_Sync_Events) -> bool:
+    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
         
         # Initialize the cache
-        cls.destroy_wrapper(event = event)
+        cls.destroy_wrapper(event, None)
         cls._cache = {}  # Force new dict instance
         cls._lock = threading.RLock()  # Force new lock instance
         
         # Create Runtime cache members with default values.
-        for rtc_member in Core_Runtime_Cache_Members:
-            member_key = rtc_member.name
-            member_default_value = rtc_member.value[1] # Supported RTC value types = primitives, types, python collections, Enum classes, and @dataclasses
-            default_value_copy = fast_deepcopy_with_fallback(member_default_value) 
-            cls.set_cache(member_key, default_value_copy)
+        for RTC_member_enum in Core_Runtime_Cache_Members:
+            member_default_value = fast_deepcopy_with_fallback(RTC_member_enum.value.default_value) 
+            cls.set_cache(RTC_member_enum.name, member_default_value)
 
     @classmethod
-    def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
+    def init_post_bpy(cls, event, self_FWC_instance) -> bool:
         # Initialize the cache. Called after of addon registration
         return # No actions to take
 
     @classmethod
-    def destroy_wrapper(cls, event: Enum_Sync_Events):
+    def destroy_wrapper(cls, event, self_FWC_instance):
         # Clear all cache data. Called during unregister
         with cls._lock:
             cls._cache = {}
@@ -132,7 +128,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             if true_key in cls._cache:
                 del cls._cache[true_key]
 
-     # --------------------------------------------------------------
+    # --------------------------------------------------------------
     # Funcs specific to this class, for non-unique list members
     # --------------------------------------------------------------
 
@@ -267,20 +263,101 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             cache_names_being_synced.append(true_member_key)
 
     @classmethod
-    def asset_cache_is_not_syncing(cls, cache_key, wrapper_class):
+    def assert_cache_is_not_syncing(cls, cache_key):
         if cls.is_cache_flagged_as_syncing(cache_key):
-            raise Exception(f"'{wrapper_class.__name__}' is flagged as syncing")
+            raise Exception(f"Error: Mirrored cache '{cache_key}' is already flagged as syncing")
 
     @classmethod
-    def get_Control_Plane_FWC(cls):
-         # for avoiding circular imports
-        
-        idx, FWC_instance, cached_FWCs = cls.get_unique_instance_from_registry_list(
-            member_key = cached_FWCs,
-            uniqueness_field="feature_name",
-            uniqueness_field_value="Wrapper_Control_Plane",
-        )
-        return FWC_instance
+    def resync_single_data_mirror(
+        cls, 
+        event: Enum_Sync_Events, 
+        FWC_instance: RTC_FWC_Instance,
+        data_mirror_instance: RTC_FWC_Data_Mirror_Instance,
+        BL_is_truth_source:bool,
+        logger,
+    ) -> None:
+
+        cache_key = data_mirror_instance.RTC_key
+        source_type = "Blender" if BL_is_truth_source else "RTC"
+        target_type = "RTC" if BL_is_truth_source else "Blender"
+        use_default_sync_logic = data_mirror_instance.default_data_path_in_scene is not None
+        cached_RTC_list = cls.get_cache(cache_key)
+
+        # Data-mirror has custom sync functions inside the FWC
+        if use_default_sync_logic:
+            logger.debug(f"(Default list sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
+
+            # Update RTC with BL data
+            actions_denied = set()
+            if BL_is_truth_source:
+                if data_mirror_instance.RTC_member_type == "list":
+                    default_data_mirror_RTC_list_update_logic(
+                        FWC_instance,
+                        data_mirror_instance,
+                        cached_RTC_list,
+                        actions_denied,
+                        logger,
+                    )
+                else:
+                    print("PLACEHOLDER--------------------------")
+
+            # Update BL with RTC data
+            else:
+
+                # Sanity check before syncing BL data. This is needed to prevent update-callback loops in certain cases
+                # Custom updates need to peform their own cache-flagging checks & setters
+                try:
+                    cls.assert_cache_is_not_syncing(cache_key)
+                    cls.flag_cache_as_syncing(cache_key, True)
+
+                    # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
+                    actions_denied = set()
+                    if event == Enum_Sync_Events.ADDON_INIT:
+                        actions_denied = {Enum_Sync_Actions.EDIT}
+
+                    if data_mirror_instance.RTC_member_type == "list":
+                        default_data_mirror_BL_colprop_update_logic(
+                            FWC_instance,
+                            data_mirror_instance,
+                            cached_RTC_list,
+                            actions_denied,
+                            logger,
+                        )
+                    else:
+                        print("PLACEHOLDER--------------------------")
+                except:
+                    logger.error("Error", exc_info = True)
+                finally:
+                    cls.flag_cache_as_syncing(cache_key, False)
+
+        else:
+            logger.debug(f"(Custom list sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
+            if BL_is_truth_source:
+                FWC_instance.actual_class.update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
+            else:
+                FWC_instance.actual_class.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
+
+    @classmethod
+    def resync_all_data_mirrors(cls, event: Enum_Sync_Events, BL_is_truth_source:bool, logger) -> None:
+        """
+        Iterate through all registered Feature_Wrapper_References and call their
+        update_RTC_with_mirrored_BL_data method.
+        """
+
+        source_type = "Blender" if BL_is_truth_source else "RTC"
+        target_type = "RTC" if BL_is_truth_source else "Blender"
+        logger.debug(f"Updating {target_type} with mirrored {source_type} data for event='{event}'")
+
+        cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+        for FWC_instance in cached_FWCs:
+            for data_mirror_list_instance in FWC_instance.data_mirrors:
+                cls.resync_single_data_mirror_list(
+                    event, 
+                    FWC_instance,
+                    data_mirror_list_instance,
+                    BL_is_truth_source,
+                    logger,
+                )
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS

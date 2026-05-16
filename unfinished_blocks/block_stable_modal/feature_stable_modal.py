@@ -275,7 +275,7 @@ class DGBLOCKS_OT_StableModal(bpy.types.Operator):
                     hook_func_name = Block_Hooks.KEY_OR_MOUSE_EVENT,
                     should_halt_on_exception=False,
                     context = context,
-                    event = event,
+                    event,
                     modal_instance = modal_instance,
                 )
 
@@ -285,7 +285,7 @@ class DGBLOCKS_OT_StableModal(bpy.types.Operator):
                     hook_func_name = Block_Hooks.TIMER_EVENT,
                     should_halt_on_exception=False,
                     context = context,
-                    event = event,
+                    event,
                     modal_instance = modal_instance,
                 )
                 
@@ -297,7 +297,7 @@ class DGBLOCKS_OT_StableModal(bpy.types.Operator):
             #         hook_func_name=Block_Hooks.AREA_CHANGE_EVENT,
             #         should_halt_on_exception=False,
             #         context=context,
-            #         event=event,
+            #         event,
             #         modal_instance = modal_instance,
             #         old_area=modal_instance.last_area,
             #         new_area=current_area

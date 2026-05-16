@@ -20,19 +20,19 @@ class Global_Addon_State():
 # ==============================================================================================================================
 # CORE FEATURE DEFINITIONS
 
-@dataclass
+@dataclass(eq=False)
 class Hook_Source_Definition():
     arg_types: dict[str, any]
 
-@dataclass
+@dataclass(eq=False)
 class Logger_Definition():
     default_level: str
 
-@dataclass
+@dataclass(eq=False)
 class RTC_Member_Definition():
     default_value: any
 
-@dataclass
+@dataclass(eq=False)
 class RTC_Member_Data_Mirror_Definition():
     RTC_key: str
     FWC_name: str
@@ -102,22 +102,11 @@ class Abstract_Feature_Wrapper(ABC):
 
 
 class Abstract_BL_RTC_List_Syncronizer(ABC):
-    # All functions are optional. If not implemented, Wrapper_Control_Plane handles logic
-    # Inhertited by all FWCs that sync data between the RTC and Blender (Scene, Preferences, WindowManager, Object... almost any bpy.* object )
-    # Children of this class will automatically update RTC data with Blender's source-of-truth upon UNDO/REDO events
-
-    @classmethod
-    @abstractmethod
-    def get_owners_list() -> list[Type[bpy.props]]:
-        # Optional func: if not implemented in the FWC, context.scene is used (Where BL-mirrored data commonly lives)
-        # Executes once per FWC, per resync event
-        # Returns are ignored
-        pass
-
+    # These 2 functions are only required if an FWC has at least 1 data-mirror instance with a non-default sync.
+    
     @classmethod
     @abstractmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
-        # Optional func: if not implemented in the FWC, context.scene is used (Where BL-mirrored data commonly lives)
         # Used by Wrapper_Control_Plane on undo/redo/load, and by certain property update callbacks
         # Rebuild an RTC list from the child propertygroup of a parent propertygroup/datablock. Blender is the source of truth
         # Args must match exactly
@@ -129,7 +118,6 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
     def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): 
         # Used when RTC data need to be persisted into Blender
         # RTC data overwries scene/obj/datablock properties. Data is reused/modified instead of recreated, when possible
-        # Should use 'update_collectionprop_to_match_dataclasses' for convenience
         # Args must match exactly
         # Returns are ignored
         pass
@@ -161,16 +149,21 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 @dataclass 
 class RTC_FWC_Data_Mirror_Instance:
     
-    RTC_key: str # cache key, must be a unique 
-    is_valid: bool = False
+    RTC_key: str # cache key, must be unique
+    RTC_member_type: str # enum <"list"> / <"dict">
+    mirrored_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
+    mirrored_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
 
     # If None, the FWC must implement 'update_BL_with_mirrored_RTC_data' or 'update_RTC_with_mirrored_BL_data'
-    default_BL_scene_data_path: str = None
+    default_data_path_in_scene: Optional[str] = field(default = None)
 
-    sync_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
-    sync_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
+    # Updates for every sync attempt
     timestamp_last_BL_data_refresh: int = field(default = -1)
     timestamp_last_RTC_data_refresh: int = field(default = -1)
+
+    # Validation happens a few steps after creation, once bpy is available
+    is_valid:bool = field(default = True)
+    error_reason: str = field(default = None)
 
 @dataclass
 class RTC_FWC_Instance:
@@ -178,5 +171,4 @@ class RTC_FWC_Instance:
     feature_name: str
     actual_class: Type[Abstract_Feature_Wrapper]
     has_BL_mirrored_data: bool
-    data_mirror_lists: list[Type[RTC_FWC_Data_Mirror_Instance]] = field(default = [])
-    data_mirror_dicts: list[Type[RTC_FWC_Data_Mirror_Instance]] = field(default = {})
+    data_mirrors: list[Type[RTC_FWC_Data_Mirror_Instance]] = field(default = list)

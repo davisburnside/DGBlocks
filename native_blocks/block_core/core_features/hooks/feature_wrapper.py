@@ -11,17 +11,16 @@ import time
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
-from ..runtime_cache.data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop, compare_unique_tuple_lists
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import get_logger
-from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance, rtc_sync_key_fields, rtc_sync_data_fields
+from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
 
 # --------------------------------------------------------------
 # Aliases
@@ -79,35 +78,27 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event: Enum_Sync_Events) -> None:
+    def init_pre_bpy(cls, event, self_FWC_instance) -> None:
         "no-op"
         return True
 
     @classmethod
-    def init_post_bpy(cls, event: Enum_Sync_Events, self_FWC_instance: type[RTC_FWC_Instance]) -> None:
+    def init_post_bpy(cls, event, self_FWC_instance) -> None:
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
-
-        # Setup the data mirror for Loggers, then store it directly inside this class's parent FWC instance
-        # self_data_mirror_instance = RTC_FWC_Data_Mirror_List_Reference(
-        #     RTC_key = cache_key_blocks,
-        #     sync_key_field_names = rtc_sync_key_fields, 
-        #     sync_data_field_names = rtc_sync_data_fields,
-        #     default_BL_scene_child_propertygroup_path = "dgblocks_core_props.managed_blocks"
-        # )
-        # self_FWC_instance.data_mirror_lists.append(self_data_mirror_instance)
 
         # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
         cls._rebuild_hook_subs_cache()
 
         # BL<->RTC 2-way sync, keeping user's saved hook settings if they exist
-        cls.update_BL_with_mirrored_RTC_data(event=Enum_Sync_Events.ADDON_INIT)  # Causes partial RTC->BL sync
-        cls.update_RTC_with_mirrored_BL_data(event=Enum_Sync_Events.ADDON_INIT)  # Causes full BL-RTC resync
+        event = Enum_Sync_Events.ADDON_INIT
+        cls.update_BL_with_mirrored_RTC_data(event, self_FWC_instance)  # Causes partial RTC->BL sync
+        cls.update_RTC_with_mirrored_BL_data(event, self_FWC_instance)  # Causes full BL-RTC resync
         return True
 
     @classmethod
-    def destroy_wrapper(cls, event: Enum_Sync_Events) -> None:
+    def destroy_wrapper(cls, event, self_FWC_instance) -> None:
         "no-op"
         return True
 
@@ -116,59 +107,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # --------------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
-        import bpy  # type: ignore
-        core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-        logger.debug(f"Updating hooks RTC with mirrored BL Data")
-        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-        # Get mirrored BL/RTC data (potentially de-synced)
-        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        scene_hook_subs = core_props.managed_hooks
-
-        # BL->RTC Sync
-        update_dataclasses_to_match_collectionprop(
-            actual_FWC=Wrapper_Hooks,
-            source=scene_hook_subs,
-            target=cached_hook_subs,
-            key_fields=rtc_sync_key_fields,
-            data_fields=rtc_sync_data_fields,
-            actions_denied=set(),
-            debug_logger=debug_logger,
-        )
+    def update_RTC_with_mirrored_BL_data(cls, event):
+        pass
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
-        import bpy  # type: ignore
-        core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-        logger.debug(f"Updating hooks BL data with mirrored RTC")
-        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-        # Sanity check before sync
-        Wrapper_Runtime_Cache.asset_cache_is_not_syncing(cache_key_hook_subscribers, cls)
-
-        # Get mirrored BL/RTC data (potentially de-synced)
-        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        scene_hook_subs = core_props.managed_hooks
-
-        # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-        actions_denied = set()
-        if event == Enum_Sync_Events.ADDON_INIT:
-            actions_denied = {Enum_Sync_Actions.EDIT}
-
-        # RTC->BL Sync
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, True)
-        update_collectionprop_to_match_dataclasses(
-            source=cached_hook_subs,
-            target=scene_hook_subs,
-            key_fields=rtc_sync_key_fields,
-            data_fields=rtc_sync_data_fields,
-            actions_denied=actions_denied,
-            debug_logger=debug_logger,
-        )
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_hook_subscribers, False)
+    def update_BL_with_mirrored_RTC_data(cls, event):
+        pass
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
@@ -393,7 +337,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         """
         Rebuild REGISTRY_ALL_HOOK_SUBSCRIBERS from REGISTRY_ALL_HOOK_SOURCES and REGISTRY_ALL_BLOCKS.
         """
-
+        return
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug("Rebuilding RTC Hook subscribers")
 

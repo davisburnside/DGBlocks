@@ -4,7 +4,7 @@ from dataclasses import dataclass
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_structures import  Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_List_Reference
+from ....addon_helpers.data_structures import  Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance
 from ....addon_helpers.generic_tools import get_self_block_module, is_bpy_ready
 from ....addon_helpers.ui import ui_draw_block_panel_header, ui_draw_list_headers
 from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
@@ -92,7 +92,7 @@ class Wrapper_Example_Mirror_02B(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_
 
         # Setup data mirror reference
         self_feature_name = cls.__name__
-        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_List_Reference(
+        FWC_data_mirror_ref = RTC_FWC_Data_Mirror_Instance(
             FWC_name = self_feature_name,
             BL_collectionprop_path = "dgblocks_core_props.managed_hooks", 
             RTC_key = cache_key_example_usecase_02b,
@@ -109,59 +109,6 @@ class Wrapper_Example_Mirror_02B(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_
         logger = get_logger(Block_Loggers.EXAMPLE_USECASE_02B)
         logger.debug("Running destroy_wrapper for Wrapper_Example_Mirror_02B")
         return True
-
-    # --------------------------------------------------------------
-    # Implemented from Abstract_BL_RTC_List_Syncronizer
-    # --------------------------------------------------------------
-
-    @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
-        """Sync BL -> RTC. Blender is the source of truth."""
-        
-        block_props = bpy.context.scene.dgblocks_example_mirror_02b_props
-        logger = get_logger(Block_Loggers.EXAMPLE_USECASE_02B)
-        logger.debug("Updating ExampleMirror02B RTC with mirrored BL Data")
-
-        cached_items = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MIRROR_ITEMS)
-        scene_items = block_props.mirror_items
-
-        update_dataclasses_to_match_collectionprop(
-            actual_FWC=cls,
-            source=scene_items,
-            target=cached_items,
-            key_fields=rtc_sync_key_fields,
-            data_fields=rtc_sync_data_fields,
-            actions_denied=set(),
-            debug_logger=None,
-        )
-
-    @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
-        """Sync RTC -> BL. Persist runtime data into Blender."""
-
-        block_props = bpy.context.scene.dgblocks_example_mirror_02b_props
-        logger = get_logger(Block_Loggers.EXAMPLE_USECASE_02B)
-        logger.debug("Updating ExampleMirror02B BL Data with mirrored RTC")
-
-        Wrapper_Runtime_Cache.asset_cache_is_not_syncing(Block_RTC_Members.MIRROR_ITEMS, cls)
-
-        cached_items = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MIRROR_ITEMS)
-        scene_items = block_props.mirror_items
-
-        actions_denied = set()
-        if event == Enum_Sync_Events.ADDON_INIT:
-            actions_denied = {Enum_Sync_Actions.EDIT}  # type: ignore
-
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.MIRROR_ITEMS, True)
-        update_collectionprop_to_match_dataclasses(
-            source=cached_items,
-            target=scene_items,
-            key_fields=rtc_sync_key_fields,
-            data_fields=rtc_sync_data_fields,
-            actions_denied=actions_denied,
-            debug_logger=None,
-        )
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.MIRROR_ITEMS, False)
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager

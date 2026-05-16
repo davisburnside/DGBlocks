@@ -55,9 +55,7 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     # Enables extra UI options for debugging. Most properties & functions that begin with "debug_" are not used when this value is false
     debug_mode_enabled: bpy.props.BoolProperty(default = False, name = "Is in Debug Mode?") # type: ignore
     
-    # When true, all create/edit/move/remove actions are console printed for:
-    # - update_dataclasses_to_match_collectionprop
-    # - update_collectionprop_to_match_dataclasses
+    # When true, all sync actions for create/edit/move/remove actions are printed to the console:
     debug_log_all_RTC_BL_sync_actions: bpy.props.BoolProperty(default = False)# type: ignore
 
     # Empties all CollectionProps created by this addon eveyr startup
@@ -143,8 +141,12 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
 
     def execute(self, context):
 
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
+
         # Clearing these would prevent restore-action
         rtc_members_to_skip = ["REGISTRY_ALL_BLOCKS", "REGISTRY_ALL_FWCS"]
+
+        event = Enum_Sync_Events.FORCE_RESTORE_RT
         
         # Clear or restore the RTC, Blender data is unaffected
         if self.target == "RTC":
@@ -165,7 +167,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
 
             # Use Block-mgmt FWC's native restoration feature
             elif self.action == "RESTORE":
-                Wrapper_Control_Plane.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
+                Wrapper_Runtime_Cache.resync_all_data_mirrors(event, logger, BL_is_truth_source = True) 
 
         # Clear or restore Blender data, RTC is unaffected
         if self.target == "BL":
@@ -177,7 +179,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
                         print(f"Clearing RTC list {cache_key}")
                         Wrapper_Runtime_Cache.set_cache(cache_key, [])
             elif self.action == "RESTORE":
-                Wrapper_Control_Plane.update_all_FWC_RTC_caches_to_match_BL_data(Enum_Sync_Events.FORCE_RESTORE_RTC) 
+                Wrapper_Runtime_Cache.resync_all_data_mirrors(event, logger, BL_is_truth_source = False)
 
         return {"FINISHED"}
 
@@ -269,7 +271,7 @@ def register_block(event: Enum_Sync_Events):
         block_feature_wrapper_classes = _feature_wrapper_classes_to_register,
         block_RTC_member_enums = Core_Runtime_Cache_Members,
         block_RTC_data_mirror_enums = Core_Data_Mirrors,
-        block_hook_source_enums = Core_Block_Hook_Sources,
+        # block_hook_source_enums = Core_Block_Hook_Sources,
         block_logger_enums = Core_Block_Loggers 
     )
     
@@ -284,6 +286,9 @@ def unregister_block(event: Enum_Sync_Events):
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
     Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
+
+    # Block-manager does cleanup tasks for itself & all other core-block features
+    # Wrapper_Control_Plane.destroy_wrapper(event, None)
     
     # Delete block-core Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_core_props"):

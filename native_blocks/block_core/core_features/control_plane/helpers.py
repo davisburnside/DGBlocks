@@ -1,15 +1,14 @@
 from abc import ABC
+from enum import Enum
 import inspect
+from types import ModuleType
 from typing import Callable
 
-import bpy  # type: ignore
-from bpy.app.handlers import persistent
-
+import bpy # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import  Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Data_Mirror_List_Reference, RTC_FWC_Instance
-from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from .....addon_helpers.generic_tools import  get_names_of_parent_classes
+from .....addon_helpers.data_structures import  Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
+from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_names_of_parent_classes
 
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
@@ -25,43 +24,8 @@ cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 enum_hook_blocks_registered = Core_Block_Hook_Sources.hook_block_registered
 enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
 
-def determine_FWC_abstract_funcs(actual_class: type) -> list[str]:
-
-        # Collect all ABC bases (excluding the class itself and object)
-        abc_bases = [
-            base for base in inspect.getmro(actual_class)
-            if base not in (actual_class, object) and issubclass(base, ABC)
-        ]
-
-        # Collect all abstract method names defined in those bases
-        abstract_methods = {
-            name
-            for base in abc_bases
-            for name, member in vars(base).items()
-            if getattr(member, "__isabstractmethod__", False)
-        }
-
-        missing_func_implementations = [
-            name for name in abstract_methods
-            if not (
-                isinstance(vars(actual_class).get(name), classmethod)
-                and not getattr(vars(actual_class).get(name), "__isabstractmethod__", False)
-            )
-        ]
-
-        present_func_implementations = [
-            name for name in abstract_methods
-            if (
-                isinstance(vars(actual_class).get(name), classmethod)
-                and not getattr(vars(actual_class).get(name), "__isabstractmethod__", False)
-            )
-        ]
-
-        return present_func_implementations, missing_func_implementations
-
 # ==============================================================================================================================
 # BLOCK CREATION
-# ==============================================================================================================================
 
 def _create_new_block_bpy_classes(block_bpy_types_classes, logger):
 
@@ -73,16 +37,15 @@ def _create_new_block_bpy_classes(block_bpy_types_classes, logger):
             bpy.utils.register_class(bpy_class)
 
 
-def _create_new_block_feature_wrapper_classes(block_id, block_feature_wrapper_classes, logger):
-
+def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger):
 
     cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
     for actual_class in block_feature_wrapper_classes:
         feature_name = actual_class.__name__
 
         # Skip for self, as "create_instance" is already being called
-        if feature_name == "Wrapper_Control_Plane":
-            continue
+        # if feature_name == "Wrapper_Control_Plane":
+        #     continue
 
         # Validate FWC uniqueness
         all_FWC_names = [f.feature_name for f in cached_FWCs]
@@ -103,12 +66,16 @@ def _create_new_block_feature_wrapper_classes(block_id, block_feature_wrapper_cl
 
         # Create & cache a new FWC instance
         FWC_instance = RTC_FWC_Instance(
-            src_block_id=block_id,
-            feature_name=feature_name,
-            actual_class=actual_class,
-            has_BL_mirrored_data=has_BL_mirrored_data,
+            src_block_id = block_id,
+            feature_name = feature_name,
+            actual_class = actual_class,
+            has_BL_mirrored_data = has_BL_mirrored_data,
+            data_mirrors = [],
         )
         cached_FWCs.append(FWC_instance)
+
+        if feature_name not in FWCs_to_skip_init:
+            FWC_instance.actual_class.init_pre_bpy(event, FWC_instance)
 
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
 
@@ -137,15 +104,15 @@ def _create_new_block_record(block_module, block_bpy_types_classes, block_featur
             block_dependencies = block_dependencies,
             block_bpy_types_classes = block_bpy_types_classes,
             block_feature_wrapper_classes = block_feature_wrapper_classes,
-            block_hook_source_names = [h.func_name for h in block_hook_source_enums],
-            block_logger_names = [l.logger_name for l in block_logger_enums],
-            block_RTC_member_names = [m.RTC_key for m in block_RTC_member_enums],
+            block_hook_source_names = [h.name for h in block_hook_source_enums],
+            block_logger_names = [l.name for l in block_logger_enums],
+            block_RTC_member_names = [m.name for m in block_RTC_member_enums],
         )
         cached_blocks_list.append(block_instance)
         Wrapper_Runtime_Cache.set_cache(cache_key_blocks, cached_blocks_list)
 
 
-def _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, block_RTC_data_mirror_enums):
+def _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, logger):
 
     # Loggers - initialized with default log levels
     for idx, logger_enum in enumerate(block_logger_enums):
@@ -175,11 +142,11 @@ def _create_new_block_standard_features(event, block_id, block_logger_enums, blo
     for RTC_member_enum in block_RTC_member_enums:
         Wrapper_Runtime_Cache.create_cache(
             new_key = RTC_member_enum.name,
-            new_value = RTC_member_enum.value.data_type,
+            new_value = RTC_member_enum.value.default_value,
         )
 
 
-def _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums):
+def _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger):
 
     # Create data mirrors references for certain RTC members
     cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
@@ -198,34 +165,38 @@ def _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums):
             raise Exception(f"Unable to make data mirror for '{associated_RTC_key}' because feature '{associated_FWC_name}' is not present in RTC")
         
         # Validation for data container type
+        RTC_member_type = None
         if isinstance(RTC_member, list):
-            is_list_type = True
+            RTC_member_type = "list"
         elif isinstance(RTC_member, dict):
-            is_list_type = False
+            RTC_member_type = "dict"
         else:
             raise Exception(f"Invalid RTC member type for data mirror '{associated_RTC_key}', data type = '{RTC_member.__class__}'")
 
         # Add data-mirror instance as child of existing FWC instance.
-        FWC_idx = all_known_FWC_names.index(associated_FWC_name)
-        if is_list_type:
-            new_data_mirror = RTC_FWC_Data_Mirror_List_Reference(
-                RTC_key = associated_RTC_key,
-                default_BL_scene_data_path = enum_val.default_BL_scene_data_path,
-                sync_key_field_names = enum_val.sync_key_field_names,
-                sync_key_data_names = enum_val.sync_key_data_names,
-            )
-            cached_FWCs[FWC_idx].data_mirror_lists.append(new_data_mirror)
+        list_idx = all_known_FWC_names.index(associated_FWC_name)
+        associated_FWC_instance = cached_FWCs[list_idx]
+        new_data_mirror = RTC_FWC_Data_Mirror_Instance(
+            associated_RTC_key,
+            RTC_member_type,
+            enum_val.mirrored_key_field_names,
+            enum_val.mirrored_data_field_names,
+            default_data_path_in_scene = enum_val.default_data_path_in_scene,
+        )
+        associated_FWC_instance.data_mirrors.append(new_data_mirror)
 
 
-def init_and_register_block_components(
-        event,
-        block_module,
-        block_bpy_types_classes,
-        block_feature_wrapper_classes,
-        block_RTC_member_enums,
-        block_RTC_data_mirror_enums,
-        block_hook_source_enums,
-        block_logger_enums,
+def register_and_init_block_components(
+        event: Enum_Sync_Events,
+        block_module: ModuleType,
+        block_bpy_types_classes: list[bpy.types],
+        block_feature_wrapper_classes: list[Enum],
+        block_RTC_member_enums: list[Enum],
+        block_RTC_data_mirror_enums: list[Enum],
+        block_hook_source_enums: list[Enum],
+        block_logger_enums: list[Enum],
+        FWCs_to_skip_init: list[str]
+        
     ):
 
         logger = get_logger(Core_Block_Loggers.REGISTRATE)
@@ -236,101 +207,19 @@ def init_and_register_block_components(
         _create_new_block_bpy_classes(block_bpy_types_classes, logger)
 
         # 2: Register the new block's feature-wrapper classes
-        _create_new_block_feature_wrapper_classes(block_id, block_feature_wrapper_classes, logger)
+        _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger)
 
         # 3: Add block module to global block registry in RTC
         _create_new_block_record(block_module, block_bpy_types_classes, block_feature_wrapper_classes, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger)
 
         # 4: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
-        _create_new_block_standard_features(block_id, event, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, block_RTC_data_mirror_enums)
+        _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, logger)
 
         # 5: Create data mirrors to link certain FWCs / RTC members / BL data
-        _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums)
+        _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger)
 
 # ==============================================================================================================================
-# BLOCK REMOVAL
-# ==============================================================================================================================
-
-
-
-
-# ==============================================================================================================================
-# DEFAULT DATA MIRROR LIST LOGIC
-# ==============================================================================================================================
-
-
-def default_update_RTC_with_mirrored_BL_data(event: Enum_Sync_Events, FWC_instance: Abstract_BL_RTC_List_Syncronizer, data_mirror_instance: RTC_FWC_Data_Mirror_Instance):
-    """
-    Synchronizes RTC with the Blender Logger info
-    """
-
-    # Default behavior is to use current scene
-    core_props = bpy.context.scene.dgblocks_core_props
-    
-    logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-    logger.debug(f"Updating {data_mirror_instance.RTC_key} list with mirrored BL Data")
-    debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-    # Get mirrored BL/RTC data (potentially de-synced)
-    RTC_list = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-    BL_collectionprop = bpy.context.scene.path_resolve(data_mirror_instance.default_BL_scene_data_path)
-
-    # Get FWC that
-    FWC = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-
-    # BL->RTC Sync
-    update_dataclasses_to_match_collectionprop(
-        actual_FWC = FWC_instance,
-        source = BL_collectionprop,
-        target = RTC_list,
-        key_fields = data_mirror_instance.sync_key_field_names,
-        data_fields = data_mirror_instance.sync_data_field_names,
-        actions_denied = set(),
-        debug_logger=debug_logger,
-    )
-
-@classmethod
-def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
-    """
-    Synchronizes Blender log levels with the RTC logger info
-    """
-    import bpy  # type: ignore
-    core_props = bpy.context.scene.dgblocks_core_props
-    logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-    logger.debug(f"Updating loggers BL Data with mirrored RTC")
-    debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-    # Sanity check before sync
-    Wrapper_Runtime_Cache.asset_cache_is_not_syncing(cache_key_loggers, cls)
-
-    # Get mirrored BL/RTC data (potentially de-synced)
-    cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-    scene_loggers = core_props.managed_loggers
-
-    # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-    actions_denied = set()
-    if event == Enum_Sync_Events.ADDON_INIT:
-        actions_denied = {Enum_Sync_Actions.EDIT}
-
-    # BL->RTC Sync
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
-    update_collectionprop_to_match_dataclasses(
-        source=cached_loggers,
-        target=scene_loggers,
-        key_fields=rtc_sync_key_fields,
-        data_fields=rtc_sync_data_fields,
-        debug_logger=debug_logger,
-        actions_denied=actions_denied,
-    )
-    Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
-
-
-
-
-
-# ==============================================================================================================================
-# FEATURE WRAPPER SUPPORT CLASSES
-# ==============================================================================================================================
+# BLOCK DEPENDENCY HELPERS
 
 def determine_blocks_to_update_status(cached_blocks: list[RTC_Block_Instance]) -> tuple[list[str], list[str]]:
 

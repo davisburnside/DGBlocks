@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from typing import TypeVar, Union
 import bpy
 
-from native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-
 from .....addon_helpers.data_structures import Enum_Sync_Events
 
 T = TypeVar('T')
@@ -282,7 +280,7 @@ def apply_dataclasses_to_match_collectionprop(
             src_item = target_list[action.from_idx]
             kwargs = {n: getattr(src_item, n) for n in key_fields}
             actual_FWC.destroy_instance(
-                event = event, 
+                event, 
                 skip_BL_sync = True, 
                 **kwargs)
         elif isinstance(action, Noop):
@@ -298,7 +296,7 @@ def apply_dataclasses_to_match_collectionprop(
             src_item = source_list[action.source_idx]
             kwargs = {n: getattr(src_item, n) for n in all_fields}
             actual_FWC.create_instance(
-                event = event, 
+                event, 
                 skip_BL_sync = True, 
                 **kwargs)
 
@@ -306,75 +304,73 @@ def apply_dataclasses_to_match_collectionprop(
 # Convenience funcs
 # --------------------------------------------------------------
 
-def update_collectionprop_to_match_dataclasses(
-        source, 
-        target,
-        key_fields, 
-        data_fields,
-        actions_denied: set[type[Action]] = {},
-        debug_logger: Optional[logging.Logger] = None
-    ):
-    
-
-    actions = plan_collectionprop_to_match_dataclasses(source, target, key_fields, data_fields)
-
-    if debug_logger:
-        _print_actions(source, target, actions, debug_logger)
-
-    apply_collectionprop_to_match_dataclasses(source, target, key_fields, data_fields, actions)
-
-def update_dataclasses_to_match_collectionprop(
-        actual_FWC, 
-        source, 
-        target,
-        key_fields, 
-        data_fields,
-        actions_denied: set[type[Action]] = {},
-        debug_logger: Optional[logging.Logger] = None
-    ):
-
-    actions = plan_dataclasses_to_match_collectionprop(source, target, key_fields, data_fields)
-    
-    if debug_logger:
-        _print_actions(source, target, actions, debug_logger)
-        
-    apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, key_fields, data_fields, actions)
-
-def default_RTC_sync_update_logic(
+def default_data_mirror_RTC_list_update_logic(
         FWC_instance,
+        data_mirror_instance,
+        cached_RTC_list,
+        actions_denied,
         logger):
     """
-    Synchronizes RTC with it's Blender data mirror, BL as source of truth
+    Synchronizes RTC with its Blender data mirror, BL as source of truth
     """
-
-    core_props = bpy.context.scene.dgblocks_core_props
-    logger.debug(f"Updating loggers RTC with mirrored BL Data")
-    debug_logger = debug_logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-    # Get mirrored BL/RTC data (potentially de-synced)
-    cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key)
-    scene_loggers = core_props.managed_loggers
-    # data_BL = 
-
-    # BL->RTC Sync
-
-    actions = plan_dataclasses_to_match_collectionprop(source, target, key_fields, data_fields)
     
-    if debug_logger:
-        _print_actions(source, target, actions, debug_logger)
-        
-    apply_dataclasses_to_match_collectionprop(actual_FWC, source, target, key_fields, data_fields, actions)
+    RTC_key = data_mirror_instance.RTC_key
+    BL_data_path = data_mirror_instance.default_data_path_in_scene
+    key_fields = data_mirror_instance.mirrored_key_field_names
+    data_fields = data_mirror_instance.mirrored_data_field_names
 
-    # update_dataclasses_to_match_collectionprop(
-    #     actual_FWC=FWC_instance.actual_class,
-    #     source=scene_loggers,
-    #     target=cached_loggers,
-    #     key_fields=rtc_sync_key_fields,
-    #     data_fields=rtc_sync_data_fields,
-    #     actions_denied=set(),
-    #     debug_logger=debug_logger,
-    # )
+    # Validate inputs and get source & target data
+    if BL_data_path is None:
+        raise Exception("Data path for mirror is missing '{RTC_key}' is missing")
+    BL_colprop = bpy.context.scene.path_resolve(BL_data_path)
+    if BL_colprop is None:
+        raise Exception("CollectionProperty does not exist in Blender: 'scene.{BL_data_path}'")
+    data_source = BL_colprop
+    data_target = cached_RTC_list
 
+    # Get ordered actions list to perform on target, to make in-sync with source
+    actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
+    
+    # Optional deep logging
+    core_props = bpy.context.scene.dgblocks_core_props
+    if core_props.debug_log_all_RTC_BL_sync_actions:
+        _print_actions(data_source, data_target, actions, logger)
+    
+    apply_dataclasses_to_match_collectionprop(FWC_instance, data_source, data_target, key_fields, data_fields, actions)
+
+def default_data_mirror_BL_colprop_update_logic(
+        FWC_instance,
+        data_mirror_instance,
+        cached_RTC_list,
+        actions_denied,
+        logger):
+    """
+    Synchronizes Blender with its RTC data mirror, RTC as source of truth
+    """
+    
+    RTC_key = data_mirror_instance.RTC_key
+    BL_data_path = data_mirror_instance.default_data_path_in_scene
+    key_fields = data_mirror_instance.mirrored_key_field_names
+    data_fields = data_mirror_instance.mirrored_data_field_names
+
+    # Validate inputs and get source & target data
+    if BL_data_path is None:
+        raise Exception("Data path for mirror is missing '{RTC_key}' is missing")
+    BL_colprop = bpy.context.scene.path_resolve(BL_data_path)
+    if BL_colprop is None:
+        raise Exception("CollectionProperty does not exist in Blender: 'scene.{BL_data_path}'")
+    data_source = cached_RTC_list
+    data_target = BL_colprop
+
+    # Get ordered actions list to perform on target, to make in-sync with source
+    actions = plan_collectionprop_to_match_dataclasses(data_source, data_target, key_fields, data_fields)
+    
+    # Optional deep logging
+    core_props = bpy.context.scene.dgblocks_core_props
+    if core_props.debug_log_all_RTC_BL_sync_actions:
+        _print_actions(data_source, data_target, actions, logger)
+    
+    apply_collectionprop_to_match_dataclasses(data_source, data_target, key_fields, data_fields, actions)
 
 # --------------------------------------------------------------
 # Other

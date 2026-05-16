@@ -11,9 +11,8 @@ from .....my_addon_config import base_linebreak_length
 
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Runtime_Cache_Members
-from ..runtime_cache.data_sync_tools import update_collectionprop_to_match_dataclasses, update_dataclasses_to_match_collectionprop
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
-from .data_structures import RTC_Logger_Instance, rtc_sync_key_fields, rtc_sync_data_fields, _setup_logger_console_handler
+from .data_structures import RTC_Logger_Instance, _setup_logger_console_handler
 
 
 # Aliases
@@ -55,7 +54,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event: Enum_Sync_Events) -> bool:
+    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
 
         # Define Monkeypatch func to allow custom logger functionality
         def log_with_linebreak(self, log_message: str, length_factor: int = 4):
@@ -74,11 +73,11 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
                 event,
                 logger_name=new_logger_enum.name,
                 src_block_id=_BLOCK_ID,
-                level_name=new_logger_enum.value[1],
+                level_name=new_logger_enum.value.default_level,
             )
 
     @classmethod
-    def init_post_bpy(cls, event: Enum_Sync_Events) -> bool:
+    def init_post_bpy(cls, event, self_FWC_instance) -> bool:
 
         logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
         logger.debug(f"Running post-bpy init for Wrapper_Loggers")
@@ -88,73 +87,8 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         cls.update_RTC_with_mirrored_BL_data(event)   # Causes full BL-RTC resync
 
     @classmethod
-    def destroy_wrapper(cls, event: Enum_Sync_Events) -> bool:
+    def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
         "No action to take. Loggers exist until the addon's final unregister() steps"
-
-    # --------------------------------------------------------------
-    # Implemented from Abstract_BL_RTC_List_Syncronizer
-    # --------------------------------------------------------------
-
-    @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
-        """
-        Synchronizes RTC with the Blender Logger info
-        """
-        import bpy  # type: ignore
-        core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-        logger.debug(f"Updating loggers RTC with mirrored BL Data")
-        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-        # Get mirrored BL/RTC data (potentially de-synced)
-        cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-        scene_loggers = core_props.managed_loggers
-
-        # BL->RTC Sync
-        update_dataclasses_to_match_collectionprop(
-            actual_FWC=Wrapper_Loggers,
-            source=scene_loggers,
-            target=cached_loggers,
-            key_fields=rtc_sync_key_fields,
-            data_fields=rtc_sync_data_fields,
-            actions_denied=set(),
-            debug_logger=debug_logger,
-        )
-
-    @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
-        """
-        Synchronizes Blender log levels with the RTC logger info
-        """
-        import bpy  # type: ignore
-        core_props = bpy.context.scene.dgblocks_core_props
-        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-        logger.debug(f"Updating loggers BL Data with mirrored RTC")
-        debug_logger = logger if core_props.debug_log_all_RTC_BL_sync_actions else None
-
-        # Sanity check before sync
-        Wrapper_Runtime_Cache.asset_cache_is_not_syncing(cache_key_loggers, cls)
-
-        # Get mirrored BL/RTC data (potentially de-synced)
-        cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers)
-        scene_loggers = core_props.managed_loggers
-
-        # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-        actions_denied = set()
-        if event == Enum_Sync_Events.ADDON_INIT:
-            actions_denied = {Enum_Sync_Actions.EDIT}
-
-        # BL->RTC Sync
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, True)
-        update_collectionprop_to_match_dataclasses(
-            source=cached_loggers,
-            target=scene_loggers,
-            key_fields=rtc_sync_key_fields,
-            data_fields=rtc_sync_data_fields,
-            debug_logger=debug_logger,
-            actions_denied=actions_denied,
-        )
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_loggers, False)
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
