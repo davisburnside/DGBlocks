@@ -5,7 +5,7 @@ import bpy  # type: ignore
 from bpy.app.handlers import persistent  # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events
+from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import is_bpy_ready
 
 # Intra-block imports
@@ -26,7 +26,7 @@ def _callback_update_block_enabled(self, context):
         return
 
     try:
-        Wrapper_Runtime_Cache.resync_all_data_mirrors(Enum_Sync_Events.FORCE_RESTORE_RT, logger, BL_is_truth_source = True)
+        Wrapper_Runtime_Cache.resync_data_mirrors(Enum_Sync_Events.FORCE_RESTORE_RT, BL_is_truth_source = True, logger = logger)
 
     except Exception:
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
@@ -63,7 +63,7 @@ class RTC_Block_Instance:
     block_module: ModuleType
     block_dependencies: list[str]
     block_bpy_types_classes: list[bpy.types]
-    block_feature_wrapper_classes: list[Abstract_Feature_Wrapper]
+    block_FWC_instances: list[RTC_FWC_Instance]
     block_hook_source_names: list[str]
     block_logger_names: list[str]
     block_RTC_member_names: list[str]

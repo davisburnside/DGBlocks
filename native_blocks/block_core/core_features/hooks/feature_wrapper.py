@@ -8,16 +8,19 @@ from typing import Any, Callable, Dict, Optional
 import inspect
 import time
 
+
+
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
+from .....addon_helpers.data_tools import get_actual_id
 from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
+from ...core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
@@ -89,13 +92,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger.debug(f"Running post-bpy init for Wrapper_Hooks")
 
         # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
-        cls._rebuild_hook_subs_cache()
-
-        # BL<->RTC 2-way sync, keeping user's saved hook settings if they exist
-        event = Enum_Sync_Events.ADDON_INIT
-        cls.update_BL_with_mirrored_RTC_data(event, self_FWC_instance)  # Causes partial RTC->BL sync
-        cls.update_RTC_with_mirrored_BL_data(event, self_FWC_instance)  # Causes full BL-RTC resync
-        return True
+        # cls._rebuild_hook_subs_cache()
 
     @classmethod
     def destroy_wrapper(cls, event, self_FWC_instance) -> None:
@@ -123,20 +120,17 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cls,
         event: Enum_Sync_Events,
         src_block_id: str,
-        new_hook_func_id: any,
-        new_hook_func_named_args: Dict[str, Any] = None,
+        hook_func_name: any,
+        hook_func_named_args: Dict[str, Any] = None,
         skip_BL_sync: bool = False,
         skip_subscriber_cache_rebuild: bool = False
     ) -> None:
 
         logger = get_logger(Core_Block_Loggers.HOOKS)
-        logger.debug(f"Creating hook source '{new_hook_func_id}'")
-
-        # Get hook func name from str/enum input
-        hook_func_name = cls._get_func_name_from_hook_id(new_hook_func_id)
-        all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
+        logger.debug(f"Creating hook source '{hook_func_name}'")
 
         # Validate uniqueness. Return with no action upon duplication attempt
+        all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
         if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_hook_sources, "hook_func_name", hook_func_name):
             logger.debug(f"Hook Source '{hook_func_name}' already exists in RTC. Returning with no action")
             return
@@ -145,18 +139,16 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         new_hook_source_instance = RTC_Hook_Source_Instance(
             src_block_id,
             hook_func_name,
-            new_hook_func_named_args,
+            hook_func_named_args,
         )
         all_cached_hook_sources.append(new_hook_source_instance)
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_cached_hook_sources)
 
         # Update subscribers
-        if not skip_subscriber_cache_rebuild:
-            cls._rebuild_hook_subs_cache()
+        # if not skip_subscriber_cache_rebuild:
+        #     cls._rebuild_hook_subs_cache()
 
-        # Add hook data from Blender file
-        if is_bpy_ready() and not skip_BL_sync:
-            cls.update_BL_with_mirrored_RTC_data(event=Enum_Sync_Events.PROPERTY_UPDATE)
+
 
     @classmethod
     def destroy_instance(
@@ -185,9 +177,6 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         if not skip_subscriber_cache_rebuild:
             cls._rebuild_hook_subs_cache()
 
-        # Remove hook data from Blender file
-        if is_bpy_ready() and not skip_BL_sync:
-            cls.update_BL_with_mirrored_RTC_data(event)
 
     # --------------------------------------------------------------
     # Public funcs specific to this class
@@ -216,10 +205,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         """
         logger = get_logger(Core_Block_Loggers.HOOKS)
         all_returns: Dict[str, Any] = {}
-
-        # Get hook func name from str/enum input
-        hook_func_name = cls._get_func_name_from_hook_id(hook_func_name)
-
+        actual_hook_func_name = get_actual_id(hook_func_name)
         RTC_subscriber_hooks = Wrapper_Runtime_Cache.get_all_with_key_value_from_registry_list(
             cache_key_hook_subscribers,
             key_field_name="hook_func_name",
@@ -227,7 +213,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         )
 
         if len(RTC_subscriber_hooks) == 0:
-            logger.debug(f"No subscriber listeners found for hook '{hook_func_name}'")
+            logger.debug(f"No subscriber listeners found for hook '{actual_hook_func_name}'")
             return all_returns
 
         current_time_ms = int(time.time() * 1000)
@@ -248,12 +234,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 time_since_last = current_time_ms - instance.timestamp_ms_last_attempt
                 if time_since_last >= instance.max_ms_timout_for_bypass_reset:
                     instance.should_bypass_run = False
-                    logger.debug(f"Reset bypass flag for hook '{hook_func_name}' on block '{block_id}'")
+                    logger.debug(f"Reset bypass flag for hook '{actual_hook_func_name}' on block '{block_id}'")
 
             # 3. Check re-entrancy protection  [bypass-via-status]
             if instance.is_currently_running:
                 instance.count_bypass_via_status += 1
-                logger.debug(f"Skipping hook '{hook_func_name}' on block '{block_id}' (re-entrancy protection)")
+                logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (re-entrancy protection)")
                 continue
 
             # 4. Check rate limiting  [bypass-via-frequency]
@@ -261,7 +247,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 time_since_last = current_time_ms - instance.timestamp_ms_last_attempt
                 if time_since_last < instance.min_ms_between_runs:
                     instance.count_bypass_via_frequency += 1
-                    logger.debug(f"Skipping hook '{hook_func_name}' on block '{block_id}' (rate limited)")
+                    logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (rate limited)")
                     continue
 
             # 5. Check @hook_data_filter predicate  [bypass-via-data-filter]
@@ -270,13 +256,13 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                     should_run = instance.arg_filter(instance, **kwargs)
                 except Exception:
                     logger.error(
-                        f"arg_filter raised an exception for hook '{hook_func_name}' on block '{block_id}' — skipping",
+                        f"arg_filter raised an exception for hook '{actual_hook_func_name}' on block '{block_id}' — skipping",
                         exc_info=True,
                     )
                     should_run = False
                 if not should_run:
                     instance.count_bypass_via_data_filter += 1
-                    logger.debug(f"Skipping hook '{hook_func_name}' on block '{block_id}' (data filter)")
+                    logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (data filter)")
                     continue
 
             # 6. Get cached function reference (avoids repeated getattr)
@@ -284,7 +270,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             if hook_func is None:
                 raise Exception(f"Subscriber hook function '{hook_func_name}' not found in block '{block_id}'")
 
-            logger.debug(f"Calling hook '{hook_func_name}' of subscriber block '{block_id}'")
+            logger.debug(f"Calling hook '{actual_hook_func_name}' of subscriber block '{block_id}'")
 
             # 7. Execute with timing and re-entrancy protection
             start_time_nanos = time.time()  # recalculate right before func call
@@ -302,7 +288,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             except Exception as e:
                 end_time_nanos = time.time()
                 instance.count_hook_propagate_failure += 1
-                logger.error(f"Exception when calling hook '{hook_func_name}' of subscriber '{block_id}'", exc_info=True)
+                logger.error(f"Exception when calling hook '{actual_hook_func_name}' of subscriber '{block_id}'", exc_info=True)
                 if should_halt_on_exception:
                     raise e
                 all_returns[block_id] = None
@@ -321,7 +307,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def get_subscriber_blocks_of_hook(cls, hook_src_id: Enum):
 
         # Get hook func name from str/enum input
-        actual_hook_func_name = hook_src_id.value[0]
+        actual_hook_func_name = hook_src_id.value.hook_func_name
 
         # Get registered downstream hooks for a func name
         cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
@@ -409,17 +395,6 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Write updates back to registry
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, registry_all_hook_subscribers)
-
-    @classmethod
-    def _get_func_name_from_hook_id(cls, hook_func):
-
-        # hook_func input can be either the str func name, or an enum class member from a *_constants.py file
-        if isinstance(hook_func, str):
-            return hook_func
-        elif isinstance(hook_func, Enum):
-            return hook_func.value[0]
-        else:
-            raise Exception(f"Invalid input, expects <str> or <Enum> for hook_func: {hook_func}")
 
     @classmethod
     def _validate_hook_args(cls, func_name, expected_args):

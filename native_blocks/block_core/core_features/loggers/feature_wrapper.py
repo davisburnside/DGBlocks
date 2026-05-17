@@ -78,13 +78,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
 
     @classmethod
     def init_post_bpy(cls, event, self_FWC_instance) -> bool:
-
-        logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-        logger.debug(f"Running post-bpy init for Wrapper_Loggers")
-
-        # BL<->RTC 2-way sync, keeping user's saved logger settings if they exist
-        cls.update_BL_with_mirrored_RTC_data(event)   # Causes partial RTC->BL sync
-        cls.update_RTC_with_mirrored_BL_data(event)   # Causes full BL-RTC resync
+        "No-op"
 
     @classmethod
     def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
@@ -134,9 +128,6 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         Wrapper_Runtime_Cache.set_cache(cache_key_loggers, cached_loggers)
         action_logger.debug(f"Created Logger '{true_logger_id}'")
 
-        if is_bpy_ready() and not skip_BL_sync:
-            cls.update_BL_with_mirrored_RTC_data(event)
-
         return new_logger
 
     @classmethod
@@ -154,9 +145,6 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
             uniqueness_field_value=logger_name,
         )
         logger.debug(f"Removed Logger '{logger_name}'")
-
-        if is_bpy_ready() and not skip_BL_sync:
-            cls.update_BL_with_mirrored_RTC_data(event)
 
     # --------------------------------------------------------------
     # Private funcs specific to this class

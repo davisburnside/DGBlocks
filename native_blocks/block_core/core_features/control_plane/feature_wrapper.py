@@ -140,9 +140,20 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         # ----------------------------------------------------------------------------------------------------------------------------
         # 1: initial BL<->RTC 2-way sync for this FWC
         # Because event = init, keeping user's saved block enabled/disabled settings if they exist 
-        self_data_mirror_instance = self_FWC_instance.data_mirrors[0]
-        Wrapper_Runtime_Cache.resync_single_data_mirror(event, self_FWC_instance,  self_data_mirror_instance, False, logger) # Causes partial RTC->BL sync
-        Wrapper_Runtime_Cache.resync_single_data_mirror(event, self_FWC_instance,  self_data_mirror_instance, True, logger) # Causes full BL-RTC resync
+        # self_data_mirror_instance = self_FWC_instance.data_mirrors[0]
+        # Wrapper_Runtime_Cache.resync_single_data_mirror(
+        #     event, 
+        #     self_FWC_instance, 
+        #     data_mirror_instance = self_data_mirror_instance, 
+        #     BL_is_truth_source = False, 
+        #     logger = logger,
+        # ) # Causes partial RTC->BL sync
+        # Wrapper_Runtime_Cache.resync_single_data_mirror(event, 
+        #     self_FWC_instance, 
+        #     data_mirror_instance = self_data_mirror_instance, 
+        #     BL_is_truth_source = True, 
+        #     logger = logger,
+        # ) # Causes full BL-RTC resync
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 2: run post_bpy_init() of all Feature Wrapper Classes, of all blocks
@@ -153,14 +164,25 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             FWC_instance.actual_class.init_post_bpy(event, self_FWC_instance)
 
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 3: Update addon metadata
+        # 3: Load saved settings for all data mirrors into RTC , then perform sync in opposite direction to ensure RTC <-> BL is fully synced
+        Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = False, logger = logger) 
+        Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger) 
+
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 4: Update addon metadata
         ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
         ADDON_METADATA.POST_REG_INIT_HAS_RUN = True
         ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY = True
         Wrapper_Runtime_Cache.set_cache(cache_key_metadata, ADDON_METADATA)
 
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 4: Run post-register initialization actions for all blocks with "hook_block_registered" function in their __init__.py
+        # 5: Subscribe msgbus scene-change listener on all open windows
+        clear_msgbuses(msgbus_subs)
+        add_msgbuses(msgbus_subs)
+        logger.info("msgbus scene-change listener registered")
+
+        # ----------------------------------------------------------------------------------------------------------------------------
+        # 6: Run post-register initialization actions for all blocks with "hook_block_registered" function in their __init__.py
         logger.info(f"Running final-init hook for all subscriber Blocks")
         blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy=True)
         kwargs = {"block_instances": blocks_cache}
@@ -168,12 +190,6 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             hook_func_name=enum_hook_blocks_registered,
             should_halt_on_exception=False,
             **kwargs)
-
-        # ----------------------------------------------------------------------------------------------------------------------------
-        # 5: Subscribe msgbus scene-change listener on all open windows
-        clear_msgbuses(msgbus_subs)
-        add_msgbuses(msgbus_subs)
-        logger.info("msgbus scene-change listener registered")
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 6: refresh UI, finish init
@@ -249,7 +265,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
             # Create Loggers, Hooks, FWCs, and RTC caches for the new block
             FWCs_to_skip_init = [f.__name__ for f in early_init_FWCs]
-            register_and_init_block_components(
+            new_FWC_instances = register_and_init_block_components(
                 event,
                 block_module,
                 block_bpy_types_classes,
@@ -265,11 +281,14 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             should_peform_final_init_steps_early = event in (Enum_Sync_Events.PROPERTY_UPDATE, Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
             if should_peform_final_init_steps_early:
 
-                # perform final init step for all FWCs of the block
-                for FWC_instance in block_feature_wrapper_classes:
+                # 1: perform final "post bpy" init step for all FWCs of the block
+                for FWC_instance in new_FWC_instances:
                     FWC_instance.actual_class.init_post_bpy(event, FWC_instance)
 
-                # trigger final init hook, if needed
+                # Ensure that Blender data & the Runtime Cache is in sync. This step respects saved Scene data
+                Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, FWC_instances = new_FWC_instances, logger = logger) 
+
+                # 3: Trigger final init hook of the new block, if needed
                 try:
                     blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy=True)
                     kwargs = {"block_instances": blocks_cache}
@@ -312,7 +331,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # 2: Remove FWCs. First call FWC-specific removal logic, then remove FWC from RTC. Only core-block skips this step.
         if block_id != core_block_id:
-            for actual_class in reversed(block_to_remove.block_feature_wrapper_classes):
+            for actual_class in reversed(block_to_remove.block_FWC_instances):
                 feature_name = actual_class.__name__
                 actual_class.destroy_wrapper(event, None)
                 Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(

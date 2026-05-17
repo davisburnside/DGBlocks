@@ -274,7 +274,8 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         FWC_instance: RTC_FWC_Instance,
         data_mirror_instance: RTC_FWC_Data_Mirror_Instance,
         BL_is_truth_source:bool,
-        logger,
+        bypass_sync_flag_logic:bool = False,
+        logger = None,
     ) -> None:
 
         cache_key = data_mirror_instance.RTC_key
@@ -285,7 +286,8 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
 
         # Data-mirror has custom sync functions inside the FWC
         if use_default_sync_logic:
-            logger.debug(f"(Default list sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
+            if logger:
+                logger.debug(f"(Default mirror sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
 
             # Update RTC with BL data
             actions_denied = set()
@@ -331,14 +333,21 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                     cls.flag_cache_as_syncing(cache_key, False)
 
         else:
-            logger.debug(f"(Custom list sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
+            logger.debug(f"(Custom mirror sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
             if BL_is_truth_source:
                 FWC_instance.actual_class.update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
             else:
                 FWC_instance.actual_class.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
 
     @classmethod
-    def resync_all_data_mirrors(cls, event: Enum_Sync_Events, BL_is_truth_source:bool, logger) -> None:
+    def resync_data_mirrors(
+        cls, 
+        event: Enum_Sync_Events, 
+        BL_is_truth_source:bool, 
+        FWC_instances: list = None, 
+        bypass_sync_flag_logic: bool = False,
+        logger = None,
+    ) -> None:
         """
         Iterate through all registered Feature_Wrapper_References and call their
         update_RTC_with_mirrored_BL_data method.
@@ -346,16 +355,21 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
 
         source_type = "Blender" if BL_is_truth_source else "RTC"
         target_type = "RTC" if BL_is_truth_source else "Blender"
-        logger.debug(f"Updating {target_type} with mirrored {source_type} data for event='{event}'")
 
-        cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
-        for FWC_instance in cached_FWCs:
-            for data_mirror_list_instance in FWC_instance.data_mirrors:
-                cls.resync_single_data_mirror_list(
+        # load all, if not specified
+        if not FWC_instances:
+            FWC_instances = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+            
+        logger.info(f"Updating {target_type} data with {source_type} mirror for event='{event}' ({len(FWC_instances)} FWCs)")
+
+        for FWC_instance in FWC_instances:
+            for data_mirror_instance in FWC_instance.data_mirrors:
+                cls.resync_single_data_mirror(
                     event, 
                     FWC_instance,
-                    data_mirror_list_instance,
+                    data_mirror_instance,
                     BL_is_truth_source,
+                    bypass_sync_flag_logic,
                     logger,
                 )
 

@@ -42,11 +42,11 @@ class Core_Runtime_Cache_Members(Enum):
 
 class Core_Data_Mirrors(Enum):
     HOOKS_LIST = RTC_Member_Data_Mirror_Definition(
-        RTC_key = "REGISTRY_ALL_BLOCKS",
+        RTC_key = "REGISTRY_ALL_HOOK_SUBSCRIBERS",
         FWC_name = "Wrapper_Hooks",
         mirrored_key_field_names = ["hook_func_name", "subscriber_block_id"], 
         mirrored_data_field_names = ["src_block_id", "is_hook_enabled"],
-        default_data_path_in_scene = "dgblocks_core_props.managed_blocks",
+        default_data_path_in_scene = "dgblocks_core_props.managed_hooks",
     )
     LOGGERS_LIST = RTC_Member_Data_Mirror_Definition(
         RTC_key = "REGISTRY_ALL_LOGGERS",

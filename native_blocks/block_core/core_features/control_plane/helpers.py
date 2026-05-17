@@ -37,10 +37,10 @@ def _create_new_block_bpy_classes(block_bpy_types_classes, logger):
             bpy.utils.register_class(bpy_class)
 
 
-def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger):
+def _create_and_init_new_block_FWCs(event, block_id, block_FWC_instances, FWCs_to_skip_init, logger):
 
     cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
-    for actual_class in block_feature_wrapper_classes:
+    for actual_class in block_FWC_instances:
         feature_name = actual_class.__name__
 
         # Skip for self, as "create_instance" is already being called
@@ -80,7 +80,7 @@ def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_class
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
 
 
-def _create_new_block_record(block_module, block_bpy_types_classes, block_feature_wrapper_classes, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger):
+def _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWCs_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger):
 
     block_id = block_module._BLOCK_ID
     block_dependencies = block_module._BLOCK_DEPENDENCIES
@@ -103,7 +103,7 @@ def _create_new_block_record(block_module, block_bpy_types_classes, block_featur
             block_module = block_module,
             block_dependencies = block_dependencies,
             block_bpy_types_classes = block_bpy_types_classes,
-            block_feature_wrapper_classes = block_feature_wrapper_classes,
+            block_FWC_instances = new_FWCs_list,
             block_hook_source_names = [h.name for h in block_hook_source_enums],
             block_logger_names = [l.name for l in block_logger_enums],
             block_RTC_member_names = [m.name for m in block_RTC_member_enums],
@@ -131,8 +131,8 @@ def _create_new_block_standard_features(event, block_id, block_logger_enums, blo
         Wrapper_Hooks.create_instance(
             event,
             src_block_id = block_id,
-            new_hook_func_id = hook_source_enum.name,
-            new_hook_func_named_args = hook_source_enum.value.arg_types,
+            hook_func_name = hook_source_enum.name,
+            hook_func_named_args = hook_source_enum.value.arg_types,
             skip_BL_sync = not is_last,
             skip_subscriber_cache_rebuild = not is_last,
         )
@@ -190,7 +190,7 @@ def register_and_init_block_components(
         event: Enum_Sync_Events,
         block_module: ModuleType,
         block_bpy_types_classes: list[bpy.types],
-        block_feature_wrapper_classes: list[Enum],
+        block_FWC_instances: list[Enum],
         block_RTC_member_enums: list[Enum],
         block_RTC_data_mirror_enums: list[Enum],
         block_hook_source_enums: list[Enum],
@@ -207,16 +207,18 @@ def register_and_init_block_components(
         _create_new_block_bpy_classes(block_bpy_types_classes, logger)
 
         # 2: Register the new block's feature-wrapper classes
-        _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger)
+        new_FWCs_list = _create_and_init_new_block_FWCs(event, block_id, block_FWC_instances, FWCs_to_skip_init, logger)
 
         # 3: Add block module to global block registry in RTC
-        _create_new_block_record(block_module, block_bpy_types_classes, block_feature_wrapper_classes, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger)
+        _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWCs_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger)
 
         # 4: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
         _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, logger)
 
         # 5: Create data mirrors to link certain FWCs / RTC members / BL data
         _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger)
+
+        return new_FWCs_list
 
 # ==============================================================================================================================
 # BLOCK DEPENDENCY HELPERS

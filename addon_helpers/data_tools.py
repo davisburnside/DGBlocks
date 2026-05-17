@@ -11,7 +11,6 @@ import numpy as np
 import bpy  # type: ignore
 import mathutils # type: ignore
 
-
 # ==============================================================================================================================
 # PYTHON DATA TOOLS
 # ==============================================================================================================================
@@ -78,6 +77,16 @@ def create_simplified_list_from_csv_string(input_str):
     list_return = [k.strip() for k in list_return] # strip whitespace from start & end of each str
     list_return = [k for k in list_return if len(k) > 0] # remove empties
     return list_return
+
+def get_actual_id(input):
+    # Exracts the name of an enum. Prevent the dev from adding ".name" for every Enum usage, like in run_hooked_funcs
+
+    if isinstance(input, Enum):
+        return input.name
+    elif isinstance(input, str):
+        return input.name
+    else:
+        raise Exception("Expecting 'Enum' or 'str'")
 
 # ==============================================================================================================================
 # BLENDER DATA TOOLS

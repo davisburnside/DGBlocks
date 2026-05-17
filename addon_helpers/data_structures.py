@@ -23,14 +23,17 @@ class Global_Addon_State():
 @dataclass(eq=False)
 class Hook_Source_Definition():
     arg_types: dict[str, any]
+    hook_func_name: str = field(default = None)
 
 @dataclass(eq=False)
 class Logger_Definition():
     default_level: str
+    logger_name: str = field(default = None)
 
 @dataclass(eq=False)
 class RTC_Member_Definition():
     default_value: any
+    cache_key: str = field(default = None)
 
 @dataclass(eq=False)
 class RTC_Member_Data_Mirror_Definition():

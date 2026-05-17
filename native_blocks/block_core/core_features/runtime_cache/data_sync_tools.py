@@ -6,7 +6,7 @@ import logging
 from typing import Optional, TypeVar
 from dataclasses import dataclass
 from typing import TypeVar, Union
-import bpy
+import bpy # type: ignore
 
 from .....addon_helpers.data_structures import Enum_Sync_Events
 
@@ -301,7 +301,7 @@ def apply_dataclasses_to_match_collectionprop(
                 **kwargs)
 
 # --------------------------------------------------------------
-# Convenience funcs
+# Convenience funcs, secondary layer
 # --------------------------------------------------------------
 
 def default_data_mirror_RTC_list_update_logic(
@@ -309,7 +309,7 @@ def default_data_mirror_RTC_list_update_logic(
         data_mirror_instance,
         cached_RTC_list,
         actions_denied,
-        logger):
+        logger = None):
     """
     Synchronizes RTC with its Blender data mirror, BL as source of truth
     """
@@ -343,7 +343,7 @@ def default_data_mirror_BL_colprop_update_logic(
         data_mirror_instance,
         cached_RTC_list,
         actions_denied,
-        logger):
+        logger = None):
     """
     Synchronizes Blender with its RTC data mirror, RTC as source of truth
     """

@@ -167,7 +167,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
 
             # Use Block-mgmt FWC's native restoration feature
             elif self.action == "RESTORE":
-                Wrapper_Runtime_Cache.resync_all_data_mirrors(event, logger, BL_is_truth_source = True) 
+                Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger) 
 
         # Clear or restore Blender data, RTC is unaffected
         if self.target == "BL":
@@ -179,7 +179,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
                         print(f"Clearing RTC list {cache_key}")
                         Wrapper_Runtime_Cache.set_cache(cache_key, [])
             elif self.action == "RESTORE":
-                Wrapper_Runtime_Cache.resync_all_data_mirrors(event, logger, BL_is_truth_source = False)
+                Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = False, logger = logger)
 
         return {"FINISHED"}
 

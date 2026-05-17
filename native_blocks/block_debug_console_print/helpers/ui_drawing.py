@@ -75,7 +75,7 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
     all_blocks_metadata_for_hook = Wrapper_Hooks.get_subscriber_blocks_of_hook(hook_func_name) # get_hooked_blocks_metadata_for_func(hook_func_name
     for idx, block_hook_metadata in enumerate(all_blocks_metadata_for_hook):
         uilayout_section_separator(container, extra_space = 0)
-        block_id = block_hook_metadata.subscriber_block_module._BLOCK_ID
+        block_id = block_hook_metadata._BLOCK_ID
         internal_panel_header, internal_panel_body = container.panel(idname = f"_dummy_dgblocks_console_print_{block_id}", default_closed = True)
         internal_panel_header.alignment = "CENTER"
         internal_panel_header.label(text = f"Print {block_id.upper()} State")
