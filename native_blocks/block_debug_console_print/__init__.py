@@ -100,7 +100,7 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
         # When printing for other blocks, the "get data" function is extracted from that subscriber block with a hook
         else:
             raw_data_to_print = Wrapper_Hooks.run_hooked_funcs(
-                hook_func_name = Block_Hook_Sources.DEBUG_GET_BLOCK_DATA, 
+                hook_func_name = Block_Hook_Sources.hook_debug_get_state_data_to_print, 
                 subscriber_block_id = self.source_block_id, 
                 context = context,
                 other_input = self.other_input

@@ -26,7 +26,9 @@ def _callback_update_block_enabled(self, context):
         return
 
     try:
-        Wrapper_Runtime_Cache.resync_data_mirrors(Enum_Sync_Events.FORCE_RESTORE_RT, BL_is_truth_source = True, logger = logger)
+        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
+        event = Enum_Sync_Events.PROPERTY_UPDATE
+        Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger)
 
     except Exception:
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
@@ -62,9 +64,9 @@ class RTC_Block_Instance:
     # Not present in mirror
     block_module: ModuleType
     block_dependencies: list[str]
-    block_bpy_types_classes: list[bpy.types]
-    block_FWC_instances: list[RTC_FWC_Instance]
-    block_hook_source_names: list[str]
-    block_logger_names: list[str]
-    block_RTC_member_names: list[str]
+    block_bpy_types_classes: list[bpy.types] = field(default_factory=list)
+    block_FWC_instances: list[RTC_FWC_Instance] = field(default_factory=list)
+    block_hook_source_names: list[str] = field(default_factory=list)
+    block_logger_names: list[str] = field(default_factory=list)
+    block_RTC_member_names: list[str] = field(default_factory=list)
     tracked_datablock_types: list[str] = field(default_factory=list)  # type_names from Core_Block_Tracked_Datablock_Types

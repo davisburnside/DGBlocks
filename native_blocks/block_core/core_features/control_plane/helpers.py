@@ -37,15 +37,12 @@ def _create_new_block_bpy_classes(block_bpy_types_classes, logger):
             bpy.utils.register_class(bpy_class)
 
 
-def _create_and_init_new_block_FWCs(event, block_id, block_FWC_instances, FWCs_to_skip_init, logger):
+def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger):
 
+    new_FWC_instances = []
     cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
-    for actual_class in block_FWC_instances:
+    for actual_class in block_feature_wrapper_classes:
         feature_name = actual_class.__name__
-
-        # Skip for self, as "create_instance" is already being called
-        # if feature_name == "Wrapper_Control_Plane":
-        #     continue
 
         # Validate FWC uniqueness
         all_FWC_names = [f.feature_name for f in cached_FWCs]
@@ -73,12 +70,13 @@ def _create_and_init_new_block_FWCs(event, block_id, block_FWC_instances, FWCs_t
             data_mirrors = [],
         )
         cached_FWCs.append(FWC_instance)
+        new_FWC_instances.append(new_FWC_instances)
 
         if feature_name not in FWCs_to_skip_init:
             FWC_instance.actual_class.init_pre_bpy(event, FWC_instance)
 
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
-
+    return new_FWC_instances
 
 def _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWCs_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger):
 
@@ -190,7 +188,7 @@ def register_and_init_block_components(
         event: Enum_Sync_Events,
         block_module: ModuleType,
         block_bpy_types_classes: list[bpy.types],
-        block_FWC_instances: list[Enum],
+        block_feature_wrapper_classes: list[Enum],
         block_RTC_member_enums: list[Enum],
         block_RTC_data_mirror_enums: list[Enum],
         block_hook_source_enums: list[Enum],
@@ -207,10 +205,10 @@ def register_and_init_block_components(
         _create_new_block_bpy_classes(block_bpy_types_classes, logger)
 
         # 2: Register the new block's feature-wrapper classes
-        new_FWCs_list = _create_and_init_new_block_FWCs(event, block_id, block_FWC_instances, FWCs_to_skip_init, logger)
+        new_FWC_instance_list = _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger)
 
         # 3: Add block module to global block registry in RTC
-        _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWCs_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger)
+        _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWC_instance_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger)
 
         # 4: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
         _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, logger)
@@ -218,7 +216,7 @@ def register_and_init_block_components(
         # 5: Create data mirrors to link certain FWCs / RTC members / BL data
         _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger)
 
-        return new_FWCs_list
+        return new_FWC_instance_list
 
 # ==============================================================================================================================
 # BLOCK DEPENDENCY HELPERS

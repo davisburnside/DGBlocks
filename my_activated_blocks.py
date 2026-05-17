@@ -6,7 +6,7 @@
 # --------------------------------------------------------------
 # Builtin blocks with actual usecases
 # --------------------------------------------------------------
-from .native_blocks import block_core#, block_debug_console_print #, block_pip_library_manager, block_timers
+from .native_blocks import block_core, block_debug_console_print #, block_pip_library_manager, block_timers
 
 # --------------------------------------------------------------
 # Builtin blocks for demos / learning
@@ -33,7 +33,7 @@ from .native_blocks import block_core#, block_debug_console_print #, block_pip_l
 _ordered_blocks_list = [
     block_core,
     # block_timers,
-    # block_debug_console_print,
+    block_debug_console_print,
     # block_pip_library_manager,
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,

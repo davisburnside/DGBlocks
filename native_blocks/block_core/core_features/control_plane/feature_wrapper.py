@@ -132,28 +132,10 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         core_props = bpy.context.scene.dgblocks_core_props
         if core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
 
-            logger.warning("(Debugging) Clearing all saved properties")
+            logger.warning("(Debugging) Clearing all DGBLOCK saved properties")
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger=logger)
-            core_props.debug_log_all_RTC_BL_sync_actions = True
-            core_props.debug_mode_enabled = True
-
-        # ----------------------------------------------------------------------------------------------------------------------------
-        # 1: initial BL<->RTC 2-way sync for this FWC
-        # Because event = init, keeping user's saved block enabled/disabled settings if they exist 
-        # self_data_mirror_instance = self_FWC_instance.data_mirrors[0]
-        # Wrapper_Runtime_Cache.resync_single_data_mirror(
-        #     event, 
-        #     self_FWC_instance, 
-        #     data_mirror_instance = self_data_mirror_instance, 
-        #     BL_is_truth_source = False, 
-        #     logger = logger,
-        # ) # Causes partial RTC->BL sync
-        # Wrapper_Runtime_Cache.resync_single_data_mirror(event, 
-        #     self_FWC_instance, 
-        #     data_mirror_instance = self_data_mirror_instance, 
-        #     BL_is_truth_source = True, 
-        #     logger = logger,
-        # ) # Causes full BL-RTC resync
+            # core_props.debug_log_all_RTC_BL_sync_actions = True
+            # core_props.debug_mode_enabled = True
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 2: run post_bpy_init() of all Feature Wrapper Classes, of all blocks
@@ -165,6 +147,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 3: Load saved settings for all data mirrors into RTC , then perform sync in opposite direction to ensure RTC <-> BL is fully synced
+        logger.debug("Starting 2-way sync for all BL/RTC data mirrors")
         Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = False, logger = logger) 
         Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger) 
 

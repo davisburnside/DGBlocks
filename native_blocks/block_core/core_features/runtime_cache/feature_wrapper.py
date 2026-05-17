@@ -360,7 +360,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         if not FWC_instances:
             FWC_instances = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
             
-        logger.info(f"Updating {target_type} data with {source_type} mirror for event='{event}' ({len(FWC_instances)} FWCs)")
+        logger.info(f"Updating {target_type} data with {source_type} mirror for event '{event}'")
 
         for FWC_instance in FWC_instances:
             for data_mirror_instance in FWC_instance.data_mirrors:

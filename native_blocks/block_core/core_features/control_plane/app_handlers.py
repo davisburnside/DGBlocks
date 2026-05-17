@@ -37,7 +37,8 @@ def _callback_undo_post(dummy):
     logger.debug("'Undo' event")
 
     # 1: FWCs with BL<->RTC data sync to process UNDO event first
-    Wrapper_Runtime_Cache.resync_data_mirrors(Enum_Sync_Events.FORCE_RESTORE_RT, BL_is_truth_source = True, logger = logger) 
+    event = Enum_Sync_Events.FORCE_RESTORE_RTC
+    Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger) 
 
     # 2: Blocks with UNDO hook subscription to process last
     _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name=enum_hook_undo)
@@ -55,7 +56,8 @@ def _callback_redo_post(dummy):
     logger.debug("'Redo' event")
 
     # 1: FWCs with BL<->RTC data sync to process REDO event first
-    Wrapper_Runtime_Cache.resync_data_mirrors(Enum_Sync_Events.FORCE_RESTORE_RT, BL_is_truth_source = True, logger = logger) 
+    event = Enum_Sync_Events.FORCE_RESTORE_RTC
+    Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger) 
 
     # 2: Blocks with REDO hook subscription to process last
     _ = Wrapper_Hooks.run_hooked_funcs(hook_func_name=enum_hook_redo)

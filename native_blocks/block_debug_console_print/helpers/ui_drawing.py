@@ -6,7 +6,7 @@ from ....addon_helpers.data_tools import  create_simplified_list_from_csv_string
 from ....addon_helpers.ui import create_ui_box_with_header, uilayout_section_separator
 
 # Inter-block imports
-from ...block_core.core_features.hooks import Wrapper_Hooks
+from ...block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ...block_core.core_helpers.constants import _BLOCK_ID as core_block_id
 
 # Intra-block imports
@@ -71,7 +71,7 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
 
     # Call drawing functions in downstrean blocks which are hooked for function hook_debug_uilayout_draw_console_print_settings
     # Each block can have it's own presentation logic. This logic is triggered from a hook every screen-draw call (many times per second)
-    hook_func_name = Block_Hook_Sources.DEBUG_UI_DRAW_FOR_BLOCK_CONSOLE_PRINT
+    hook_func_name = Block_Hook_Sources.hook_debug_uilayout_draw_console_print_settings
     all_blocks_metadata_for_hook = Wrapper_Hooks.get_subscriber_blocks_of_hook(hook_func_name) # get_hooked_blocks_metadata_for_func(hook_func_name
     for idx, block_hook_metadata in enumerate(all_blocks_metadata_for_hook):
         uilayout_section_separator(container, extra_space = 0)
