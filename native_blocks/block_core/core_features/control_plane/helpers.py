@@ -13,7 +13,7 @@ from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..loggers.feature_wrapper import Wrapper_Loggers, get_logger
+from ..loggers.feature_wrapper import Wrapper_Loggers
 from ..hooks.feature_wrapper import Wrapper_Hooks
 from .data_structures import RTC_Block_Instance
 
@@ -77,6 +77,7 @@ def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_class
 
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
     return new_FWC_instances
+
 
 def _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWCs_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger):
 
@@ -184,7 +185,7 @@ def _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger):
         associated_FWC_instance.data_mirrors.append(new_data_mirror)
 
 
-def register_and_init_block_components(
+def install_block_components_into_RTC(
         event: Enum_Sync_Events,
         block_module: ModuleType,
         block_bpy_types_classes: list[bpy.types],
@@ -193,11 +194,10 @@ def register_and_init_block_components(
         block_RTC_data_mirror_enums: list[Enum],
         block_hook_source_enums: list[Enum],
         block_logger_enums: list[Enum],
-        FWCs_to_skip_init: list[str]
-        
+        FWCs_to_skip_init: list[str],
+        logger
     ):
 
-        logger = get_logger(Core_Block_Loggers.REGISTRATE)
         block_id = block_module._BLOCK_ID
         block_dependencies = block_module._BLOCK_DEPENDENCIES
 
@@ -217,6 +217,13 @@ def register_and_init_block_components(
         _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger)
 
         return new_FWC_instance_list
+
+# ==============================================================================================================================
+# BLOCK REMOVAL
+
+def unregister_and_remove_block_components():
+
+    pass
 
 # ==============================================================================================================================
 # BLOCK DEPENDENCY HELPERS
@@ -272,6 +279,7 @@ def determine_blocks_to_update_status(cached_blocks: list[RTC_Block_Instance]) -
 
 def evaluate_and_update_block_statuses(event, _Wrapper_Control_Plane: Callable):
 
+    return
     # Update RTC to match Blender/UI
     _Wrapper_Control_Plane.update_RTC_with_mirrored_BL_data(event)
 

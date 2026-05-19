@@ -21,7 +21,7 @@ from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_fu
 # Intra-block imports
 # --------------------------------------------------------------
 from ...core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members
-from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
 
@@ -85,6 +85,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         "no-op"
         return True
 
+
     @classmethod
     def init_post_bpy(cls, event, self_FWC_instance) -> None:
 
@@ -93,6 +94,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
         # cls._rebuild_hook_subs_cache()
+
 
     @classmethod
     def destroy_wrapper(cls, event, self_FWC_instance) -> None:
@@ -107,6 +109,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def update_RTC_with_mirrored_BL_data(cls, event):
         pass
 
+
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls, event):
         pass
@@ -120,7 +123,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cls,
         event: Enum_Sync_Events,
         src_block_id: str,
-        hook_func_name: any,
+        hook_func_name: str | Enum,
         hook_func_named_args: Dict[str, Any] = None,
         skip_BL_sync: bool = False,
         skip_subscriber_cache_rebuild: bool = False
@@ -129,24 +132,44 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug(f"Creating hook source '{hook_func_name}'")
 
-        # Validate uniqueness. Return with no action upon duplication attempt
-        all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
-        if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_hook_sources, "hook_func_name", hook_func_name):
-            logger.debug(f"Hook Source '{hook_func_name}' already exists in RTC. Returning with no action")
-            return
+        # # Validate uniqueness. Return with no action upon duplication attempt
+        # all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
+        # if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_hook_sources, "hook_func_name", hook_func_name):
+        #     logger.debug(f"Hook Source '{hook_func_name}' already exists in RTC. Returning with no action")
+        #     return
 
-        # Create new hook source instance & update runtime cache
-        new_hook_source_instance = RTC_Hook_Source_Instance(
-            src_block_id,
-            hook_func_name,
-            hook_func_named_args,
-        )
-        all_cached_hook_sources.append(new_hook_source_instance)
-        Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_cached_hook_sources)
+        # # Create new hook source instance & update runtime cache
+        # new_hook_source_instance = RTC_Hook_Source_Instance(
+        #     src_block_id,
+        #     hook_func_name,
+        #     hook_func_named_args,
+        # )
+        # all_cached_hook_sources.append(new_hook_source_instance)
+        # Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_cached_hook_sources)
 
         # Update subscribers
         # if not skip_subscriber_cache_rebuild:
         #     cls._rebuild_hook_subs_cache()
+
+        actual_hook_func_name = get_actual_rtc_key(hook_func_name)
+        idx, existing_instance, cached_hook_sources = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_hook_sources, "hook_func_name", actual_hook_func_name)
+
+        # Validate uniqueness. Return with no result upon duplication attempt
+        if existing_instance:
+            logger.debug(f"Hook source '{actual_hook_func_name}' already exists in RTC. Returning with no action")
+            return
+
+        # Create & cache new hook source
+        hook_src_instance = RTC_Hook_Source_Instance(
+            src_block_id,
+            actual_hook_func_name,
+            hook_func_named_args,
+        )
+        cached_hook_sources.append(hook_src_instance)
+        Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, cached_hook_sources)
+
+
+        return hook_src_instance
 
 
 
@@ -303,6 +326,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         return all_returns
 
+
     @classmethod
     def get_subscriber_blocks_of_hook(cls, hook_src_id: Enum):
 
@@ -395,6 +419,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         # Write updates back to registry
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, registry_all_hook_subscribers)
+
 
     @classmethod
     def _validate_hook_args(cls, func_name, expected_args):

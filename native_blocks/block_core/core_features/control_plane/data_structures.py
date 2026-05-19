@@ -15,27 +15,21 @@ from ..loggers.feature_wrapper import get_logger
 
 # Aliases
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
+cache_key_FWCs =Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 
 # ==============================================================================================================================
 # BLENDER DATA 
 
 def _callback_update_block_enabled(self, context):
 
-    # Skip further action if a sync is already in progress
+    # Skip further action if a Blender-data sync is already in progress
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_blocks) or not is_bpy_ready():
         return
-
-    try:
-        logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-        event = Enum_Sync_Events.PROPERTY_UPDATE
-        Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger)
-
-    except Exception:
-        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        logger.error(f"Exception when updating 'enabled' status of blocks", exc_info=True)
-
-    finally:
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, False)
+    
+    # Kinda wonky, but needed to avoid circular dependencies
+    event = Enum_Sync_Events.PROPERTY_UPDATE
+    _FWC_Control_Plane = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_FWCs, "feature_name", "Wrapper_Control_Plane")
+    _FWC_Control_Plane.actual_class.cascade_block_status_update(event, _FWC_Control_Plane)
 
 
 class DGBLOCKS_PG_Debug_Block_Reference(bpy.types.PropertyGroup):

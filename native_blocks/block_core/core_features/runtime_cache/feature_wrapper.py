@@ -274,7 +274,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         FWC_instance: RTC_FWC_Instance,
         data_mirror_instance: RTC_FWC_Data_Mirror_Instance,
         BL_is_truth_source:bool,
-        bypass_sync_flag_logic:bool = False,
+        actions_denied:set[Enum_Sync_Actions],
         logger = None,
     ) -> None:
 
@@ -290,7 +290,6 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 logger.debug(f"(Default mirror sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
 
             # Update RTC with BL data
-            actions_denied = set()
             if BL_is_truth_source:
                 if data_mirror_instance.RTC_member_type == "list":
                     default_data_mirror_RTC_list_update_logic(
@@ -311,11 +310,6 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 try:
                     cls.assert_cache_is_not_syncing(cache_key)
                     cls.flag_cache_as_syncing(cache_key, True)
-
-                    # During init, allow add/move/remove but not edit. This allows user choices to be reloaded after save
-                    actions_denied = set()
-                    if event == Enum_Sync_Events.ADDON_INIT:
-                        actions_denied = {Enum_Sync_Actions.EDIT}
 
                     if data_mirror_instance.RTC_member_type == "list":
                         default_data_mirror_BL_colprop_update_logic(
@@ -345,7 +339,6 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         event: Enum_Sync_Events, 
         BL_is_truth_source:bool, 
         FWC_instances: list = None, 
-        bypass_sync_flag_logic: bool = False,
         logger = None,
     ) -> None:
         """
@@ -362,6 +355,10 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             
         logger.info(f"Updating {target_type} data with {source_type} mirror for event '{event}'")
 
+        actions_denied = set()
+        if event == Enum_Sync_Events.ADDON_INIT and not BL_is_truth_source:
+            actions_denied = {Enum_Sync_Actions.EDIT}
+
         for FWC_instance in FWC_instances:
             for data_mirror_instance in FWC_instance.data_mirrors:
                 cls.resync_single_data_mirror(
@@ -369,7 +366,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                     FWC_instance,
                     data_mirror_instance,
                     BL_is_truth_source,
-                    bypass_sync_flag_logic,
+                    actions_denied,
                     logger,
                 )
 
