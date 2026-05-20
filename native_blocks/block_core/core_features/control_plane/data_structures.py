@@ -1,11 +1,12 @@
 
 from dataclasses import dataclass, field
 from types import ModuleType
+from .....addon_helpers.FWC_abstracts import Abstract_Feature_Wrapper
 import bpy  # type: ignore
 from bpy.app.handlers import persistent  # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Events, RTC_FWC_Instance
+from .....addon_helpers.data_structures import Enum_Sync_Events, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import is_bpy_ready
 
 # Intra-block imports

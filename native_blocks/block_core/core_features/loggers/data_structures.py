@@ -7,7 +7,7 @@ import logging
 import bpy  # type: ignore
 
 # Addon-level imports
-from ..... import my_addon_config
+from .....addon_config import static_settings
 
 # Intra-block imports
 from ...core_helpers.constants import  Core_Runtime_Cache_Members
@@ -48,7 +48,7 @@ def _setup_logger_console_handler(logger, logging_level):
     # Set up a console handler
     if not logger.handlers:
         handler = logging.StreamHandler()
-        formatter = logging.Formatter(my_addon_config.logger_format)
+        formatter = logging.Formatter(static_settings.logger_format)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(logging_level)  # Default level (will be overwritten later by scene settings)

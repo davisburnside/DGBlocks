@@ -14,6 +14,8 @@ bl_info = {
 
 import sys
 import importlib
+from addon_config.preferences import DGBLOCKS_UP_Core_Preferences
+import bpy
 
 from .addon_helpers.generic_tools import clear_console, validate_block_list_before_registration
 clear_console()
@@ -41,11 +43,11 @@ for name, module in modules_to_reload:
 # ADDON-LEVEL & CORE-BLOCK IMPORTS
 # ==============================================================================================================================
 from .addon_helpers.data_structures import Enum_Sync_Events
-from .my_activated_blocks import _ordered_blocks_list
-from .my_addon_config import addon_name
+from .addon_config.active_blocks import _ordered_blocks_list
+from .addon_config.static_settings import addon_name
 
 from .native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from .native_blocks.block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane, early_init_FWCs
+from .native_blocks.block_core.core_features.control_plane.feature_wrapper import early_init_FWCs
 from .native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 
@@ -56,6 +58,9 @@ from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 # Instead, all classes/properties should be registered & managed by the block that owns them
 
 def register():
+
+    # Register Addon props. This is the only addon-level class
+    bpy.utils.register_class(DGBLOCKS_UP_Core_Preferences)
 
     event = Enum_Sync_Events.ADDON_INIT
     _RTC_dummy = Wrapper_Runtime_Cache # for debugging
@@ -104,6 +109,7 @@ def unregister():
             logger.error(f"Exception when unregistering block '{block._BLOCK_ID}': ", exc_info = True)
     
     try:
+        bpy.utils.unregister_class(DGBLOCKS_UP_Core_Preferences)
         logger.log_with_linebreak(f"Finished main unregistration for Addon '{addon_name}'")
         print("\n")
     except:

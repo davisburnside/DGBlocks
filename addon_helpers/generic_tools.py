@@ -12,7 +12,7 @@ from typing import Any, Callable, Collection, List, Optional
 import numpy as np
 import bpy  # type: ignore
 import mathutils # type: ignore
-from ..my_addon_config import should_show_developer_ui_panels, addon_name
+from ..addon_config.static_settings import should_show_developer_ui_panels, addon_name
 
 # --------------------------------------------------------------
 # Generic Blender helpers

@@ -7,7 +7,7 @@ from bpy.props import StringProperty, IntProperty, BoolProperty, CollectionPrope
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_tools import should_draw_delevoper_panel
-from ...my_addon_config import (
+from ...addon_config.static_settings import (
         addon_title,
         addon_bl_type_prefix, 
         default_disabled_icon,

@@ -41,7 +41,7 @@ class Block_Hook_Sources(Enum):
 # name = hook ID
 # value[0] = hooked function name (caps included)
 # value[1] = expected function arguments & types
-class Block_Logger_Definitions(Enum):    
+class Block_Logger_Declarations(Enum):    
     DRAWHANDLER_LIFECYCLE = ("drawhandler_lifecycle", "DEBUG")
     SHADER_BATCH_EVENTS = ("shader_batch_events", "DEBUG")
 

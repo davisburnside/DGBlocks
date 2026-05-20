@@ -2,11 +2,12 @@
 from typing import Callable, Type
 from types import ModuleType
 from enum import Enum
+from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 import bpy # type: ignore
 from bpy.app.handlers import persistent# type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Instance
+from .....addon_helpers.data_structures import Enum_Sync_Events, Enum_Sync_Actions, Global_Addon_State, RTC_FWC_Instance
 from .....addon_helpers.data_tools import reset_propertygroup
 from .....addon_helpers.generic_tools import is_bpy_ready, force_redraw_ui
 
@@ -381,9 +382,9 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             # 3: Perform unregistrations, then registrations
             Wrapper_Runtime_Cache.flag_cache_as_syncing(cached_blocks, True)
             for block in blocks_to_disable:
-                block.block_module.unregister_block(event)
+                block.block_module.unregister_block_props(event)
             for block in blocks_to_enable:
-                block.block_module.register_block(event)
+                block.block_module.register_block_props(event)
             Wrapper_Runtime_Cache.flag_cache_as_syncing(cached_blocks, False)
 
             # Apply changes back to mirrored Blender data. This will update the core_block FWC caches (block-mngt, loggers, hooks), then all other block FWCs

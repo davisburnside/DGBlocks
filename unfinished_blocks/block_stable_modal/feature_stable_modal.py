@@ -1,5 +1,6 @@
 from __future__ import annotations
 import time
+from ...addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager
 import bpy
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -7,10 +8,10 @@ from typing import Callable, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager
+from ...addon_helpers.FWC_abstracts import Abstract_Feature_Wrapper
 
 from ...addon_helpers.generic_tools import should_draw_delevoper_panel, get_self_block_module
-from ...my_addon_config import addon_name, addon_title
+from ...addon_config.static_settings import addon_name, addon_title
 
 # --------------------------------------------------------------
 # Inter-block imports

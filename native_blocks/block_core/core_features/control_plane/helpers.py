@@ -4,10 +4,11 @@ import inspect
 from types import ModuleType
 from typing import Callable
 
+from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer
 import bpy # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import  Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
+from .....addon_helpers.data_structures import  Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_names_of_parent_classes
 
 # Intra-block imports
@@ -288,10 +289,10 @@ def evaluate_and_update_block_statuses(event, _Wrapper_Control_Plane: Callable):
     blocks_to_enable, blocks_to_disable = _Wrapper_Control_Plane.determine_blocks_to_update_status(cached_blocks)
 
     for block in blocks_to_enable:
-        block.block_module.register_block(event)
+        block.block_module.register_block_props(event)
 
     for block in blocks_to_disable:
-        block.block_module.unregister_block(event)
+        block.block_module.unregister_block_props(event)
 
     # Apply changes back to mirrored Blender data
     _Wrapper_Control_Plane.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)

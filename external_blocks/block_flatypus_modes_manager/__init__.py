@@ -8,7 +8,7 @@ from mathutils import Vector, Matrix, Euler
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_tools import get_self_block_module, clear_console
-from ...my_addon_config import Documentation_URLs, addon_title
+from ...addon_config.static_settings import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
 # Inter-block imports

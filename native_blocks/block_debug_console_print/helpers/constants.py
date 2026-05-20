@@ -2,12 +2,12 @@
 from enum import Enum, StrEnum, auto
 import bpy
 
-from ....addon_helpers.data_structures import Hook_Source_Definition
+from ....addon_helpers.data_structures import Hook_Source_Declaration
 
 class Block_Hook_Sources(Enum):
 
-    hook_debug_get_state_data_to_print = Hook_Source_Definition({})
-    hook_debug_uilayout_draw_console_print_settings = Hook_Source_Definition({"ui_container": bpy.types.UILayout})
+    hook_debug_get_state_data_to_print = Hook_Source_Declaration({})
+    hook_debug_uilayout_draw_console_print_settings = Hook_Source_Declaration({"ui_container": bpy.types.UILayout})
 
 
 debug_sort_hooks_choice_items = [

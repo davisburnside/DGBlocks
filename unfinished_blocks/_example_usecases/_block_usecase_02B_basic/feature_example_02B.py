@@ -1,13 +1,14 @@
+from ....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 import bpy # type: ignore
 from dataclasses import dataclass
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.data_structures import  Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance
+from ....addon_helpers.data_structures import  Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance
 from ....addon_helpers.generic_tools import get_self_block_module, is_bpy_ready
 from ....addon_helpers.ui import ui_draw_block_panel_header, ui_draw_list_headers
-from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
+from ....addon_config.static_settings import Documentation_URLs, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Inter-block imports

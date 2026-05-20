@@ -3,8 +3,11 @@ import textwrap
 import math
 from datetime import datetime
 import textwrap
+from addon_helpers.ui import ui_draw_block_panel_header
 import bpy # type: ignore
 import blf # type: ignore
+
+from ....addon_config.static_settings import Documentation_URLs, addon_title
 
 from ..core_features.hooks.ui import _uilayout_draw_hooks_settings
 from ..core_features.control_plane.ui import _uilayout_draw_block_manager_settings
@@ -42,30 +45,40 @@ def uilayout_template_columns_for_propertygroup(
 # INTERNAL API - Only used inside this block
 # ==============================================================================================================================
 
-def uilayout_draw_core_block_settings(context:bpy.context, container:bpy.types.UILayout):
+class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
+    bl_label = ""
+    bl_idname = f"DGBLOCKS_PT_Core_Block_Panel"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = addon_title
+    bl_options = {'DEFAULT_CLOSED'}
     
-    core_scene_props = context.scene.dgblocks_core_props
-    
-    # General settings
-    box = container.box()
-    panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_general", default_closed=True)
-    panel_header.label(text = "General")
-    if panel_body is not None: 
-        grid = panel_body.grid_flow(columns=2)
-        grid.prop(core_scene_props, "addon_is_active")
-        grid.prop(core_scene_props, "debug_mode_enabled")
-        grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
-        grid.prop(core_scene_props, "documentation_weblinks_enabled")
-        op_rtc_clear = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Clear RTC")
-        op_rtc_clear.target = "RTC"
-        op_rtc_clear.action = "CLEAR"
-        op_rtc_restore = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Restore RTC")
-        op_rtc_restore.target = "RTC"
-        op_rtc_restore.action = "RESTORE"
-        
-    
-    # Draw management subpanels for blocks, hooks, & loggers
-    _uilayout_draw_block_manager_settings(context, container)
-    _uilayout_draw_hooks_settings(context, container)
-    _uilayout_draw_logger_settings(context, container)
+    def draw_header(self, context):
+        ui_draw_block_panel_header(context, self.layout, "Block-Core", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
 
+    def draw(self, context):
+        
+        layout = self.layout
+        core_scene_props = context.scene.dgblocks_core_props
+    
+        # General settings
+        box = layout.box()
+        panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_general", default_closed=True)
+        panel_header.label(text = "General")
+        if panel_body is not None: 
+            grid = panel_body.grid_flow(columns=2)
+            grid.prop(core_scene_props, "addon_is_active")
+            grid.prop(core_scene_props, "debug_mode_enabled")
+            grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
+            grid.prop(core_scene_props, "documentation_weblinks_enabled")
+            op_rtc_clear = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Clear RTC")
+            op_rtc_clear.target = "RTC"
+            op_rtc_clear.action = "CLEAR"
+            op_rtc_restore = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Restore RTC")
+            op_rtc_restore.target = "RTC"
+            op_rtc_restore.action = "RESTORE"
+            
+        # Draw management subpanels for blocks, hooks, & loggers
+        _uilayout_draw_block_manager_settings(context, layout)
+        _uilayout_draw_hooks_settings(context, layout)
+        _uilayout_draw_logger_settings(context, layout)

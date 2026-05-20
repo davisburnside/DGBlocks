@@ -4,7 +4,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
+from ...addon_config.static_settings import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 from ...addon_helpers.generic_tools import get_self_block_module, clear_console
 from ...addon_helpers.data_structures import Enum_Sync_Events
 

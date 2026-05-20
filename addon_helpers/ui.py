@@ -1,6 +1,6 @@
 from enum import Enum
 import bpy # type: ignore
-from ..my_addon_config import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
+from ..addon_config.static_settings import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
 
 # --------------------------------------------------------------
 # "Blind draw" functions: All drawing logic is contained inside the function

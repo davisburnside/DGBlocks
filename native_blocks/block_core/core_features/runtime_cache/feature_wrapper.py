@@ -7,10 +7,12 @@ import threading
 from contextlib import nullcontext
 from typing import Any, Optional
 
+from .....addon_helpers.FWC_abstracts import Abstract_Feature_Wrapper
+
 # --------------------------------------------------------------
 # Addon-level imports
 from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
+from .....addon_helpers.data_structures import Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
 
 # --------------------------------------------------------------
 # Intra-block imports

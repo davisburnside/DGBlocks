@@ -7,7 +7,7 @@ from bpy.props import BoolProperty, PointerProperty # type: ignore
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_tools import should_draw_delevoper_panel, get_self_block_module
-from ...my_addon_config import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
+from ...addon_config.static_settings import Documentation_URLs, should_show_developer_ui_panels, default_disabled_icon, addon_name, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Inter-block imports

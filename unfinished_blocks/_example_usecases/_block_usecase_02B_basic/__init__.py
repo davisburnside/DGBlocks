@@ -6,7 +6,7 @@ import bpy # type: ignore
 from ....addon_helpers.data_structures import Enum_Sync_Events
 from ....addon_helpers.generic_tools import get_self_block_module
 from ....addon_helpers.ui import ui_draw_block_panel_header
-from ....my_addon_config import Documentation_URLs, addon_title, addon_bl_type_prefix
+from ....addon_config.static_settings import Documentation_URLs, addon_title, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Inter-block imports

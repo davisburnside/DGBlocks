@@ -8,13 +8,15 @@ from typing import Any, Callable, Dict, Optional
 import inspect
 import time
 
+from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
+
 
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
 from .....addon_helpers.data_tools import get_actual_id
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Instance
+from .....addon_helpers.data_structures import Enum_Sync_Events, RTC_FWC_Instance
 from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------

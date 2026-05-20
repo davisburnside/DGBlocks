@@ -1,3 +1,4 @@
+
 import bpy # type: ignore
 from typing import Optional
 
@@ -6,7 +7,7 @@ from typing import Optional
 # --------------------------------------------------------------
 from ...addon_helpers.generic_tools import get_self_block_module, is_bpy_ready
 from ...addon_helpers.data_structures import Enum_Sync_Events
-from ...my_addon_config import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
+from ...addon_config.static_settings import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -21,7 +22,7 @@ from ...addon_helpers.ui import ui_draw_block_panel_header
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_RTC_Members, Block_Logger_Definitions, Block_Hook_Sources
+from .constants import Block_RTC_Members, Block_Logger_Declarations, Block_Hook_Sources
 from .feature_draw_handler_manager import Wrapper_Draw_Handlers
 
 # ==============================================================================================================================
@@ -68,7 +69,7 @@ _block_classes_to_register = [
     DGBLOCKS_PT_Debug_Drawing_Panel,
 ]
 
-def register_block(event: Enum_Sync_Events):
+def register_block_props(event: Enum_Sync_Events):
 
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
@@ -80,13 +81,13 @@ def register_block(event: Enum_Sync_Events):
         block_bpy_types_classes = _block_classes_to_register,
         block_feature_wrapper_classes = [Wrapper_Draw_Handlers], 
         block_RTC_member_enums = Block_RTC_Members, 
-        block_logger_enums = Block_Logger_Definitions,
+        block_logger_enums = Block_Logger_Declarations,
         block_hook_source_enums = Block_Hook_Sources,
     )
 
     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block(event: Enum_Sync_Events):
+def unregister_block_props(event: Enum_Sync_Events):
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")

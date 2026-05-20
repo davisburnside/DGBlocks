@@ -4,10 +4,12 @@ from typing import Callable
 import types
 import logging
 
+from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
+
 # Addon-level imports
-from .....addon_helpers.data_structures import Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Enum_Sync_Actions, Enum_Sync_Events
+from .....addon_helpers.data_structures import Enum_Sync_Actions, Enum_Sync_Events
 from .....addon_helpers.generic_tools import is_bpy_ready
-from .....my_addon_config import base_linebreak_length
+from .....addon_config.static_settings import base_linebreak_length
 
 # Intra-block imports
 from ...core_helpers.constants import _BLOCK_ID, Core_Block_Loggers, Core_Runtime_Cache_Members
