@@ -14,8 +14,8 @@ bl_info = {
 
 import sys
 import importlib
-from addon_config.preferences import DGBLOCKS_UP_Core_Preferences
 import bpy
+from native_blocks.block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 from .addon_helpers.generic_tools import clear_console, validate_block_list_before_registration
 clear_console()
@@ -42,13 +42,14 @@ for name, module in modules_to_reload:
 # ==============================================================================================================================
 # ADDON-LEVEL & CORE-BLOCK IMPORTS
 # ==============================================================================================================================
-from .addon_helpers.data_structures import Enum_Sync_Events
-from .addon_config.active_blocks import _ordered_blocks_list
+
+from .addon_config.preferences import DGBLOCKS_UP_Core_Preferences
+from .addon_config.active_blocks import _BLOCK_PACKAGES
 from .addon_config.static_settings import addon_name
 
 from .native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from .native_blocks.block_core.core_features.control_plane.feature_wrapper import early_init_FWCs
-from .native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
+from .native_blocks.block_core.core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
+from .native_blocks.block_core.core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers
 
 # ==============================================================================================================================
@@ -62,22 +63,22 @@ def register():
     # Register Addon props. This is the only addon-level class
     bpy.utils.register_class(DGBLOCKS_UP_Core_Preferences)
 
-    event = Enum_Sync_Events.ADDON_INIT
     _RTC_dummy = Wrapper_Runtime_Cache # for debugging
     
-    # 3 feature-wrapper classes from are bootstrapped first, before their owner (block-core) starts registration.
+    # Core feature-wrapper classes are bootstrapped first, before their owner block starts registration.
     # The first FWC created is Runtime Cache (RTC), to hold the next created objects.
     # Next is the Loggers FWC, to write console output
     # Finally is the Control-Plane FWC, which adds the core app.handler and msgbus listeners
-    for actual_feature_wrapper_class in early_init_FWCs:
-        actual_feature_wrapper_class.init_pre_bpy(event, None)
+    core_block_FWCs = [Wrapper_Runtime_Cache, Wrapper_Loggers, Wrapper_Control_Plane, Wrapper_Hooks]
+    for actual_feature_wrapper_class in core_block_FWCs:
+        actual_feature_wrapper_class.init_wrapper()
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting main pre-bpy registration for Addon '{addon_name}'")
 
     # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
     # Causes of invalid blocks: TODO webpage link
-    valid_block_packages, invalid_blocks_errors = validate_block_list_before_registration(_ordered_blocks_list)
+    valid_block_packages, invalid_blocks_errors = validate_block_list_before_registration(_BLOCK_PACKAGES)
     for block_id, errors_list in invalid_blocks_errors.items():
         logger.error(f"Errors registering '{block_id}': {str(errors_list)}")
 
@@ -85,24 +86,20 @@ def register():
     # Most init tasks for core-block features are already completed by this point, but 
     # Other features, from other blocks, may have their own init tasks. These are automatically triggered inside 'register_block'
     # To see the full list of actions triggered by the registration loop, set REGISTRATE, POST_REGISTRATE, BLOCK_MGMT Loggers to 'DEBUG'
-    for block in valid_block_packages:
-        block.register_block(event)
+    for block_package in valid_block_packages:
+        Wrapper_Control_Plane.create_instance(block_package._BLOCK_DECLARATION)
     
     logger.log_with_linebreak(f"Finished main pre-bpy registration for Addon '{addon_name}'")
 
 def unregister():
-
-    event = Enum_Sync_Events.ADDON_SHUTDOWN
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    try: 
-        logger.log_with_linebreak(f"Starting main unregistration for Addon '{addon_name}'")
-    except:
-        pass
+    logger.log_with_linebreak(f"Starting main unregistration for Addon '{addon_name}'")
 
     # Unregister other DGBlock packages
     # This should be done in the opposite order as register()
-    for block in reversed(_ordered_blocks_list):
+    registered_blocks = Wrapper_Runtime_Cache.get_cache()
+    for block in reversed(_BLOCK_PACKAGES):
         try:
             block.unregister_block(event)
         except:

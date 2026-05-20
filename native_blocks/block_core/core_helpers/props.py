@@ -21,8 +21,6 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     # Persistent, undo/redo-enabled Scene data for each feature-wrapper's mirrored  RTC data
     # More info for structure/metadata is found inside each DGBLOCKS_* class
     # --------------------------------------------------------------
-    managed_blocks: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Debug_Block_Reference) # type: ignore
-    managed_blocks_selected_idx: bpy.props.IntProperty()  # type: ignore
     managed_hooks: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Hook_Reference)  # type: ignore
     managed_hooks_selected_idx: bpy.props.IntProperty()  # type: ignore
     managed_loggers_selected_idx: bpy.props.IntProperty()  # type: ignore

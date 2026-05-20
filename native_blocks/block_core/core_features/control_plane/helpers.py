@@ -12,7 +12,7 @@ from .....addon_helpers.data_structures import  Enum_Sync_Events, RTC_FWC_Data_M
 from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_names_of_parent_classes
 
 # Intra-block imports
-from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
+from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members, _BLOCK_ID
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import Wrapper_Loggers
 from ..hooks.feature_wrapper import Wrapper_Hooks
@@ -28,9 +28,9 @@ enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
 # ==============================================================================================================================
 # BLOCK CREATION
 
-def _create_new_block_bpy_classes(block_bpy_types_classes, logger):
+def _create_new_block_bpy_classes(block_declaration, logger):
 
-    for bpy_class in block_bpy_types_classes:
+    for bpy_class in block_declaration.block_bpy_classes:
         if bpy_class.is_registered:
             logger.debug(f"class {str(bpy_class)} is already registered")
         else:
@@ -38,11 +38,11 @@ def _create_new_block_bpy_classes(block_bpy_types_classes, logger):
             bpy.utils.register_class(bpy_class)
 
 
-def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger):
+def _create_and_init_new_block_FWCs(block_declaration, logger):
 
     new_FWC_instances = []
     cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
-    for actual_class in block_feature_wrapper_classes:
+    for actual_class in block_declaration.block_feature_wrapper_classes:
         feature_name = actual_class.__name__
 
         # Validate FWC uniqueness
@@ -64,26 +64,24 @@ def _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_class
 
         # Create & cache a new FWC instance
         FWC_instance = RTC_FWC_Instance(
-            src_block_id = block_id,
+            src_block_id = block_declaration.block_id,
             feature_name = feature_name,
             actual_class = actual_class,
-            has_BL_mirrored_data = has_BL_mirrored_data,
-            data_mirrors = [],
         )
         cached_FWCs.append(FWC_instance)
         new_FWC_instances.append(new_FWC_instances)
 
-        if feature_name not in FWCs_to_skip_init:
-            FWC_instance.actual_class.init_pre_bpy(event, FWC_instance)
+        # Core-block FWCs have already been initialized. All others need init
+        if block_declaration.block_id != _BLOCK_ID:
+            block_declaration.init_wrapper()
 
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
     return new_FWC_instances
 
 
-def _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWCs_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger):
+def _create_new_block_record(block_declaration, new_FWC_instances, logger):
 
-    block_id = block_module._BLOCK_ID
-    block_dependencies = block_module._BLOCK_DEPENDENCIES
+    block_id = block_declaration.block_id
 
     idx, block_instance, cached_blocks_list = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
         member_key = cache_key_blocks,
@@ -95,18 +93,11 @@ def _create_new_block_record(event, block_module, block_bpy_types_classes, new_F
     else:
         block_instance = RTC_Block_Instance(
             block_id,
-            block_disabled_reason = "",
-            should_block_be_enabled = True,
-            is_block_enabled = True,
-            is_block_valid = True,
-            is_block_dependencies_valid_and_enabled = True,
-            block_module = block_module,
-            block_dependencies = block_dependencies,
-            block_bpy_types_classes = block_bpy_types_classes,
-            block_FWC_instances = new_FWCs_list,
-            block_hook_source_names = [h.name for h in block_hook_source_enums],
-            block_logger_names = [l.name for l in block_logger_enums],
-            block_RTC_member_names = [m.name for m in block_RTC_member_enums],
+            block_module = block_declaration.block_module,
+            block_dependencies = block_declaration.block_dependencies,
+            block_bpy_types_classes = block_declaration.block_bpy_classes,
+            block_FWC_instances = new_FWC_instances,
+            block_RTC_member_names = [m.name for m in block_declaration.block_RTC_members],
         )
         cached_blocks_list.append(block_instance)
         Wrapper_Runtime_Cache.set_cache(cache_key_blocks, cached_blocks_list)

@@ -56,7 +56,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
+    def init_wrapper(cls) -> bool:
 
         # Define Monkeypatch func to allow custom logger functionality
         def log_with_linebreak(self, log_message: str, length_factor: int = 4):
@@ -72,19 +72,14 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         # Create all core loggers
         for new_logger_enum in Core_Block_Loggers:
             cls.create_instance(
-                event,
                 logger_name=new_logger_enum.name,
                 src_block_id=_BLOCK_ID,
                 level_name=new_logger_enum.value.default_level,
             )
 
     @classmethod
-    def init_post_bpy(cls, event, self_FWC_instance) -> bool:
-        "No-op"
-
-    @classmethod
     def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
-        "No action to take. Loggers exist until the addon's final unregister() steps"
+        "No-op. Loggers exist until the addon's final unregister() steps"
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager

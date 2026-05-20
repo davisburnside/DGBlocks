@@ -55,10 +55,4 @@ class Core_Data_Mirrors(Enum):
         mirrored_data_field_names = ["level_name", "src_block_id"],
         default_data_path_in_scene = "dgblocks_core_props.managed_loggers",
     )
-    BLOCK_MGMT_LIST = RTC_Member_Data_Mirror_Declaration(
-        RTC_key = "REGISTRY_ALL_BLOCKS",
-        FWC_name = "Wrapper_Control_Plane",
-        mirrored_key_field_names = ["block_id"], 
-        mirrored_data_field_names = ["should_block_be_enabled", "is_block_enabled", "is_block_valid", "is_block_dependencies_valid_and_enabled", "block_disabled_reason"],
-        default_data_path_in_scene = "dgblocks_core_props.managed_blocks",
-    )
+

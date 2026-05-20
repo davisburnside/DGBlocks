@@ -75,7 +75,7 @@ def print_section_separator(text, width=100, char="="):
 # Block tools
 # --------------------------------------------------------------
 
-def get_self_block_module(block_manager_wrapper: ModuleType):
+def get_self_block_module():
     """  
     Get the actual block module (__init__.py file) being added
     This function only works when called directly from a block's __init__.py

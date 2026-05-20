@@ -30,7 +30,7 @@ from ..native_blocks import block_core, block_debug_console_print #, block_pip_l
 # List order must respect the block's dependencies. If block-A depends on block-B, then block-B must be listed after block-A
 # In other words, all blocks depend on block_core, so it is the list's first item
 
-_ordered_blocks_list = [
+_BLOCK_PACKAGES = [
     block_core,
     # block_timers,
     block_debug_console_print,

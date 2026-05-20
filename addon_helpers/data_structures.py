@@ -47,6 +47,7 @@ class RTC_Member_Data_Mirror_Declaration():
 
 @dataclass(eq=False)
 class Block_Declaration():
+    block_module: ModuleType # the block/package's main __init__.py file
     block_id: str
     block_dependencies: list[str]
     block_bpy_classes: list[bpy.types]

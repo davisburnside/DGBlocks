@@ -83,25 +83,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event, self_FWC_instance) -> None:
+    def init_wrapper(cls):
         "no-op"
-        return True
-
 
     @classmethod
-    def init_post_bpy(cls, event, self_FWC_instance) -> None:
-
-        logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-        logger.debug(f"Running post-bpy init for Wrapper_Hooks")
-
-        # All hook sources from all blocks have been added by now. Rebuild Subscription cache from sources
-        # cls._rebuild_hook_subs_cache()
-
-
-    @classmethod
-    def destroy_wrapper(cls, event, self_FWC_instance) -> None:
-        "no-op"
-        return True
+    def destroy_wrapper(cls):
+        "No-op"
 
     # --------------------------------------------------------------
     # Implemented from Abstract_BL_RTC_List_Syncronizer

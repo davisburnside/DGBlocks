@@ -1,4 +1,5 @@
 
+from dataclasses import dataclass, field
 from typing import Callable, Type
 from types import ModuleType
 from enum import Enum
@@ -16,8 +17,8 @@ from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Block_Log
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from ..hooks.feature_wrapper import Wrapper_Hooks
-from .helpers import determine_blocks_to_update_status, install_block_components_into_RTC
-from .app_handlers import  _callback_redo_post, _callback_undo_post, _callback_depsgraph_post
+from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_record, _create_new_block_standard_features, determine_blocks_to_update_status, install_block_components_into_RTC
+from .app_handlers import  _callback_redo_post, _callback_undo_post, _callback_depsgraph_post, install_core_app_handler_callbacks, remove_core_app_handler_callbacks
 from .msgbus import clear_msgbuses, add_msgbuses, msgbus_subs
 
 # Aliases
@@ -28,37 +29,19 @@ enum_hook_blocks_registered = Core_Block_Hook_Sources.hook_block_registered
 enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
 
 # ==============================================================================================================================
-# MODULE MAIN FEATURE WRAPPER CLASS
+# INSTANCES MANAGED BY WRAPPER
 
-def _delayed_callback_load_post():
-    """
-    Timer callback for deferred initialization.
-    If not ready, returns 0.1 to retry in 0.1 seconds. Returns None when done.
-    """
-    if not is_bpy_ready():
-        return 0.1  # Try again in 0.1 seconds
-    
-    logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-    logger.debug(f"Calling core init logic from _delayed_callback_load_post")
+@dataclass
+class RTC_Block_Instance:
+    # Record — instance state only, no manager logic
 
-    event = Enum_Sync_Events.ADDON_INIT
-    _, self_FWC_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_FWCs, "feature_name", "Wrapper_Control_Plane")
-    self_FWC_instance.actual_class.init_post_bpy(event, self_FWC_instance)
-    return None
+    block_id: str
+    block_module: ModuleType
+    block_dependencies: list[str]
+    block_bpy_types_classes: list[bpy.types] = field(default_factory=list)
+    block_FWC_instances: list[RTC_FWC_Instance] = field(default_factory=list)
+    block_RTC_member_names: list[str] = field(default_factory=list)
 
-
-@persistent
-def _callback_load_post(dummy):
-    """
-    Persistent handler called on file load events.
-    """
-    if is_bpy_ready():
-        logger = get_logger(Core_Block_Loggers.POST_REGISTRATE)
-        logger.debug(f"Calling core init logic from @persistent '_callback_load_post'")
-        
-        event = Enum_Sync_Events.ADDON_INIT
-        _, self_FWC_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_FWCs, "feature_name", "Wrapper_Control_Plane")
-        self_FWC_instance.actual_class.init_post_bpy(event, self_FWC_instance)
 
 # ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
@@ -70,7 +53,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
+    def init_wrapper(cls, event, self_FWC_instance) -> bool:
         """
         Called during register() before bpy is fully available.
         """
@@ -82,35 +65,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         initial_state = Global_Addon_State()
         Wrapper_Runtime_Cache.set_cache(cache_key_metadata, initial_state)
 
-        # Add a handler for post-register init, if needed
-        if _callback_load_post not in bpy.app.handlers.load_post:
-            logger.debug(f"Func '_callback_load_post' added to 'bpy.app.handlers.load_post'")
-            bpy.app.handlers.load_post.append(_callback_load_post)
-        else:
-            logger.debug(f"Func '_callback_load_post' already present in 'bpy.app.handlers.load_post'")
-
-        # Add another post-load handler, but with a different trigger
-        # It performs the same step as _callback_load_post, but for unsaved / new files
-        bpy.app.timers.register(_delayed_callback_load_post, first_interval=0.0001)
-
-        # Add post-undo & post-redo handlers, if needed
-        if _callback_undo_post not in bpy.app.handlers.undo_post:
-            bpy.app.handlers.undo_post.append(_callback_undo_post)
-            logger.debug("Func '_callback_undo_post' added to bpy.app.handlers.undo_post")
-        else:
-            logger.debug(f"Func '_callback_undo_post' already present in 'bpy.app.handlers.undo_post'")
-        if _callback_redo_post not in bpy.app.handlers.redo_post:
-            bpy.app.handlers.redo_post.append(_callback_redo_post)
-            logger.debug("Func  '_callback_redo_post' added to bpy.app.handlers.redo_post")
-        else:
-            logger.debug(f"Func '_callback_redo_post' already present in 'bpy.app.handlers.redo_post'")
-
-        # Add a depsgraph listener
-        if _callback_depsgraph_post not in bpy.app.handlers.depsgraph_update_post:
-            bpy.app.handlers.depsgraph_update_post.append(_callback_depsgraph_post)
-            logger.debug("Func  '_callback_depsgraph_post' added to bpy.app.handlers.depsgraph_update_post")
-        else:
-            logger.debug(f"Func '_callback_depsgraph_post' already present in 'bpy.app.handlers.depsgraph_update_post'")
+        install_core_app_handler_callbacks(logger)
 
 
     @classmethod
@@ -135,22 +90,6 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
             logger.warning("(Debugging) Clearing all DGBLOCK saved properties")
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger=logger)
-            # core_props.debug_log_all_RTC_BL_sync_actions = True
-            # core_props.debug_mode_enabled = True
-
-
-
-
-
-        # Load 
-
-
-
-
-
-
-
-
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 2: Load saved settings for all data mirrors into RTC , then perform 2 syncs. This ensures file-saved data is properly loaded alongside new RTC data
@@ -203,30 +142,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         """
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
 
-        # Remove scene monitor depsgraph handler
-        if _callback_depsgraph_post in bpy.app.handlers.depsgraph_update_post:
-            bpy.app.handlers.depsgraph_update_post.remove(_callback_depsgraph_post)
-            logger.debug("Func '_callback_depsgraph_post' removed from 'bpy.app.handlers.depsgraph_update_post'")
-        else:
-            logger.debug("Func '_callback_depsgraph_post' not present in 'bpy.app.handlers.depsgraph_update_post'")
-
-        if _callback_undo_post in bpy.app.handlers.undo_post:
-            bpy.app.handlers.undo_post.remove(_callback_undo_post)
-            logger.debug("Func '_callback_undo_post' removed from 'bpy.app.handlers.undo_post'")
-        else:
-            logger.debug("Func '_callback_undo_post' not present in 'bpy.app.handlers.undo_post'")
-
-        if _callback_redo_post in bpy.app.handlers.redo_post:
-            bpy.app.handlers.redo_post.remove(_callback_redo_post)
-            logger.debug("Func '_callback_redo_post' removed from 'bpy.app.handlers.redo_post'")
-        else:
-            logger.debug("Func '_callback_redo_post' not present in 'bpy.app.handlers.redo_post'")
-
-        if _callback_load_post in bpy.app.handlers.load_post:
-            bpy.app.handlers.load_post.remove(_callback_load_post)
-            logger.debug("Func '_callback_load_post' removed from 'bpy.app.handlers.load_post'")
-        else:
-            logger.debug("Func '_callback_load_post' not present in 'bpy.app.handlers.load_post'")
+        remove_core_app_handler_callbacks(logger)
 
         # Remove msgbus scene-change listener
         clear_msgbuses(msgbus_subs)
@@ -237,58 +153,37 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def create_instance(
-        cls,
-        event: Enum_Sync_Events,
-        block_module: ModuleType,
-        block_bpy_types_classes: list[bpy.types] = [],
-        block_feature_wrapper_classes: list[Abstract_Feature_Wrapper] = [],
-        block_RTC_member_enums: list[Enum] = [],
-        block_RTC_data_mirror_enums: list[Enum] = [],
-        block_hook_source_enums: list[Enum] = [],
-        block_logger_enums: list[Enum] = [],
-    ):
+    def create_instance(cls, block_declaration):
         """
         Blocks are created during addon startup/refresh. They can also be removed/recreated during runtime
         """
 
-        if None in [block_bpy_types_classes, block_feature_wrapper_classes, block_hook_source_enums, block_RTC_member_enums, block_logger_enums]:
-            raise Exception("Arg lists may be empty, but not None")
+        # if None in [block_bpy_types_classes, block_feature_wrapper_classes, block_hook_source_enums, block_RTC_member_enums, block_logger_enums]:
+        #     raise Exception("Arg lists may be empty, but not None")
         
         # if event != Enum_Sync_Events.ADDON_INIT:
         #     raise Exception("Arg lists may be empty, but not None")
 
         logger = get_logger(Core_Block_Loggers.REGISTRATE)
-        block_id = block_module._BLOCK_ID
+        block_id = block_declaration._BLOCK_ID
         logger.debug(f"Starting creation of block '{block_id}' instance")
 
         try:
+            
+            # 1: Register the new block's bpy.types.* classes into Blender's native registry
+            _create_new_block_bpy_classes(block_declaration, logger)
 
-            # Create Loggers, Hooks, FWCs, and RTC caches for the new block
-            FWCs_to_skip_init = [f.__name__ for f in early_init_FWCs]
-            new_FWC_instances = install_block_components_into_RTC(
-                event,
-                block_module,
-                block_bpy_types_classes,
-                block_feature_wrapper_classes,
-                block_RTC_member_enums,
-                block_RTC_data_mirror_enums,
-                block_hook_source_enums,
-                block_logger_enums,
-                FWCs_to_skip_init,
-                logger,
-            )
+            # 2: Register the new block's feature-wrapper classes
+            new_FWC_instances = _create_and_init_new_block_FWCs(block_declaration, logger)
 
-            # If a block is being added during runtime (AKA after the registration cycle), trigger its post-bpy logic & final hook init here
-            should_peform_final_init_steps_early = event in (Enum_Sync_Events.PROPERTY_UPDATE, Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
-            if should_peform_final_init_steps_early:
+            # 3: Add block module to global block registry in RTC
+            _create_new_block_record(block_declaration, new_FWC_instances, logger)
 
-                # 1: perform final "post bpy" init step for all FWCs of the block
-                for FWC_instance in new_FWC_instances:
-                    FWC_instance.actual_class.init_post_bpy(event, FWC_instance)
+            # 4: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
+            _create_new_block_standard_features(block_declaration, logger)
 
-                # Ensure that Blender data & the Runtime Cache is in sync. This step respects saved Scene data
-                Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, FWC_instances = new_FWC_instances, logger = logger) 
+            # 5: Create data mirrors to link certain FWCs / RTC members / BL data
+            _create_new_block_RTC_data_mirrors(block_declaration, logger)
 
             logger.debug(f"Finished creation of block '{block_id}' instance")
 
@@ -357,60 +252,6 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # ------------------------------------------------------------------
     # Funcs specific to this class
     # ------------------------------------------------------------------
-
-    @classmethod
-    def cascade_block_status_update(cls, event, self_FWC_instance):
-
-        Wrapper_Runtime_Cache.assert_cache_is_not_syncing(cache_key_blocks)
-        
-        try:
-            logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-
-            # 1: Ensure Blocks cache is synced to latest Blender data. The blocks cache is read in step 2, then modified again in step 3
-            Wrapper_Runtime_Cache.resync_single_data_mirror(
-                event,
-                FWC_instance = self_FWC_instance,
-                data_mirror_instance = self_FWC_instance.data_mirrors[0],
-                BL_is_truth_source = True,
-                logger = None,
-            )
-
-            # 2: Update determine which downstream blocks also need to be enabled/disabled. The lists returned should be in valid dependency-respecting order
-            cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-            blocks_to_enable, blocks_to_disable = determine_blocks_to_update_status(cached_blocks)
-
-            # 3: Perform unregistrations, then registrations
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cached_blocks, True)
-            for block in blocks_to_disable:
-                block.block_module.unregister_block_props(event)
-            for block in blocks_to_enable:
-                block.block_module.register_block_props(event)
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cached_blocks, False)
-
-            # Apply changes back to mirrored Blender data. This will update the core_block FWC caches (block-mngt, loggers, hooks), then all other block FWCs
-            Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = False, logger = logger)
-
-            # Final step: Run hook to notify subscribers of block registration/unregistration
-            if len(blocks_to_enable) > 0:
-                kwargs = {"block_instances": blocks_to_enable}
-                Wrapper_Hooks.run_hooked_funcs(
-                    hook_func_name = enum_hook_blocks_registered,
-                    should_halt_on_exception = False,
-                    **kwargs)
-            if len(blocks_to_disable) > 0:
-                kwargs = {"block_instances": blocks_to_disable}
-                Wrapper_Hooks.run_hooked_funcs(
-                    hook_func_name = enum_hook_blocks_unregistered,
-                    should_halt_on_exception = False,
-                    **kwargs)
-
-        except Exception:
-            logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-            logger.error(f"Exception when updating 'enabled' status of blocks", exc_info=True)
-
-        finally:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key_blocks, False)
-
 
     @classmethod
     def is_block_enabled(cls, block_id: str):

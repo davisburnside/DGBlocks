@@ -43,25 +43,21 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
+    def init_wrapper(cls) -> bool:
         
         # Initialize the cache
-        cls.destroy_wrapper(event, None)
+        cls.destroy_wrapper()
         cls._cache = {}  # Force new dict instance
         cls._lock = threading.RLock()  # Force new lock instance
         
         # Create Runtime cache members with default values.
         for RTC_member_enum in Core_Runtime_Cache_Members:
             member_default_value = fast_deepcopy_with_fallback(RTC_member_enum.value.default_value) 
-            cls.set_cache(RTC_member_enum.name, member_default_value)
+            cls.create_cache(RTC_member_enum.name, member_default_value)
+
 
     @classmethod
-    def init_post_bpy(cls, event, self_FWC_instance) -> bool:
-        # Initialize the cache. Called after of addon registration
-        return # No actions to take
-
-    @classmethod
-    def destroy_wrapper(cls, event, self_FWC_instance):
+    def destroy_wrapper(cls):
         # Clear all cache data. Called during unregister
         with cls._lock:
             cls._cache = {}

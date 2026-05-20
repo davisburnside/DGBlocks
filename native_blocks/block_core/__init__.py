@@ -1,5 +1,6 @@
 import os
 
+from addon_helpers.generic_tools import get_self_block_module
 from native_blocks.block_core.core_helpers.ops import DGBLOCKS_OT_Copy_To_Clipboard, DGBLOCKS_OT_Debug_Clear_And_Restore_Caches, DGBLOCKS_OT_Force_Reload_Refresh_UI, DGBLOCKS_OT_Force_Reload_Scripts, DGBLOCKS_OT_Open_Help_Page
 from native_blocks.block_core.core_helpers.props import DGBLOCKS_PG_Core_Props
 import bpy # type: ignore
@@ -55,10 +56,11 @@ _feature_wrapper_classes_to_register = [
 ]
 
 # ==============================================================================================================================
-# REQUIRED FUNCS
+# REQUIRED 
 # ==============================================================================================================================
 
-_block = Block_Declaration(
+_BLOCK_DECLARATION = Block_Declaration(
+    block_module = __file__,
     block_id = core_block_id,
     block_dependencies = [],
     block_bpy_classes = _block_classes_to_register,
@@ -68,8 +70,6 @@ _block = Block_Declaration(
     block_RTC_members = Core_Runtime_Cache_Members,
     block_data_mirrors = Core_Data_Mirrors,
 )
-def get_block_declaration():
-    return _block
 
 def register_block_props(event: Enum_Sync_Events):
     bpy.types.Scene.dgblocks_core_props = bpy.props.PointerProperty(type = DGBLOCKS_PG_Core_Props)
