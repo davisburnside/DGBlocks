@@ -7,12 +7,10 @@ import threading
 from contextlib import nullcontext
 from typing import Any, Optional
 
-from .....addon_helpers.FWC_abstracts import Abstract_Feature_Wrapper
-
 # --------------------------------------------------------------
 # Addon-level imports
 from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from .....addon_helpers.data_structures import Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
+from .....addon_helpers.data_structures import Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -336,7 +334,6 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         cls, 
         event: Enum_Sync_Events, 
         BL_is_truth_source:bool, 
-        FWC_instances: list = None, 
         logger = None,
     ) -> None:
         """
@@ -348,8 +345,8 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         target_type = "RTC" if BL_is_truth_source else "Blender"
 
         # load all, if not specified
-        if not FWC_instances:
-            FWC_instances = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+        # if not FWC_instances:
+        #     FWC_instances = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
             
         logger.info(f"Updating {target_type} data with {source_type} mirror for event '{event}'")
 
@@ -357,16 +354,16 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         if event == Enum_Sync_Events.ADDON_INIT and not BL_is_truth_source:
             actions_denied = {Enum_Sync_Actions.EDIT}
 
-        for FWC_instance in FWC_instances:
-            for data_mirror_instance in FWC_instance.data_mirrors:
-                cls.resync_single_data_mirror(
-                    event, 
-                    FWC_instance,
-                    data_mirror_instance,
-                    BL_is_truth_source,
-                    actions_denied,
-                    logger,
-                )
+        # for FWC_instance in FWC_instances:
+        #     if FWC_instance.data_mirror is not None:
+        #         cls.resync_single_data_mirror(
+        #             event, 
+        #             FWC_instance,
+        #             FWC_instance.data_mirror,
+        #             BL_is_truth_source,
+        #             actions_denied,
+        #             logger,
+        #         )
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS

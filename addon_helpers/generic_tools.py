@@ -6,6 +6,7 @@ import inspect
 import os
 from copy import deepcopy
 import logging
+from pathlib import Path
 from types import ModuleType
 from dataclasses import is_dataclass, replace, asdict
 from typing import Any, Callable, Collection, List, Optional
@@ -13,6 +14,7 @@ import numpy as np
 import bpy  # type: ignore
 import mathutils # type: ignore
 from ..addon_config.static_settings import should_show_developer_ui_panels, addon_name
+from ..addon_helpers.data_structures import Block_Declaration
 
 # --------------------------------------------------------------
 # Generic Blender helpers
@@ -139,6 +141,9 @@ def validate_block_list_before_registration(blocks_to_register: list[any]):
 
     return valid_blocks, invalid_blocks
 
+
+
+
 # --------------------------------------------------------------
 # Feature-Wrapper-Class tools
 # --------------------------------------------------------------
@@ -226,3 +231,28 @@ def unregister_hotkeys():
             if kmi.idname in [k["OP_NAME"] for k in my_addon_config.addon_hotkeys]:
                 logger.info(f"removing hotkey {kmi.idname}")
                 km.keymap_items.remove(kmi)
+
+def is_same_class_by_name(obj, cls) -> bool:
+    """Check if `obj` is an instance of `cls` by class name, sidestepping
+    identity issues from double-imported modules.
+    
+    Use only as a fallback for the `isinstance` double-import problem;
+    prefer fixing the import paths when possible.
+    """
+    return type(obj).__name__ == cls.__name__
+
+def validate_func_args(func, expected_args: list[str]) -> None:
+    """Raise TypeError if `func`'s parameter names don't exactly match `expected_args`.
+    
+    Order matters; *args/**kwargs are included by their declared names.
+    """
+    actual_args = list(inspect.signature(func).parameters.keys())
+    
+    if actual_args != expected_args:
+        raise TypeError(
+            f"Function '{func.__name__}' has args {actual_args}, expected {expected_args}"
+        )
+
+def get_folder_parts(module) -> list[str]:
+    """Return the folder names containing the module, from filesystem root down."""
+    return list(Path(module.__file__).parent.parts)

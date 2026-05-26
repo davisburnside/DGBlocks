@@ -3,30 +3,96 @@ from enum import Enum
 import inspect
 from types import ModuleType
 from typing import Callable
-
-from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer
 import bpy # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import  Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
-from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_names_of_parent_classes
+from .....addon_helpers.data_structures import  Block_Declaration, Enum_Sync_Events, Hook_Source_Declaration, Logger_Declaration, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_BL_RTC_List_Syncronizer
+from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_folder_parts, get_names_of_parent_classes, is_same_class_by_name, validate_func_args
 
 # Intra-block imports
-from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members, _BLOCK_ID
+from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
+from ...core_features.control_plane.data_structures import RTC_Block_Instance
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import Wrapper_Loggers
 from ..hooks.feature_wrapper import Wrapper_Hooks
-from .data_structures import RTC_Block_Instance
 
 # Aliases
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
+cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
 enum_hook_blocks_registered = Core_Block_Hook_Sources.hook_block_registered
 enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
 
+
+
+
+
+
+# ==============================================================================================================================
+# VALIDATION
+
+def shallow_validate_block_module(block_module):
+
+    # Validate both-or-none logic of block property register/unregister
+    # if not hasattr(block_module, "_BLOCK_DECLARATION"):
+    has_reg_func = hasattr(block_module, "register_block_props") and hasattr(block_module.register_block_props, "__call__")
+    has_unreg_func = hasattr(block_module, "unregister_block_props") and hasattr(block_module.unregister_block_props, "__call__")
+    if has_reg_func and not has_unreg_func:
+        raise Exception(f"Function 'register_block_props' is present, but 'unregister_block_props'. Blocks must have both or neither ")
+    if has_unreg_func and not has_reg_func:
+        raise Exception(f"Function 'unregister_block_props' is present, but 'register_block_props'. Blocks must have both or neither ")
+    if has_reg_func:
+        validate_func_args(block_module.register_block_props, [])
+    if has_unreg_func:
+        validate_func_args(block_module.unregister_block_props, [])
+
+    # Validate block Declaration
+    file_dunder_name = block_module.__name__
+    if not hasattr(block_module, "_BLOCK_DECLARATION"):
+        raise Exception(f"Could not register {file_dunder_name} as a Block. Its __init__.py is missing a required '_BLOCK_DECLARATION' object")
+    
+    if not is_same_class_by_name(block_module._BLOCK_DECLARATION, Block_Declaration):#  .__name__ != Block_Declaration.__name__:
+        raise Exception(f"Could not register {file_dunder_name} as a Block. Its '_BLOCK_DECLARATION' object is the supposed to be a {Block_Declaration.__class__}, is instead a {block_module._BLOCK_DECLARATION.__class__}")
+
+
+
+def shallow_validate_block_declaration(block_declaration, logger):
+
+    block_id = block_declaration.block_id
+    idx, block_instance, cached_blocks_list = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+        member_key = cache_key_blocks,
+        uniqueness_field = "block_id",
+        uniqueness_field_value = block_id,
+    )
+
+    # Check uniqueness
+    if block_instance:
+        return f"Block '{block_id}' record already exists in RTC REGISTRY_ALL_BLOCKS"
+
+    # Check types of each component
+    expected_declaration_types = {
+        block_declaration.block_loggers: Logger_Declaration,
+        block_declaration.block_hook_sources: Hook_Source_Declaration,
+        block_declaration.block_data_mirrors: Core_Data_Mirrors,
+        block_declaration.block_hook_sources: Core_Runtime_Cache_Members,
+    }
+
+    for object_declarations, dec_type in expected_declaration_types.items():
+        for single_dec in object_declarations:
+            if not isinstance(single_dec, dec_type):
+                return f"Invlaid type: Declaration '{single_dec}' needs to be a {dec_type.__class__}"
+
+
 # ==============================================================================================================================
 # BLOCK CREATION
+
+
+def _create_new_block_properties(block_declaration, logger):
+
+    if hasattr(block_declaration.block_module, "register_block_props"):
+        block_declaration.block_module.register_block_props()
+
 
 def _create_new_block_bpy_classes(block_declaration, logger):
 
@@ -57,12 +123,11 @@ def _create_and_init_new_block_FWCs(block_declaration, logger):
             missing_func_str = "'" + "', '".join(missing_func_impls) + "'"
 
         # Determine if the FWC will need BL<->RTC data sync actions
-        has_BL_mirrored_data = False
-        all_parent_classes = get_names_of_parent_classes(actual_class)
-        if Abstract_BL_RTC_List_Syncronizer.__name__ in all_parent_classes:
+        # all_parent_classes = get_names_of_parent_classes(actual_class)
+        # if Abstract_BL_RTC_List_Syncronizer.__name__ in all_parent_classes:
             has_BL_mirrored_data = True
 
-        # Create & cache a new FWC instance
+        # Create & cache a new FWC instance. If a data mirror exists, it will be added in a later step
         FWC_instance = RTC_FWC_Instance(
             src_block_id = block_declaration.block_id,
             feature_name = feature_name,
@@ -72,101 +137,104 @@ def _create_and_init_new_block_FWCs(block_declaration, logger):
         new_FWC_instances.append(new_FWC_instances)
 
         # Core-block FWCs have already been initialized. All others need init
-        if block_declaration.block_id != _BLOCK_ID:
+        if block_declaration.block_id != core_block_id:
             block_declaration.init_wrapper()
 
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
     return new_FWC_instances
 
 
-def _create_new_block_record(block_declaration, new_FWC_instances, logger):
+def _create_new_block_record(block_declaration, new_FWC_instances, error_str, logger):
 
     block_id = block_declaration.block_id
+    package_name = ".".join(get_folder_parts(block_declaration.block_module)[-2:])
 
-    idx, block_instance, cached_blocks_list = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-        member_key = cache_key_blocks,
-        uniqueness_field = "block_id",
-        uniqueness_field_value = block_id,
+    cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
+
+    block_instance = RTC_Block_Instance(
+        block_id,
+        block_module = block_declaration.block_module,
+        block_package_name = package_name,
+        block_dependencies = block_declaration.block_dependencies,
+        block_bpy_types_classes = block_declaration.block_bpy_classes,
+        block_FWC_instances = new_FWC_instances,
+        block_RTC_member_names = [m.name for m in block_declaration.block_RTC_members],
     )
-    if block_instance:
-        logger.info(f"Block '{block_id}' record already exists in RTC REGISTRY_ALL_BLOCKS. Continuing with other RTC members")
-    else:
-        block_instance = RTC_Block_Instance(
-            block_id,
-            block_module = block_declaration.block_module,
-            block_dependencies = block_declaration.block_dependencies,
-            block_bpy_types_classes = block_declaration.block_bpy_classes,
-            block_FWC_instances = new_FWC_instances,
-            block_RTC_member_names = [m.name for m in block_declaration.block_RTC_members],
-        )
-        cached_blocks_list.append(block_instance)
-        Wrapper_Runtime_Cache.set_cache(cache_key_blocks, cached_blocks_list)
+
+    if error_str is not None:
+        block_instance.is_valid = False
+        block_instance.error_message = error_str
+
+    cached_blocks.append(block_instance)
+    Wrapper_Runtime_Cache.set_cache(cache_key_blocks, cached_blocks)
+    return block_instance
 
 
-def _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, logger):
+def _create_new_block_standard_features(block_declaration, logger):
 
     # Loggers - initialized with default log levels
-    for idx, logger_enum in enumerate(block_logger_enums):
-        is_last = idx + 1 == len(block_logger_enums)
+    for logger_enum in block_declaration.block_loggers:
         Wrapper_Loggers.create_instance(
-            event,
-            src_block_id = block_id,
+            src_block_id = block_declaration.block_id,
             logger_name = logger_enum.name,
             level_name = logger_enum.value.default_level,
-            skip_BL_sync = not is_last,
         )
 
     # Hook Sources - remain unchanged after init
-    for idx, hook_source_enum in enumerate(block_hook_source_enums):
-        is_last = idx + 1 == len(block_hook_source_enums)
+    for idx, hook_source_enum in enumerate(block_declaration.block_hook_sources):
         Wrapper_Hooks.create_instance(
-            event,
-            src_block_id = block_id,
+            src_block_id = block_declaration.block_id,
             hook_func_name = hook_source_enum.name,
             hook_func_named_args = hook_source_enum.value.arg_types,
-            skip_BL_sync = not is_last,
-            skip_subscriber_cache_rebuild = not is_last,
         )
 
     # RTC Registries - initialized with empty list/dict/dataclass containers, or a default value.
     # Note that caches for core-block (loggers, hooks, blocks...) already exist in the RTC, created during addon bootstrap
-    for RTC_member_enum in block_RTC_member_enums:
+    for RTC_member_enum in block_declaration.block_RTC_members:
         Wrapper_Runtime_Cache.create_cache(
             new_key = RTC_member_enum.name,
             new_value = RTC_member_enum.value.default_value,
         )
 
 
-def _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger):
+def _create_new_block_RTC_data_mirrors(block_declaration, logger):
 
     # Create data mirrors references for certain RTC members
     cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+    cached_data_mirrors = Wrapper_Runtime_Cache.get_cache(cache_key_data_mirrors)
+
     all_known_FWC_names = [f.feature_name for f in cached_FWCs]
-    for data_mirror_enum in block_RTC_data_mirror_enums:
+    existing_data_mirror_FWCs = []
+    # all_cache_keys = 
+    # all_known_FWC_names_with_data_mirrors = [f.feature_name for f in cached_data_mirrors]
+
+    for data_mirror_enum in block_declaration.block_data_mirrors:
         
         enum_val = data_mirror_enum.value
         associated_FWC_name = enum_val.FWC_name
         associated_RTC_key = enum_val.RTC_key
-        RTC_member = Wrapper_Runtime_Cache.get_cache(associated_RTC_key)
 
-        # Validation for associated objects
-        if RTC_member is None:
+        # Cache validation
+        mirrored_cache = Wrapper_Runtime_Cache.get_cache(associated_RTC_key)
+        if mirrored_cache is None:
             raise Exception(f"Unable to make data mirror for '{associated_RTC_key}', the cache is not present in RTC")
         if associated_FWC_name not in all_known_FWC_names:
             raise Exception(f"Unable to make data mirror for '{associated_RTC_key}' because feature '{associated_FWC_name}' is not present in RTC")
         
+        # FWC Validation
+
         # Validation for data container type
-        RTC_member_type = None
-        if isinstance(RTC_member, list):
+        cache_data_type = None
+        if isinstance(mirrored_cache, list):
             RTC_member_type = "list"
-        elif isinstance(RTC_member, dict):
+        elif isinstance(mirrored_cache, dict):
             RTC_member_type = "dict"
         else:
-            raise Exception(f"Invalid RTC member type for data mirror '{associated_RTC_key}', data type = '{RTC_member.__class__}'")
+            raise Exception(f"Invalid RTC member type for data mirror '{associated_RTC_key}', data type = '{mirrored_cache.__class__}'")
 
         # Add data-mirror instance as child of existing FWC instance.
-        list_idx = all_known_FWC_names.index(associated_FWC_name)
-        associated_FWC_instance = cached_FWCs[list_idx]
+        # list_idx = all_known_FWC_names.index(associated_FWC_name)
+        # associated_FWC_instance = cached_FWCs[list_idx]
         new_data_mirror = RTC_FWC_Data_Mirror_Instance(
             associated_RTC_key,
             RTC_member_type,
@@ -174,130 +242,43 @@ def _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger):
             enum_val.mirrored_data_field_names,
             default_data_path_in_scene = enum_val.default_data_path_in_scene,
         )
-        associated_FWC_instance.data_mirrors.append(new_data_mirror)
-
-
-def install_block_components_into_RTC(
-        event: Enum_Sync_Events,
-        block_module: ModuleType,
-        block_bpy_types_classes: list[bpy.types],
-        block_feature_wrapper_classes: list[Enum],
-        block_RTC_member_enums: list[Enum],
-        block_RTC_data_mirror_enums: list[Enum],
-        block_hook_source_enums: list[Enum],
-        block_logger_enums: list[Enum],
-        FWCs_to_skip_init: list[str],
-        logger
-    ):
-
-        block_id = block_module._BLOCK_ID
-        block_dependencies = block_module._BLOCK_DEPENDENCIES
-
-        # 1: Register the new block's bpy.types.* classes into Blender's native registry
-        _create_new_block_bpy_classes(block_bpy_types_classes, logger)
-
-        # 2: Register the new block's feature-wrapper classes
-        new_FWC_instance_list = _create_and_init_new_block_FWCs(event, block_id, block_feature_wrapper_classes, FWCs_to_skip_init, logger)
-
-        # 3: Add block module to global block registry in RTC
-        _create_new_block_record(event, block_module, block_bpy_types_classes, new_FWC_instance_list, block_hook_source_enums, block_logger_enums, block_RTC_member_enums, logger)
-
-        # 4: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
-        _create_new_block_standard_features(event, block_id, block_logger_enums, block_hook_source_enums, block_RTC_member_enums, logger)
-
-        # 5: Create data mirrors to link certain FWCs / RTC members / BL data
-        _create_new_block_RTC_data_mirrors(block_RTC_data_mirror_enums, logger)
-
-        return new_FWC_instance_list
+        cached_data_mirrors.append(new_data_mirror)
+    Wrapper_Runtime_Cache.set_cache(cache_key_data_mirrors, cached_data_mirrors)
 
 # ==============================================================================================================================
 # BLOCK REMOVAL
 
-def unregister_and_remove_block_components():
 
-    pass
+def _remove_block_properties(block_instance, logger):
 
-# ==============================================================================================================================
-# BLOCK DEPENDENCY HELPERS
+    try:
+        if hasattr(block_instance.block_module, "unregister_block_props"):
+            block_instance.block_module.unregister_block_props()
+    except Exception as e:
+        logger.error(e, exc_info = True)
 
-def determine_blocks_to_update_status(cached_blocks: list[RTC_Block_Instance]) -> tuple[list[str], list[str]]:
+def _remove_block_bpy_classes(block_instance, logger):
 
-    prior_statuses = {b.block_id: b.is_block_enabled for b in cached_blocks}
-    block_map = {n.block_id: n for n in cached_blocks}
+    # 1: Unregister bpy classes
+    for bpy_class in reversed(block_instance.block_bpy_types_classes):
+        if bpy_class.is_registered:
+            try:
+                logger.debug(f"Unregistering BPY class '{bpy_class.__name__}'")
+                bpy.utils.unregister_class(bpy_class)
+            except Exception as e:
+                logger.error(e, exc_info = True)
 
-    # Build reverse dependency graph
-    dependents: dict[str, list[str]] = {n.block_id: [] for n in cached_blocks}
-    for node in cached_blocks:
-        for dep_id in node.block_dependencies:
-            if dep_id in dependents:
-                dependents[dep_id].append(node.block_id)
+def _remove_block_FWC_instances(block_instance, logger):
 
-    # Evaluate each block's own state
-    for node in cached_blocks:
-        node.is_block_dependencies_valid_and_enabled = True
-        if not node.should_block_be_enabled:
-            node.block_disabled_reason = "self is disabled"
-            node.is_block_enabled = False
-        elif not node.is_block_valid:
-            node.block_disabled_reason = "self is invalid"
-            node.is_block_enabled = False
-        else:
-            node.block_disabled_reason = ""
-            node.is_block_enabled = True
-
-    # BFS: propagate disabled/invalid states to dependents
-    queue = [n.block_id for n in cached_blocks if not n.is_block_enabled]
-    visited = set(queue)
-    while queue:
-        current_id = queue.pop(0)
-        current = block_map[current_id]
-
-        for dep_id in dependents[current_id]:
-            dependent = block_map[dep_id]
-            if dependent.is_block_dependencies_valid_and_enabled:
-                dependent.is_block_dependencies_valid_and_enabled = False
-                if dependent.should_block_be_enabled and dependent.is_block_valid:
-                    dependent.block_disabled_reason = f"dependency '{current_id}' is disabled or invalid"
-                    dependent.is_block_enabled = False
-            if dep_id not in visited:
-                visited.add(dep_id)
-                queue.append(dep_id)
-
-    was_enabled = [b for b in cached_blocks if b.is_block_enabled and not prior_statuses[b.block_id]]
-    was_disabled = [b for b in cached_blocks if not b.is_block_enabled and prior_statuses[b.block_id]]
-
-    return was_enabled, was_disabled
-
-
-def evaluate_and_update_block_statuses(event, _Wrapper_Control_Plane: Callable):
-
-    return
-    # Update RTC to match Blender/UI
-    _Wrapper_Control_Plane.update_RTC_with_mirrored_BL_data(event)
-
-    # Update enabled/disabled status for all block instances
-    cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-    blocks_to_enable, blocks_to_disable = _Wrapper_Control_Plane.determine_blocks_to_update_status(cached_blocks)
-
-    for block in blocks_to_enable:
-        block.block_module.register_block_props(event)
-
-    for block in blocks_to_disable:
-        block.block_module.unregister_block_props(event)
-
-    # Apply changes back to mirrored Blender data
-    _Wrapper_Control_Plane.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
-
-    # Final step: Run hook to notify subscribers of block registration/unregistration
-    if len(blocks_to_enable) > 0:
-        kwargs = {"block_instances": blocks_to_enable}
-        _ = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name=enum_hook_blocks_registered,
-            should_halt_on_exception=False,
-            **kwargs)
-    if len(blocks_to_disable) > 0:
-        kwargs = {"block_instances": blocks_to_disable}
-        _ = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name=enum_hook_blocks_unregistered,
-            should_halt_on_exception=False,
-            **kwargs)
+    if block_instance.block_id != core_block_id:
+        for actual_class in reversed(block_instance.block_FWC_instances):
+            try:
+                feature_name = actual_class.__name__
+                actual_class.destroy_wrapper()
+                Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
+                    member_key=cache_key_FWCs,
+                    uniqueness_field="feature_name",
+                    uniqueness_field_value=feature_name,
+                )
+            except Exception as e:
+                logger.error(e, exc_info = True)

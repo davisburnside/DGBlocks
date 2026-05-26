@@ -8,7 +8,6 @@ from typing import Any, Callable, Dict, Optional
 import inspect
 import time
 
-from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 
 
 
@@ -16,13 +15,13 @@ from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, A
 # Addon-level imports
 # --------------------------------------------------------------
 from .....addon_helpers.data_tools import get_actual_id
-from .....addon_helpers.data_structures import Enum_Sync_Events, RTC_FWC_Instance
-from .....addon_helpers.generic_tools import is_bpy_ready, find_blocks_owning_func_with_name
+from .....addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
+from .....addon_helpers.generic_tools import find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ...core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members
+from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
@@ -110,12 +109,10 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def create_instance(
         cls,
-        event: Enum_Sync_Events,
         src_block_id: str,
         hook_func_name: str | Enum,
         hook_func_named_args: Dict[str, Any] = None,
-        skip_BL_sync: bool = False,
-        skip_subscriber_cache_rebuild: bool = False
+
     ) -> None:
 
         logger = get_logger(Core_Block_Loggers.HOOKS)
@@ -165,11 +162,8 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def destroy_instance(
         cls,
-        event: Enum_Sync_Events,
         hook_func_name: str,
         subscriber_block_id: Optional[str] = None,
-        skip_BL_sync: bool = False,
-        skip_subscriber_cache_rebuild: bool = False,
     ) -> None:
         """
         Remove hook source & derived subscribers
@@ -184,11 +178,6 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             uniqueness_field="hook_func_name",
             uniqueness_field_value=hook_func_name,
         )
-
-        # Rebuild subscribers after updating sources
-        if not skip_subscriber_cache_rebuild:
-            cls._rebuild_hook_subs_cache()
-
 
     # --------------------------------------------------------------
     # Public funcs specific to this class

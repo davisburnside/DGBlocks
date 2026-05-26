@@ -32,7 +32,6 @@ from ..native_blocks import block_core, block_debug_console_print #, block_pip_l
 
 _BLOCK_PACKAGES = [
     block_core,
-    # block_timers,
     block_debug_console_print,
     # block_pip_library_manager,
     # _block_usecase_01_minimal,

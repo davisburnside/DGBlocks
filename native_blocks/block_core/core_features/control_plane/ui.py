@@ -2,16 +2,17 @@
 # IMPORTS
 # ==============================================================================================================================
 
-import bpy  # type: ignore
-from .....addon_helpers.ui import ui_draw_list_headers
-from ...core_helpers.constants import _BLOCK_ID as core_block_id
+import bpy
+from .....addon_helpers.ui import ui_draw_list_headers, ui_draw_static_list
+from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Runtime_Cache_Members
+from ...core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache  # type: ignore
 
 # ==============================================================================================================================
 # UI
 # ==============================================================================================================================
 
-col_names = ("Name", "Should Enable?", "Is Enabled?")
-col_widths = (2, 1, 1)
+col_names = ("Name", "Version")
+col_widths = (1, 3)
 
 
 def _uilayout_draw_block_uilist_selection_detail(context, container):
@@ -32,28 +33,33 @@ def _uilayout_draw_block_manager_settings(context, container):
 
     box = container.box()
     core_props = context.scene.dgblocks_core_props
+    cached_blocks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+
     panel_header, panel_body = box.panel(idname="_dummy_dgblocks_core_scene_block_mgmt", default_closed=True)
-    panel_header.label(text=f"All Blocks ({len(context.scene.dgblocks_core_props.managed_blocks)})")
+    panel_header.label(text=f"All Blocks ({len(cached_blocks)})")
     if panel_body is not None:
 
         # Draw column headers - should match draw_item layout exactly
         ui_draw_list_headers(panel_body, col_names, col_widths)
 
-        # Draw the UIList
-        row = panel_body.row()
-        row_count = len(core_props.managed_blocks)
-        row.template_list(
-            "DGBLOCKS_UL_Blocks",
-            "",
-            core_props, "managed_blocks",           # Collection property
-            core_props, "managed_blocks_selected_idx",  # Active index property
-            rows=row_count,
-            maxrows=row_count,
-            columns=row_count,
-        )
+        data_list = [[i.block_id, i.block_package_name] for i in cached_blocks]
+        ui_draw_static_list(panel_body, data_list, col_widths)
 
-        # Show disabled reason for selected alert row
-        _uilayout_draw_block_uilist_selection_detail(context, container)
+        # # Draw the UIList
+        # row = panel_body.row()
+        # row_count = len(core_props.managed_blocks)
+        # row.template_list(
+        #     "DGBLOCKS_UL_Blocks",
+        #     "",
+        #     core_props, "managed_blocks",           # Collection property
+        #     core_props, "managed_blocks_selected_idx",  # Active index property
+        #     rows=row_count,
+        #     maxrows=row_count,
+        #     columns=row_count,
+        # )
+
+        # # Show disabled reason for selected alert row
+        # _uilayout_draw_block_uilist_selection_detail(context, container)
 
 
 class DGBLOCKS_UL_Blocks(bpy.types.UIList):

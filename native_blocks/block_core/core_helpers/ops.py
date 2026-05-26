@@ -5,17 +5,15 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ....addon_helpers.generic_tools import force_reload_all_scripts, get_self_block_module, force_redraw_ui
-from ....addon_helpers.data_structures import Enum_Sync_Events, Global_Addon_State
-from ....addon_config.static_settings import Documentation_URLs, should_show_developer_ui_panels, addon_name, addon_title, addon_bl_type_prefix
+from ....addon_helpers.generic_tools import force_reload_all_scripts, force_redraw_ui
+from ....addon_helpers.data_structures import Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Core block imports
 # --------------------------------------------------------------
-from ..core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
-from ..core_features.loggers.feature_wrapper import Wrapper_Loggers, get_logger
+from ..core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
+from ..core_features.loggers.feature_wrapper import  get_logger
 from ..core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..core_helpers.ui import uilayout_draw_core_block_settings
 
 # --------------------------------------------------------------
 # Aliases

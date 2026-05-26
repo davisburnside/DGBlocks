@@ -19,6 +19,22 @@ def ui_draw_list_headers(container, col_names: set, col_widths: set):
         sub.ui_units_x = col_widths[i]
         sub.label(text = col_names[i])
 
+def ui_draw_static_list(container, data_rows: list, col_widths):
+
+
+
+    box = container.box()
+    # header.separator(factor=0.5)  # Account for UIList left padding
+
+    for data_row in data_rows:
+        if len(data_row) != len(col_widths):
+            raise Exception(f"lists must match length {len(data_row)} : {len(col_widths)}")
+        row = box.row()
+        for i, data_col in enumerate(data_row):
+            sub = row.row()
+            sub.ui_units_x = col_widths[i]
+            sub.label(text = data_col)
+
 def ui_draw_block_panel_header(context:bpy.context, container:bpy.types.UILayout, header_text:str, url_enum:Enum = None, icon_name:str = None):
 
     container.separator(factor = separator_width_factor, type = "LINE")

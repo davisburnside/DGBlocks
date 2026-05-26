@@ -1,4 +1,6 @@
 import bpy
+from ..core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
+from ..core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance
 
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     

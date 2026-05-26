@@ -4,10 +4,8 @@ from typing import Callable
 import types
 import logging
 
-from .....addon_helpers.FWC_abstracts import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
-
 # Addon-level imports
-from .....addon_helpers.data_structures import Enum_Sync_Actions, Enum_Sync_Events
+from .....addon_helpers.data_structures import Enum_Sync_Events, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 from .....addon_helpers.generic_tools import is_bpy_ready
 from .....addon_config.static_settings import base_linebreak_length
 
@@ -88,11 +86,9 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
     @classmethod
     def create_instance(
         cls,
-        event: Enum_Sync_Events,
         logger_name: Enum,
         src_block_id: str,
         level_name: str,
-        skip_BL_sync: bool = False,
     ):
 
         action_logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)

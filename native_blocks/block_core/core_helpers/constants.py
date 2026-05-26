@@ -3,14 +3,14 @@ from types import ModuleType
 from typing import Any, Callable, Dict, Optional
 import bpy #type: ignore
 
-from ....addon_helpers.data_structures import Global_Addon_State, Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration
+from ....addon_helpers.data_structures import Global_Addon_State, Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, String_Comparable_Mixin
 
 _BLOCK_ID = "block-core"
 
 # ==============================================================================================================================
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
 
-class Core_Block_Loggers(Enum):
+class Core_Block_Loggers(String_Comparable_Mixin):
     HOOKS = Logger_Declaration("INFO")
     BLOCK_MGMT = Logger_Declaration("DEBUG")
     RTC_DATA_SYNC = Logger_Declaration("DEBUG")
@@ -20,7 +20,7 @@ class Core_Block_Loggers(Enum):
     TRACKED_DATABLOCK_TYPES = Logger_Declaration("DEBUG")
     SCENE_MONITOR = Logger_Declaration("DEBUG")
 
-class Core_Block_Hook_Sources(Enum):
+class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_core_event_undo = Hook_Source_Declaration({})
     hook_core_event_redo = Hook_Source_Declaration({})
     hook_block_registered = Hook_Source_Declaration({"block_instances": list})
@@ -31,16 +31,17 @@ class Core_Block_Hook_Sources(Enum):
     SCENE_MONITOR_ACTIVE_MODE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
     SCENE_MONITOR_ACTIVE_OBJ_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
 
-class Core_Runtime_Cache_Members(Enum):
+class Core_Runtime_Cache_Members(String_Comparable_Mixin):
     ADDON_METADATA = RTC_Member_Declaration(Global_Addon_State())
-    REGISTRY_ALL_BLOCKS = RTC_Member_Declaration([])
-    REGISTRY_ALL_FWCS = RTC_Member_Declaration([])
-    REGISTRY_ALL_HOOK_SOURCES = RTC_Member_Declaration([])
-    REGISTRY_ALL_HOOK_SUBSCRIBERS = RTC_Member_Declaration([])
-    REGISTRY_ALL_LOGGERS = RTC_Member_Declaration([])
-    META_REGISTRIES_BEING_SYNCED = RTC_Member_Declaration([])
+    REGISTRY_ALL_BLOCKS = RTC_Member_Declaration()
+    REGISTRY_ALL_FWCS = RTC_Member_Declaration()
+    REGISTRY_ALL_HOOK_SOURCES = RTC_Member_Declaration()
+    REGISTRY_ALL_HOOK_SUBSCRIBERS = RTC_Member_Declaration()
+    REGISTRY_ALL_LOGGERS = RTC_Member_Declaration()
+    REGISTRY_ALL_DATA_MIRRORS = RTC_Member_Declaration()
+    META_REGISTRIES_BEING_SYNCED = RTC_Member_Declaration()
 
-class Core_Data_Mirrors(Enum):
+class Core_Data_Mirrors(String_Comparable_Mixin):
     HOOKS_LIST = RTC_Member_Data_Mirror_Declaration(
         RTC_key = "REGISTRY_ALL_HOOK_SUBSCRIBERS",
         FWC_name = "Wrapper_Hooks",

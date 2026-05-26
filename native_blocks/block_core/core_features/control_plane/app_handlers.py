@@ -14,6 +14,7 @@ from ..hooks.feature_wrapper import Wrapper_Hooks
 
 # Aliases
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
+cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 enum_hook_undo = Core_Block_Hook_Sources.hook_core_event_undo
 enum_hook_redo = Core_Block_Hook_Sources.hook_core_event_redo
 enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SCENE_CHANGED
@@ -39,7 +40,7 @@ def _delayed_callback_load_post():
 
     event = Enum_Sync_Events.ADDON_INIT
     _, self_FWC_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_FWCs, "feature_name", "Wrapper_Control_Plane")
-    self_FWC_instance.actual_class.init_post_bpy(event, self_FWC_instance)
+    self_FWC_instance.actual_class.init_post_bpy()
     return None
 
 
@@ -54,7 +55,7 @@ def _callback_load_post(dummy):
         
         event = Enum_Sync_Events.ADDON_INIT
         _, self_FWC_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_FWCs, "feature_name", "Wrapper_Control_Plane")
-        self_FWC_instance.actual_class.init_post_bpy(event, self_FWC_instance)
+        self_FWC_instance.actual_class.init_post_bpy()
 
 
 
@@ -228,14 +229,14 @@ def install_core_app_handler_callbacks(logger):
         logger.debug(f"Func '_callback_undo_post' already present in 'bpy.app.handlers.undo_post'")
     if _callback_redo_post not in bpy.app.handlers.redo_post:
         bpy.app.handlers.redo_post.append(_callback_redo_post)
-        logger.debug("Func  '_callback_redo_post' added to bpy.app.handlers.redo_post")
+        logger.debug("Func '_callback_redo_post' added to bpy.app.handlers.redo_post")
     else:
         logger.debug(f"Func '_callback_redo_post' already present in 'bpy.app.handlers.redo_post'")
 
     # Add a depsgraph listener
     if _callback_depsgraph_post not in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.append(_callback_depsgraph_post)
-        logger.debug("Func  '_callback_depsgraph_post' added to bpy.app.handlers.depsgraph_update_post")
+        logger.debug("Func '_callback_depsgraph_post' added to bpy.app.handlers.depsgraph_update_post")
     else:
         logger.debug(f"Func '_callback_depsgraph_post' already present in 'bpy.app.handlers.depsgraph_update_post'")
 

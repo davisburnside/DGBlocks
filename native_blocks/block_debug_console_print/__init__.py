@@ -158,34 +158,23 @@ _block_classes_to_register = [
     DGBLOCKS_PT_Debugging_Panel,
 ]
 
-def register_block_props(event: Enum_Sync_Events):
+def register_block_props():
 
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
-
-    # Register all block classes & components
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
-    Wrapper_Control_Plane.create_instance(
-        event,
-        block_module = block_module,
-        block_bpy_types_classes = _block_classes_to_register,
-        block_hook_source_enums = Block_Hook_Sources,
-    )
+    # # Register all block classes & components
+    # block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
+    # Wrapper_Control_Plane.create_instance(
+    #     event,
+    #     block_module = block_module,
+    #     block_bpy_types_classes = _block_classes_to_register,
+    #     block_hook_source_enums = Block_Hook_Sources,
+    # )
     
     # Add block-core Properties to Scene
     bpy.types.Scene.dgblocks_debug_console_print_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Props_Profile)
 
-    logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block_props(event: Enum_Sync_Events):
-    
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
-
-    Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
+def unregister_block_props():
     
     # Delete block-core Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_debug_console_print_props"):
         del bpy.types.Scene.dgblocks_debug_console_print_props
-    
-    logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")
