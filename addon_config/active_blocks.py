@@ -6,7 +6,7 @@
 # --------------------------------------------------------------
 # Builtin blocks with actual usecases
 # --------------------------------------------------------------
-from ..native_blocks import block_core, block_debug_console_print #, block_pip_library_manager, block_timers
+from ..native_blocks import block_core, block_debug_console_print, block_onscreen_drawing #, block_pip_library_manager, block_timers
 
 # --------------------------------------------------------------
 # Builtin blocks for demos / learning
@@ -21,7 +21,7 @@ from ..native_blocks import block_core, block_debug_console_print #, block_pip_l
 # --------------------------------------------------------------
 # Your blocks, used in your addon
 # --------------------------------------------------------------
-# from .external_blocks import block_flatypus_modes_manager
+from ..external_blocks import block_flatypus_modes_manager
 
 # ==============================================================================================================================
 # Blocks registered at startup
@@ -33,6 +33,8 @@ from ..native_blocks import block_core, block_debug_console_print #, block_pip_l
 _BLOCK_PACKAGES = [
     block_core,
     block_debug_console_print,
+    block_onscreen_drawing,
+    block_flatypus_modes_manager,
     # block_pip_library_manager,
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,

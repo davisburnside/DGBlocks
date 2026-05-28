@@ -2,6 +2,7 @@
 from enum import Enum, StrEnum, auto
 import bpy # type: ignore
 
+from ...addon_helpers.data_structures import Logger_Declaration, RTC_Member_Declaration
 from .custom_shaders.billboard_image_shader import Billboard_Shader
 
 # ==============================================================================================================================
@@ -13,14 +14,14 @@ from .custom_shaders.billboard_image_shader import Billboard_Shader
 # name = hook ID
 # value[0] = hooked function name (caps included)
 # value[1] = expected function arguments & types
-class Block_Logger_Definitions(Enum):    
-    ASSEMBLY_MODE_LIFECYCLE = ("assembly-mode-lifecycle", "INFO")
+class Block_Loggers(Enum):    
+    ASSEMBLY_MODE_LIFECYCLE = Logger_Declaration("DEBUG")
 
 # name = RTC Member ID 
 # value[0] = actual RTC dict key / data structure
 # value[1] = default data for RTC key
 class Block_RTC_Members(Enum):
-    IS_ASSEMBLY_MODE_ACTIVE = ("flatypus-assembly-mode-active", False)
+    IS_ASSEMBLY_MODE_ACTIVE = RTC_Member_Declaration(False)
 
 # ==============================================================================================================================
 # BLOCK-SPECIFIC CONSTANTS

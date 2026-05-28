@@ -15,7 +15,7 @@ import time
 # Addon-level imports
 # --------------------------------------------------------------
 from .....addon_helpers.data_tools import get_actual_id
-from .....addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
+from .....addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper, Enum_Sync_Events
 from .....addon_helpers.generic_tools import find_blocks_owning_func_with_name
 
 # --------------------------------------------------------------
@@ -109,6 +109,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def create_instance(
         cls,
+        event: Enum_Sync_Events,
         src_block_id: str,
         hook_func_name: str | Enum,
         hook_func_named_args: Dict[str, Any] = None,
@@ -162,8 +163,8 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def destroy_instance(
         cls,
+        event: Enum_Sync_Events,
         hook_func_name: str,
-        subscriber_block_id: Optional[str] = None,
     ) -> None:
         """
         Remove hook source & derived subscribers

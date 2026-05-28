@@ -21,7 +21,7 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_Logger_Declarations, Draw_Phase_Types, Block_RTC_Members
+from .constants import Block_Loggers, Draw_Phase_Types, Block_RTC_Members
 from .feature_shader import Shader_Instance
 
 # ==============================================================================================================================
@@ -70,10 +70,9 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
 
     @classmethod
-    def init_pre_bpy(cls, event, self_FWC_instance) -> bool:
-        "Define draw-handlers cache structure at startup. The dict will be populated during later init step"
-
-        logger = logger = get_logger(Block_Logger_Declarations.DRAWHANDLER_LIFECYCLE)
+    def init_wrapper(cls) -> bool:
+        
+        logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Running pre-bpy init for 'Wrapper_Draw_Handlers'")
         
         # Unlike most RTC members, draw_handlers is fully populated with instances at startup
@@ -92,17 +91,11 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         logger.debug(f"Created empty draw-handler instances for {all_handler_names}")
 
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, initial_rtc_data)
-        return True
 
     @classmethod
-    def init_post_bpy(cls, event, self_FWC_instance) -> bool:
-        "no-op"
-        return True
+    def destroy_wrapper(cls) -> bool:
 
-    @classmethod
-    def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
-
-        logger = logger = get_logger(Block_Logger_Declarations.DRAWHANDLER_LIFECYCLE)
+        logger = logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Removing Wrapper 'Wrapper_Draw_Handlers'")
         
         # Shaders and groups are automatically removed
@@ -118,7 +111,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     
     def add_shader(draw_phase_name: str, shader_enum: Enum, shader_group_id: str):
         
-        logger = get_logger(Block_Logger_Declarations.DRAWHANDLER_LIFECYCLE)
+        logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         
         # Get shader info from enum
         shader_uid = shader_enum.name
@@ -179,7 +172,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         draw_callback: Optional[Callable] = None,
         ):
 
-        logger = logger = get_logger(Block_Logger_Declarations.DRAWHANDLER_LIFECYCLE)
+        logger = logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug(f"Enabling Draw Handler Phase '{draw_phase_name}'")
 
         draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)[draw_phase_name]
@@ -205,7 +198,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     @classmethod
     def disable_draw_handler(cls, draw_phase_name: str, remove_shaders = False) -> None:
         
-        logger = logger = get_logger(Block_Logger_Declarations.DRAWHANDLER_LIFECYCLE)
+        logger = logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug(f"Disabling Draw Handler '{draw_phase_name}'")
 
         draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)[draw_phase_name]

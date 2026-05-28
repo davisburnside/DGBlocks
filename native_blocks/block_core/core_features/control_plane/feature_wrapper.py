@@ -141,7 +141,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def create_instance(cls, block_module: ModuleType):
+    def create_instance(cls, event: Enum_Sync_Events, block_module: ModuleType):
         """
         Blocks are created during addon startup/refresh. They can also be removed/recreated during runtime
         """
@@ -189,18 +189,21 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             # print_section_separator(f"Exception when creating {block_id} instance from package '{package_name}'. {str(e)}")
             error_str = str(e)
             failed_block_declaration = Block_Declaration(block_module = block_module, block_id = block_id, block_dependencies = [])
-            failed_block_instance = _create_new_block_record(failed_block_declaration, [], error_str, logger)
-            cls.destroy_instance(failed_block_instance)
+            _create_new_block_record(failed_block_declaration, [], error_str, logger)
+            event = Enum_Sync_Events.ADDON_INIT
+            cls.destroy_instance(event, block_id = block_id)
 
 
     @classmethod
-    def destroy_instance(cls, block_instance: RTC_Block_Instance):
+    def destroy_instance(cls, event: Enum_Sync_Events, block_id: str):
 
         # Note that the Block record itself is not removed from RTC's REGISTRY_ALL_BLOCKS cache. Instead, its 'is_block_enabled' property is set to false
         # It is the only "trace" that should remain of a removed block.
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.debug(f"Starting removal of block '{block_instance.block_id}'")
+
+        block_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_blocks, "block_id", block_id)
 
         _remove_block_FWC_instances(block_instance, logger)
 

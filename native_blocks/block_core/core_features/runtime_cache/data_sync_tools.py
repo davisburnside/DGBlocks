@@ -266,8 +266,8 @@ def apply_dataclasses_to_match_collectionprop(
     """
     Apply actions against a Python list of dataclasses.
 
-    For Remove: calls actual_FWC.destroy_instance(target, from_idx).
-    For Create: calls actual_FWC.create_instance(target, insertion_idx,
+    For Remove: calls actual_FWC.destroy_instance.
+    For Create: calls actual_FWC.create_instance,
                                                   **key+data kwargs).
     Both are expected to mutate `target` themselves.
     """
@@ -281,7 +281,6 @@ def apply_dataclasses_to_match_collectionprop(
             kwargs = {n: getattr(src_item, n) for n in key_fields}
             actual_FWC.destroy_instance(
                 event, 
-                skip_BL_sync = True, 
                 **kwargs)
         elif isinstance(action, Noop):
             pass
@@ -297,7 +296,6 @@ def apply_dataclasses_to_match_collectionprop(
             kwargs = {n: getattr(src_item, n) for n in all_fields}
             actual_FWC.create_instance(
                 event, 
-                skip_BL_sync = True, 
                 **kwargs)
 
 # --------------------------------------------------------------

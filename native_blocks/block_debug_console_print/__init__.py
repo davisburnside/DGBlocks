@@ -167,7 +167,7 @@ _block_classes_to_register = [
 _BLOCK_DECLARATION = Block_Declaration(
     block_module = sys.modules[__name__], # this __init__.py file
     block_id = "block-debug-console", # unique block id
-    block_dependencies = [], # ids of blocks that this one depends on
+    block_dependencies = ["block-core"], # ids of blocks that this one depends on
     block_bpy_classes = _block_classes_to_register, # Blender-registerable classes
     block_loggers = Core_Block_Loggers,
 )

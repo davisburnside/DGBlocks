@@ -106,14 +106,14 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 
     @classmethod
     @abstractmethod
-    def create_instance(cls, **kwargs) -> any:
+    def create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any:
         # Can have arbitrary args
         # Should return instance
         pass
 
     @classmethod
     @abstractmethod
-    def destroy_instance(cls, **kwargs):
+    def destroy_instance(cls, event: Enum_Sync_Events, **kwargs):
         # Can have arbitrary args
         # Should return None
         pass

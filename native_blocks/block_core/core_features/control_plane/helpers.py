@@ -138,7 +138,7 @@ def _create_and_init_new_block_FWCs(block_declaration, logger):
 
         # Core-block FWCs have already been initialized. All others need init
         if block_declaration.block_id != core_block_id:
-            block_declaration.init_wrapper()
+            FWC_instance.actual_class.init_wrapper()
 
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
     return new_FWC_instances
@@ -167,14 +167,16 @@ def _create_new_block_record(block_declaration, new_FWC_instances, error_str, lo
 
     cached_blocks.append(block_instance)
     Wrapper_Runtime_Cache.set_cache(cache_key_blocks, cached_blocks)
-    return block_instance
 
 
 def _create_new_block_standard_features(block_declaration, logger):
 
+    event = Enum_Sync_Events.ADDON_INIT
+
     # Loggers - initialized with default log levels
     for logger_enum in block_declaration.block_loggers:
         Wrapper_Loggers.create_instance(
+            event,
             src_block_id = block_declaration.block_id,
             logger_name = logger_enum.name,
             level_name = logger_enum.value.default_level,
@@ -183,6 +185,7 @@ def _create_new_block_standard_features(block_declaration, logger):
     # Hook Sources - remain unchanged after init
     for idx, hook_source_enum in enumerate(block_declaration.block_hook_sources):
         Wrapper_Hooks.create_instance(
+            event,
             src_block_id = block_declaration.block_id,
             hook_func_name = hook_source_enum.name,
             hook_func_named_args = hook_source_enum.value.arg_types,

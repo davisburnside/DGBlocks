@@ -68,8 +68,10 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         cls._fallback_logger.debug("Running pre-bpy init for Wrapper_Loggers")
 
         # Create all core loggers
+        event = Enum_Sync_Events.ADDON_INIT
         for new_logger_enum in Core_Block_Loggers:
             cls.create_instance(
+                event,
                 logger_name=new_logger_enum.name,
                 src_block_id=_BLOCK_ID,
                 level_name=new_logger_enum.value.default_level,
@@ -86,6 +88,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
     @classmethod
     def create_instance(
         cls,
+        event: Enum_Sync_Events,
         logger_name: Enum,
         src_block_id: str,
         level_name: str,
@@ -124,11 +127,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         return new_logger
 
     @classmethod
-    def destroy_instance(
-        cls,
-        event: Enum_Sync_Events,
-        logger_name: any,
-        skip_BL_sync: bool = False):
+    def destroy_instance(cls, event: Enum_Sync_Events, logger_name: any):
 
         logger = get_logger(Core_Block_Loggers.REGISTRATE)
 

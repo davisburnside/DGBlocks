@@ -36,14 +36,11 @@ modules_to_reload.sort(key=lambda x: x[0].count('.'), reverse=True)
 for name, module in modules_to_reload: 
     importlib.reload(module)
 
-
-
-
-
 # ==============================================================================================================================
 # ADDON-LEVEL & CORE-BLOCK IMPORTS
 # ==============================================================================================================================
 
+from .addon_helpers.data_structures import Enum_Sync_Events
 from .addon_config.preferences import DGBLOCKS_UP_Core_Preferences
 from .addon_config.active_blocks import _BLOCK_PACKAGES
 from .addon_config.static_settings import addon_name
@@ -69,6 +66,7 @@ def register():
     _RTC_dummy = Wrapper_Runtime_Cache # for debugging
     
     # Core feature-wrapper classes are bootstrapped first, before their owner block starts registration.
+    
     core_block_FWCs = [Wrapper_Runtime_Cache, Wrapper_Loggers, Wrapper_Control_Plane, Wrapper_Hooks]
     for actual_feature_wrapper_class in core_block_FWCs:
         actual_feature_wrapper_class.init_wrapper()
@@ -86,8 +84,9 @@ def register():
     # Most init tasks for core-block features are already completed by this point, but 
     # Other features, from other blocks, may have their own init tasks. These are automatically triggered inside 'register_block'
     # To see the full list of actions triggered by the registration loop, set REGISTRATE, POST_REGISTRATE, BLOCK_MGMT Loggers to 'DEBUG'
+    event = Enum_Sync_Events.ADDON_INIT
     for block_module in _BLOCK_PACKAGES:
-        Wrapper_Control_Plane.create_instance(block_module)
+        Wrapper_Control_Plane.create_instance(event, block_module)
 
     logger.log_with_linebreak(f"Finished main pre-bpy registration for Addon '{addon_name}'")
 
@@ -98,10 +97,11 @@ def unregister():
 
     # Unregister other DGBlock packages
     # This should be done in the opposite order as register()
+    event = Enum_Sync_Events.ADDON_SHUTDOWN
     cached_blocks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
     for block_instance in reversed(cached_blocks):
         try:
-            Wrapper_Control_Plane.destroy_instance(block_instance)
+            Wrapper_Control_Plane.destroy_instance(event, block_instance)
             # block.unregister_block(event)
         except:
             logger.error(f"Exception when unregistering block '{block_instance.block_id}': ", exc_info = True)

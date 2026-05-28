@@ -1,24 +1,20 @@
 import os
+import sys
 import gpu # type: ignore
 import bpy # type: ignore
 from gpu_extras.batch import batch_for_shader # type: ignore
-from mathutils import Vector, Matrix, Euler
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_tools import get_self_block_module, clear_console
 from ...addon_config.static_settings import Documentation_URLs, addon_title
+from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ...native_blocks import block_core
-from ...native_blocks.block_core.core_features.loggers import Core_Block_Loggers, get_logger
-from ...native_blocks.block_core.core_features.hooks import Wrapper_Hooks
-from ...native_blocks.block_core.core_features.control_plane import Wrapper_Block_Management
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper  import Wrapper_Runtime_Cache
-from ...addon_helpers.ui import ui_draw_block_panel_header
 
 from ...native_blocks.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
 from ...native_blocks.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
@@ -26,7 +22,7 @@ from ...native_blocks.block_onscreen_drawing.feature_draw_handler_manager import
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_Logger_Definitions, Block_RTC_Members, Assembly_Mode_Shader_Definitions
+from .constants import Block_Loggers, Block_RTC_Members, Assembly_Mode_Shader_Definitions
 
 # ==============================================================================================================================
 # BLOCK DEFINITION
@@ -255,40 +251,49 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
     def draw(self, context):
         
         layout = self.layout
-        layout.operator("dgblocks.toggle_assembly_mode", text = "run 'em")
-        op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "test drawers").test_action_1 = "POST_VIEW"
+        op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "run 'em")
+        op_t1.test_action_1 = "POST_VIEW"
+        # op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "test drawers").test_action_1 = "POST_VIEW"
 
 # ==============================================================================================================================
-# REGISTRATION EVENTS - Should only called from the addon's main __init__.py
-# ==============================================================================================================================
-
-# Only bpy.types.* classes should be registered
+# 
+# 
+# # Only bpy.types.* classes should be registered
 _block_classes_to_register = [
     DGBLOCKS_OT_Toggle_Assembly_Mode,
     DGBLOCKS_PT_Assembly_Mode_Panel,
 ]
 
-def register_block():
+# def register_block():
 
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
+#     logger = get_logger(Core_Block_Loggers.REGISTRATE)
+#     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
-    # Register all block classes & components
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
-    Wrapper_Block_Management.create_instance(
-        block_module = block_module,
-        block_bpy_types_classes = _block_classes_to_register,
-        block_logger_enums = Block_Logger_Definitions,
-        block_RTC_member_enums = Block_RTC_Members
-    )
+#     # Register all block classes & components
+#     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
+#     Wrapper_Block_Management.create_instance(
+#         block_module = block_module,
+#         block_bpy_types_classes = _block_classes_to_register,
+#         block_logger_enums = Block_Logger_Definitions,
+#         block_RTC_member_enums = Block_RTC_Members
+#     )
     
-    logger.info(f"Finished registration for '{_BLOCK_ID}'")
+#     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block():
+# def unregister_block():
     
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
+#     logger = get_logger(Core_Block_Loggers.REGISTRATE)
+#     logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+#     Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
     
-    logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")
+#     logger.debug(f"Finished unregistration for '{_BLOCK_ID}'")
+
+_BLOCK_DECLARATION = Block_Declaration(
+    block_module = sys.modules[__name__], # this __init__.py file
+    block_id = "block-onscreen-draw", # unique block id
+    block_dependencies = ["core-block", "block-onscreen-draw"], # ids of blocks that this one depends on
+    block_bpy_classes = _block_classes_to_register, # Blender-registerable classes
+    block_loggers = Block_Loggers,
+    block_RTC_members = Block_RTC_Members,
+)

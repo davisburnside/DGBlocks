@@ -1,6 +1,25 @@
 
-from enum import Enum, StrEnum, auto
+from enum import StrEnum, auto
 import bpy
+from ...addon_helpers.data_structures import Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, String_Comparable_Mixin
+
+# ==============================================================================================================================
+# MAIN BLOCK COMPONENTS
+# ==============================================================================================================================
+
+class Block_Hook_Sources(String_Comparable_Mixin):
+    hook_draw_event = Hook_Source_Declaration({"draw_handler_instance": any})
+
+
+class Block_Loggers(String_Comparable_Mixin):    
+    DRAWHANDLER_LIFECYCLE = Logger_Declaration("DEBUG")
+    SHADER_BATCH_EVENTS = Logger_Declaration("DEBUG")
+
+
+class Block_RTC_Members(String_Comparable_Mixin):
+    DRAW_PHASES = RTC_Member_Declaration({})
+    SHADERS = RTC_Member_Declaration({})
+
 
 # ==============================================================================================================================
 # BLOCK-SPECIFIC DATA
@@ -27,27 +46,3 @@ class Shader_Types(StrEnum):
     POINTS = auto()
     LINES = auto()
     TRIS = auto()
-
-# ==============================================================================================================================
-# MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
-# ==============================================================================================================================
-
-# name = hook ID
-# value[0] = hooked function name (caps included)
-# value[1] = expected function arguments & types
-class Block_Hook_Sources(Enum):
-    DRAW_EVENT = ("hook_draw_event", {"draw_handler_instance": any})
-
-# name = hook ID
-# value[0] = hooked function name (caps included)
-# value[1] = expected function arguments & types
-class Block_Logger_Declarations(Enum):    
-    DRAWHANDLER_LIFECYCLE = ("drawhandler_lifecycle", "DEBUG")
-    SHADER_BATCH_EVENTS = ("shader_batch_events", "DEBUG")
-
-# name = RTC Member ID 
-# value[0] = actual RTC dict key / data structure
-# value[1] = default data for RTC key
-class Block_RTC_Members(Enum):
-    DRAW_PHASES = ("draw_phases", {})
-    SHADERS = ("shader", {})

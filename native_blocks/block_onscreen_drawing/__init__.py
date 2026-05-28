@@ -4,28 +4,26 @@ import sys
 import bpy # type: ignore
 from typing import Optional
 
+
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.generic_tools import get_self_block_module, is_bpy_ready
-from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
-from ...addon_config.static_settings import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
+from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_config.static_settings import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
 from .. import block_core
-from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
-from ..block_core.core_features.hooks import Wrapper_Hooks
-from ..block_core.core_features.control_plane import Wrapper_Control_Plane
-from ..block_core.core_features.runtime_cache.feature_wrapper  import Wrapper_Runtime_Cache
+from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_RTC_Members, Block_Logger_Declarations, Block_Hook_Sources
+from .constants import Block_Loggers, Block_RTC_Members
 from .feature_draw_handler_manager import Wrapper_Draw_Handlers
+
 
 # ==============================================================================================================================
 # BLOCK DEFINITION
@@ -49,7 +47,7 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     bl_category = addon_title
 
     def draw_header(self, context):
-        ui_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "RESTRICT_VIEW_ON")
+        ui_draw_block_panel_header(context, self.layout, _BLOCK_DECLARATION.block_id, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
         
     def draw(self, context):
 
@@ -63,51 +61,15 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
             row.label(text = str(is_enabled))
 
 # ==============================================================================================================================
-# REGISTRATION EVENTS
-# ==============================================================================================================================
-
-# Only bpy.types.* classes should be registered
-_block_classes_to_register = [    
-    DGBLOCKS_PT_Debug_Drawing_Panel,
-]
-
-# def register_block_props(event: Enum_Sync_Events):
-
-#     logger = get_logger(Core_Block_Loggers.REGISTRATE)
-#     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
-    
-#     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
-#     Wrapper_Control_Plane.create_instance(
-#         event,
-#         block_module = block_module,
-#         block_bpy_types_classes = _block_classes_to_register,
-#         block_feature_wrapper_classes = [Wrapper_Draw_Handlers], 
-#         block_RTC_member_enums = Block_RTC_Members, 
-#         block_logger_enums = Block_Logger_Declarations,
-#         block_hook_source_enums = Block_Hook_Sources,
-#     )
-
-#     logger.info(f"Finished registration for '{_BLOCK_ID}'")
-
-# def unregister_block_props(event: Enum_Sync_Events):
-    
-#     logger = get_logger(Core_Block_Loggers.REGISTRATE)
-#     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
-    
-#     # Remove block components from RTC
-#     Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
-    
-#     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")
-
-
-# ==============================================================================================================================
 # REQUIRED 
 # ==============================================================================================================================
 
 _BLOCK_DECLARATION = Block_Declaration(
     block_module = sys.modules[__name__], # this __init__.py file
     block_id = "block-onscreen-draw", # unique block id
-    block_dependencies = [], # ids of blocks that this one depends on
-    block_bpy_classes = _block_classes_to_register, # Blender-registerable classes
-    block_loggers = Core_Block_Loggers,
+    block_dependencies = ["core-block"], # ids of blocks that this one depends on
+    block_bpy_classes = [DGBLOCKS_PT_Debug_Drawing_Panel], # Blender-registerable classes
+    block_feature_wrapper_classes = [Wrapper_Draw_Handlers],
+    block_RTC_members = Block_RTC_Members,
+    block_loggers = Block_Loggers,
 )

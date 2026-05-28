@@ -36,7 +36,7 @@ class Shader_Instance:
     _batch: gpu.types.GPUBatch = field(init=False, default=None) # Expensive to update, should only update if _points or _colors change
     _texture: Any = field(init=False, default=None) # Only used for Images
     _points: np.ndarray = field(init=False, default=None)
-    _colors: np.ndarray = field(init=False, default=None) # Only used for SMOOTH_COLOR, not UNIF9RM_COLOR Shaders
+    _colors: np.ndarray = field(init=False, default=None) # Only used for SMOOTH_COLOR, not UNIFORM_COLOR Shaders
     _indices: np.ndarray = field(init=False, default=None) # Only used for TRIS-type shaders
     _highest_index: int = -1 # used when dynamically updating a batch with new tris
     _needs_new_batch: bool = True
