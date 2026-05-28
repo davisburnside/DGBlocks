@@ -20,6 +20,7 @@ from .data_sync_tools import default_data_mirror_BL_colprop_update_logic, defaul
 # --------------------------------------------------------------
 # Aliases
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
+cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
 
 # ==============================================================================================================================
 #  MAIN MODULE FEATURE
@@ -354,16 +355,26 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         if event == Enum_Sync_Events.ADDON_INIT and not BL_is_truth_source:
             actions_denied = {Enum_Sync_Actions.EDIT}
 
-        # for FWC_instance in FWC_instances:
-        #     if FWC_instance.data_mirror is not None:
-        #         cls.resync_single_data_mirror(
-        #             event, 
-        #             FWC_instance,
-        #             FWC_instance.data_mirror,
-        #             BL_is_truth_source,
-        #             actions_denied,
-        #             logger,
-        #         )
+        # Get FWC and mirror caches
+        cached_data_mirrors = Wrapper_Runtime_Cache.get_cache(cache_key_data_mirrors)
+        cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+        FWC_names = [f.feature_name for f in cached_FWCs]
+        
+        # Pair up mirrors with their FWC and trigger each sync
+        for data_mirror_instance in cached_data_mirrors:
+            idx_of_FWC_instance = FWC_names.index(data_mirror_instance.FWC_name)
+            if idx_of_FWC_instance < 0:
+                logger.error(f"FWC '{data_mirror_instance.FWC_name}' not found")
+                continue
+            FWC_instance = cached_FWCs[idx_of_FWC_instance]
+            cls.resync_single_data_mirror(
+                event, 
+                FWC_instance,
+                data_mirror_instance,
+                BL_is_truth_source,
+                actions_denied,
+                logger,
+            )
 
 # ==============================================================================================================================
 # PUBLIC CONVENIENCE FUNCTIONS

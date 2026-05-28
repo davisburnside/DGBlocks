@@ -72,13 +72,13 @@ def shallow_validate_block_declaration(block_declaration, logger):
 
     # Check types of each component
     expected_declaration_types = {
-        block_declaration.block_loggers: Logger_Declaration,
-        block_declaration.block_hook_sources: Hook_Source_Declaration,
-        block_declaration.block_data_mirrors: Core_Data_Mirrors,
-        block_declaration.block_hook_sources: Core_Runtime_Cache_Members,
+        Logger_Declaration: block_declaration.block_loggers,
+        Hook_Source_Declaration: block_declaration.block_hook_sources,
+        Core_Data_Mirrors: block_declaration.block_data_mirrors,
+        Core_Runtime_Cache_Members: block_declaration.block_hook_sources,
     }
 
-    for object_declarations, dec_type in expected_declaration_types.items():
+    for dec_type, object_declarations in expected_declaration_types.items():
         for single_dec in object_declarations:
             if not isinstance(single_dec, dec_type):
                 return f"Invlaid type: Declaration '{single_dec}' needs to be a {dec_type.__class__}"
@@ -237,6 +237,7 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
         # associated_FWC_instance = cached_FWCs[list_idx]
         new_data_mirror = RTC_FWC_Data_Mirror_Instance(
             associated_RTC_key,
+            associated_FWC_name,
             RTC_member_type,
             enum_val.mirrored_key_field_names,
             enum_val.mirrored_data_field_names,

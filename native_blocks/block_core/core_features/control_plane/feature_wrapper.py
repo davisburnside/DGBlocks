@@ -1,5 +1,6 @@
 
 from dataclasses import dataclass, field
+import traceback
 from typing import Callable, Type
 from types import ModuleType
 from enum import Enum
@@ -179,10 +180,13 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             logger.debug(f"Finished creation of block '{block_id}' instance")
 
         except Exception as e:
+            # logger.error("       fgfg   ", exc_info=True)
             if block_id is None:
                 block_id = "<invalid>"
             package_name = ".".join(get_folder_parts(block_module)[-2:])
-            print_section_separator(f"Exception when creating {block_id} instance from package '{package_name}'. {str(e)}")
+
+            traceback.print_exc(limit=-2)
+            # print_section_separator(f"Exception when creating {block_id} instance from package '{package_name}'. {str(e)}")
             error_str = str(e)
             failed_block_declaration = Block_Declaration(block_module = block_module, block_id = block_id, block_dependencies = [])
             failed_block_instance = _create_new_block_record(failed_block_declaration, [], error_str, logger)

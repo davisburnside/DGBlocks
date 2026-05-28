@@ -95,7 +95,7 @@ def find_blocks_owning_func_with_name(func_name: str, registered_blocks:list[Mod
         if hasattr(block.block_module, func_name)
     ]
     if logger:
-        block_ids = [b._BLOCK_ID for b in blocks]
+        block_ids = [b.block_id for b in blocks]
         logger.debug(f"Found {len(blocks)} blocks with hook func '{blocks}': {block_ids}")
     return blocks
 

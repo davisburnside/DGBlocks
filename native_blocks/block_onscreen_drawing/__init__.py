@@ -1,4 +1,6 @@
 
+import sys
+
 import bpy # type: ignore
 from typing import Optional
 
@@ -6,7 +8,7 @@ from typing import Optional
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.generic_tools import get_self_block_module, is_bpy_ready
-from ...addon_helpers.data_structures import Enum_Sync_Events
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
 from ...addon_config.static_settings import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 
 # --------------------------------------------------------------
@@ -69,30 +71,43 @@ _block_classes_to_register = [
     DGBLOCKS_PT_Debug_Drawing_Panel,
 ]
 
-def register_block_props(event: Enum_Sync_Events):
+# def register_block_props(event: Enum_Sync_Events):
 
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
+#     logger = get_logger(Core_Block_Loggers.REGISTRATE)
+#     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
     
-    block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
-    Wrapper_Control_Plane.create_instance(
-        event,
-        block_module = block_module,
-        block_bpy_types_classes = _block_classes_to_register,
-        block_feature_wrapper_classes = [Wrapper_Draw_Handlers], 
-        block_RTC_member_enums = Block_RTC_Members, 
-        block_logger_enums = Block_Logger_Declarations,
-        block_hook_source_enums = Block_Hook_Sources,
-    )
+#     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
+#     Wrapper_Control_Plane.create_instance(
+#         event,
+#         block_module = block_module,
+#         block_bpy_types_classes = _block_classes_to_register,
+#         block_feature_wrapper_classes = [Wrapper_Draw_Handlers], 
+#         block_RTC_member_enums = Block_RTC_Members, 
+#         block_logger_enums = Block_Logger_Declarations,
+#         block_hook_source_enums = Block_Hook_Sources,
+#     )
 
-    logger.info(f"Finished registration for '{_BLOCK_ID}'")
+#     logger.info(f"Finished registration for '{_BLOCK_ID}'")
 
-def unregister_block_props(event: Enum_Sync_Events):
+# def unregister_block_props(event: Enum_Sync_Events):
     
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
+#     logger = get_logger(Core_Block_Loggers.REGISTRATE)
+#     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
     
-    # Remove block components from RTC
-    Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
+#     # Remove block components from RTC
+#     Wrapper_Control_Plane.destroy_instance(event, block_id = _BLOCK_ID)
     
-    logger.info(f"Finished unregistration for '{_BLOCK_ID}'")
+#     logger.info(f"Finished unregistration for '{_BLOCK_ID}'")
+
+
+# ==============================================================================================================================
+# REQUIRED 
+# ==============================================================================================================================
+
+_BLOCK_DECLARATION = Block_Declaration(
+    block_module = sys.modules[__name__], # this __init__.py file
+    block_id = "block-onscreen-draw", # unique block id
+    block_dependencies = [], # ids of blocks that this one depends on
+    block_bpy_classes = _block_classes_to_register, # Blender-registerable classes
+    block_loggers = Core_Block_Loggers,
+)

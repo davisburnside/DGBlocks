@@ -309,7 +309,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     def get_subscriber_blocks_of_hook(cls, hook_src_id: Enum):
 
         # Get hook func name from str/enum input
-        actual_hook_func_name = hook_src_id.value.hook_func_name
+        actual_hook_func_name = hook_src_id.name
 
         # Get registered downstream hooks for a func name
         cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)

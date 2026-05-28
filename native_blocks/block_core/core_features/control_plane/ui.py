@@ -11,8 +11,8 @@ from ...core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 # UI
 # ==============================================================================================================================
 
-col_names = ("Name", "Version")
-col_widths = (1, 3)
+col_names = ("Valid", "Name", "folder")
+col_widths = (1, 1, 3)
 
 
 def _uilayout_draw_block_uilist_selection_detail(context, container):
@@ -42,7 +42,7 @@ def _uilayout_draw_block_manager_settings(context, container):
         # Draw column headers - should match draw_item layout exactly
         ui_draw_list_headers(panel_body, col_names, col_widths)
 
-        data_list = [[i.block_id, i.block_package_name] for i in cached_blocks]
+        data_list = [[str(i.is_valid), i.block_id, i.block_package_name] for i in cached_blocks]
         ui_draw_static_list(panel_body, data_list, col_widths)
 
         # # Draw the UIList

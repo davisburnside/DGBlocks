@@ -1,4 +1,5 @@
 import os
+import sys
 import bpy # type: ignore
 
 # --------------------------------------------------------------
@@ -6,7 +7,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 from ...addon_config.static_settings import Documentation_URLs, addon_title, addon_name, addon_bl_type_prefix
 from ...addon_helpers.generic_tools import get_self_block_module, clear_console
-from ...addon_helpers.data_structures import Enum_Sync_Events
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -94,7 +95,7 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
             clear_console()
 
         # When printing for core-block (Hook Tables & RTC JSON), the "get data" function is inside this block
-        if self.source_block_id == block_core._BLOCK_ID:
+        if self.source_block_id == block_core._BLOCK_DECLARATION.block_id:
             raw_data_to_print = extract_core_block_data_to_print(context, self.other_input)
         
         # When printing for other blocks, the "get data" function is extracted from that subscriber block with a hook
@@ -158,23 +159,22 @@ _block_classes_to_register = [
     DGBLOCKS_PT_Debugging_Panel,
 ]
 
-def register_block_props():
 
-    # # Register all block classes & components
-    # block_module = get_self_block_module(block_manager_wrapper = Wrapper_Control_Plane) # returns this __init__.py file
-    # Wrapper_Control_Plane.create_instance(
-    #     event,
-    #     block_module = block_module,
-    #     block_bpy_types_classes = _block_classes_to_register,
-    #     block_hook_source_enums = Block_Hook_Sources,
-    # )
-    
-    # Add block-core Properties to Scene
+# ==============================================================================================================================
+# REQUIRED 
+# ==============================================================================================================================
+
+_BLOCK_DECLARATION = Block_Declaration(
+    block_module = sys.modules[__name__], # this __init__.py file
+    block_id = "block-debug-console", # unique block id
+    block_dependencies = [], # ids of blocks that this one depends on
+    block_bpy_classes = _block_classes_to_register, # Blender-registerable classes
+    block_loggers = Core_Block_Loggers,
+)
+
+def register_block_props():
     bpy.types.Scene.dgblocks_debug_console_print_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Props_Profile)
 
-
 def unregister_block_props():
-    
-    # Delete block-core Scene Properties
     if hasattr(bpy.types.Scene, "dgblocks_debug_console_print_props"):
         del bpy.types.Scene.dgblocks_debug_console_print_props

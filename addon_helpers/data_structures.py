@@ -170,7 +170,9 @@ class Abstract_Feature_Wrapper(ABC):
 class RTC_FWC_Data_Mirror_Instance:
     
     RTC_key: str # cache key, must be unique
-    RTC_member_type: str # enum <"list"> / <"dict">
+    # RTC_member_type: str # enum <"list"> / <"dict">
+    FWC_name: str
+    RTC_member_type: str
     mirrored_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
     mirrored_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
 
