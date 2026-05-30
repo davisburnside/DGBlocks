@@ -39,15 +39,10 @@ def hook_core_event_redo():
     logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
     logger.info("[hook] redo fired")
 
-def hook_block_registered(block_instances: list[RTC_Block_Instance]):
+def hook_post_startup():
     block_names = [b.block_id for b in block_instances]
     logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
     logger.info(f"[hook] registered: {', '.join(block_names)}")
-
-def hook_block_unregistered(block_instances: list[RTC_Block_Instance]):
-    block_names = [b.block_id for b in block_instances]
-    logger = get_logger(Block_Loggers.EXAMPLE_USECASE_01)
-    logger.info(f"[hook] unregistered: {', '.join(block_names)}")
 
 def hook_debug_get_state_data_to_print():
     return {"message": "Hello from block-example-simple-2"}

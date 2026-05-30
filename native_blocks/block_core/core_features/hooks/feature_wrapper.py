@@ -2,11 +2,12 @@
 # IMPORTS
 # ==============================================================================================================================
 
-from collections import Counter
+from collections import Counter, defaultdict
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 import inspect
 import time
+
 
 
 
@@ -23,6 +24,7 @@ from .....addon_helpers.generic_tools import find_blocks_owning_func_with_name
 # --------------------------------------------------------------
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
+from ..runtime_cache.data_sync_tools import compare_unique_tuple_lists
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
 
@@ -93,14 +95,14 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # Implemented from Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
-    @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event):
-        pass
+    # @classmethod
+    # def update_RTC_with_mirrored_BL_data(cls, event):
+    #     pass
 
 
-    @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event):
-        pass
+    # @classmethod
+    # def update_BL_with_mirrored_RTC_data(cls, event):
+    #     pass
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
@@ -113,35 +115,14 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         src_block_id: str,
         hook_func_name: str | Enum,
         hook_func_named_args: Dict[str, Any] = None,
-
     ) -> None:
 
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug(f"Creating hook source '{hook_func_name}'")
 
         # # Validate uniqueness. Return with no action upon duplication attempt
-        # all_cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
-        # if Wrapper_Runtime_Cache.cache_list_contains_member(all_cached_hook_sources, "hook_func_name", hook_func_name):
-        #     logger.debug(f"Hook Source '{hook_func_name}' already exists in RTC. Returning with no action")
-        #     return
-
-        # # Create new hook source instance & update runtime cache
-        # new_hook_source_instance = RTC_Hook_Source_Instance(
-        #     src_block_id,
-        #     hook_func_name,
-        #     hook_func_named_args,
-        # )
-        # all_cached_hook_sources.append(new_hook_source_instance)
-        # Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, all_cached_hook_sources)
-
-        # Update subscribers
-        # if not skip_subscriber_cache_rebuild:
-        #     cls._rebuild_hook_subs_cache()
-
         actual_hook_func_name = get_actual_rtc_key(hook_func_name)
         idx, existing_instance, cached_hook_sources = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_hook_sources, "hook_func_name", actual_hook_func_name)
-
-        # Validate uniqueness. Return with no result upon duplication attempt
         if existing_instance:
             logger.debug(f"Hook source '{actual_hook_func_name}' already exists in RTC. Returning with no action")
             return
@@ -155,9 +136,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cached_hook_sources.append(hook_src_instance)
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, cached_hook_sources)
 
-
         return hook_src_instance
-
 
 
     @classmethod
@@ -208,20 +187,22 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.HOOKS)
         all_returns: Dict[str, Any] = {}
         actual_hook_func_name = get_actual_id(hook_func_name)
-        RTC_subscriber_hooks = Wrapper_Runtime_Cache.get_all_with_key_value_from_registry_list(
-            cache_key_hook_subscribers,
-            key_field_name="hook_func_name",
-            key_field_value=hook_func_name,
-        )
+        # RTC_subscriber_hooks = Wrapper_Runtime_Cache.get_all_with_key_value_from_registry_list(
+        #     cache_key_hook_subscribers,
+        #     key_field_name="hook_func_name",
+        #     key_field_value=hook_func_name,
+        # )
 
-        if len(RTC_subscriber_hooks) == 0:
+        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
+
+        if hook_func_name not in cached_hook_subs:
             logger.debug(f"No subscriber listeners found for hook '{actual_hook_func_name}'")
             return all_returns
 
         current_time_ms = int(time.time() * 1000)
         start_time_nanos = None
         end_time_nanos = None
-        for instance in RTC_subscriber_hooks:
+        for instance in cached_hook_subs[hook_func_name]:
             block_module = instance.subscriber_block_module
             block_id = block_module._BLOCK_ID
             if not instance.is_hook_enabled:
@@ -267,11 +248,6 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                     logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (data filter)")
                     continue
 
-            # 6. Get cached function reference (avoids repeated getattr)
-            hook_func = instance.get_hook_func()
-            if hook_func is None:
-                raise Exception(f"Subscriber hook function '{hook_func_name}' not found in block '{block_id}'")
-
             logger.debug(f"Calling hook '{actual_hook_func_name}' of subscriber block '{block_id}'")
 
             # 7. Execute with timing and re-entrancy protection
@@ -279,7 +255,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             instance.is_currently_running = True
             instance.timestamp_ms_last_attempt = start_time_nanos * 1000
             try:
-                result = hook_func(**kwargs)
+                result = instance.actual_function(**kwargs)
                 end_time_nanos = time.time()  # recalculate right after func call
                 instance.count_hook_propagate_success += 1
 
@@ -307,118 +283,35 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
 
     @classmethod
-    def get_subscriber_blocks_of_hook(cls, hook_src_id: Enum):
-
-        # Get hook func name from str/enum input
-        actual_hook_func_name = hook_src_id.name
-
-        # Get registered downstream hooks for a func name
-        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        hook_sub_instances = [h for h in cached_hook_subs if h.hook_func_name == actual_hook_func_name]
-        return hook_sub_instances
-
-    # --------------------------------------------------------------
-    # Private funcs specific to this class
-    # --------------------------------------------------------------
-
-    @classmethod
-    def _rebuild_hook_subs_cache(cls):
+    def rebuild_hook_subs_cache(cls):
         """
         Rebuild REGISTRY_ALL_HOOK_SUBSCRIBERS from REGISTRY_ALL_HOOK_SOURCES and REGISTRY_ALL_BLOCKS.
         """
-        return
+        
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug("Rebuilding RTC Hook subscribers")
 
-        registry_all_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-        registry_all_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
-        registry_all_hook_subscribers = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers, should_copy=True)
+        cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
+        cached_hook_sources = Wrapper_Runtime_Cache.get_cache(cache_key_hook_sources)
 
-        remapped_block_registry = {b.block_id: b for b in registry_all_blocks}
-        remapped_hook_source_registry = {s.src_block_id: s for s in registry_all_hook_sources}
-        keys_of_current_subscribers = [(p.subscriber_block_id, p.src_block_id, p.hook_func_name) for p in registry_all_hook_subscribers]
-
-        # Build a list of tuples to determine what the subscriber list should look like
-        keys_of_desired_subscribers = []
-        for hook_source_instance in registry_all_hook_sources:
-            hook_func_name = hook_source_instance.hook_func_name
-            subscriber_blocks = find_blocks_owning_func_with_name(hook_func_name, registry_all_blocks)
-            for subscriber_block_instance in subscriber_blocks:
-                new_subscriber_key = tuple((
-                    subscriber_block_instance.block_id,
-                    hook_source_instance.src_block_id,
-                    hook_func_name))
-                keys_of_desired_subscribers.append(new_subscriber_key)
-
-        actions_to_perform = compare_unique_tuple_lists(keys_of_current_subscribers, keys_of_desired_subscribers)
-        for action in actions_to_perform:
-            index = action["index"]
-            action_name = action["action"]
-            subscriber_block_id = action["tuple"][0]
-            src_block_id = action["tuple"][1]
-            hook_func_name = action["tuple"][2]
-
-            if action_name == "remove":
-                registry_all_hook_subscribers.pop(index)
-
-            elif action_name == "move":
-                from_index = action["from_index"]
-                subscriber_hook_instance = registry_all_hook_subscribers.pop(from_index)
-                registry_all_hook_subscribers.insert(index, subscriber_hook_instance)
-
-            elif action_name == "add":
-
-                # Get block data from remapped funcs
-                subscriber_block_module = remapped_block_registry[subscriber_block_id].block_module
-                hook_func_named_args = remapped_hook_source_registry[src_block_id].hook_func_named_args
-
-                # Read @hook_data_filter predicate from the function attribute (if present)
-                hook_func_ref = getattr(subscriber_block_module, hook_func_name, None)
+        # Rebuild hook subs cache. This will reset all action counters.
+        new_cached_hook_subs = defaultdict(list)
+        for hook_source_instance in cached_hook_sources:
+            func_name = hook_source_instance.hook_func_name
+            block_instances = find_blocks_owning_func_with_name(func_name, cached_blocks, logger)
+            for subbed_block_instance in block_instances:
+                hook_func_ref = getattr(subbed_block_instance.block_module, func_name, None)
                 arg_filter = getattr(hook_func_ref, _HOOK_DATA_FILTER_ATTR, None)
-
-                # Create and insert new subscriber
                 subscriber_hook_instance = RTC_Hook_Subscriber_Instance(
-                    src_block_id=src_block_id,
-                    subscriber_block_id=subscriber_block_id,
-                    hook_func_name=hook_func_name,
-                    is_hook_enabled=True,
-                    subscriber_block_module=subscriber_block_module,
-                    hook_func_named_args=hook_func_named_args,
-                    arg_filter=arg_filter,
+                    src_block_id = hook_source_instance.src_block_id,
+                    subscriber_block_id = subbed_block_instance.block_id,
+                    subscriber_block_module = subbed_block_instance.block_module,
+                    hook_func_named_args = hook_source_instance.hook_func_named_args,
+                    arg_filter = arg_filter,
+                    hook_func_name = func_name,
+                    actual_function = hook_func_ref,
+                    is_hook_enabled = True,
                 )
-                registry_all_hook_subscribers.insert(index, subscriber_hook_instance)
+                new_cached_hook_subs[func_name].append(subscriber_hook_instance)
 
-        # Log results
-        actions_list = [i["action"] for i in actions_to_perform]
-        if len(actions_to_perform) == 0:
-            actions_str = "No updates to subscriber hooks"
-        else:
-            actions_str = "Subscriber hooks " + ", ".join(f"to {k}={v}" for k, v in Counter(actions_list).items())
-        logger.debug(actions_str)
-
-        # Write updates back to registry
-        Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, registry_all_hook_subscribers)
-
-
-    @classmethod
-    def _validate_hook_args(cls, func_name, expected_args):
-
-        # Get the signature of the passed function
-        sig = inspect.signature(func_name)
-        params = sig.parameters
-
-        # 1. Check if the number of arguments matches
-        if len(params) != len(expected_args):
-            return False, f"Expected {len(expected_args)} args, got {len(params)}"
-
-        for name, expected_type in expected_args.items():
-            # 2. Check if the parameter name exists
-            if name not in params:
-                return False, f"Missing expected argument: '{name}'"
-
-            # 3. Check if the type hint matches
-            actual_type = params[name].annotation
-            if actual_type != expected_type:
-                return False, f"Type mismatch for '{name}': Expected {expected_type}, got {actual_type}"
-
-        return True, "Valid"
+        Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, dict(new_cached_hook_subs))

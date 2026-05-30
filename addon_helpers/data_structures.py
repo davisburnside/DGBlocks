@@ -33,7 +33,7 @@ class String_Comparable_Mixin(Enum):
 
 @dataclass(eq=False)
 class Hook_Source_Declaration:
-    arg_types: dict[str, any]
+    arg_types: dict[str, any] = field(default_factory = dict)
 
 
 @dataclass(eq=False)

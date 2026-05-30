@@ -21,8 +21,7 @@ cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
-enum_hook_blocks_registered = Core_Block_Hook_Sources.hook_block_registered
-enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
+enum_hook_post_startup = Core_Block_Hook_Sources.hook_post_startup
 
 
 

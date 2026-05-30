@@ -57,8 +57,8 @@ _default_modal_options_for_keymouse_input = {
 # ==============================================================================================================================
 
 def hook_modal_key_or_mouse_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
-    pass
-    # print("subscriber mousekey")
+    # pass
+    print("subscriber mousekey")
     # print(modal_instance, event)
 
 def hook_modal_timer_event(context: bpy.types.Context, event: bpy.types.Event, modal_instance: any):
@@ -71,6 +71,8 @@ def hook_draw_event(draw_handler_instance):
     print("Draw event from hook")
     return True
 
+def hook_post_startup():
+    print("startup")
 
 # ==============================================================================================================================
 # Operators
@@ -251,7 +253,7 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
     def draw(self, context):
         
         layout = self.layout
-        op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "run 'em")
+        op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "shader-billboard")
         op_t1.test_action_1 = "POST_VIEW"
         # op_t1 = layout.operator("dgblocks.toggle_assembly_mode", text = "test drawers").test_action_1 = "POST_VIEW"
 

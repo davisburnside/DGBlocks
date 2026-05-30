@@ -31,46 +31,51 @@ def _uilayout_draw_hooks_uilist_selection_detail(context, container):
     core_props = context.scene.dgblocks_core_props
     is_anything_selected = 0 <= core_props.managed_hooks_selected_idx < len(core_props.managed_hooks)
     if core_props.managed_hooks and is_anything_selected:
-        selected_hook = core_props.managed_hooks[core_props.managed_hooks_selected_idx]
+        selected_hook_source = core_props.managed_hooks[core_props.managed_hooks_selected_idx]
 
         # get mirrored hook RTC record for more data, like execution count
-        all_RTC_hook_subscribers = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
-        hook_RTC_instance = next((h for h in all_RTC_hook_subscribers if h.hook_func_name == selected_hook.hook_func_name), None)
-        if hook_RTC_instance:
+        func_name = selected_hook_source.hook_func_name
+        cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
 
-            header_str = f"{hook_RTC_instance.hook_func_name}    ->    {hook_RTC_instance.subscriber_block_id}"
-            details_box = container.box()
-            panel_header, panel_body = details_box.panel(idname="_dummy_dgblocks_core_scene_selected_hook", default_closed=True)
-            row = panel_header.row()
-            row.alignment = "CENTER"
-            row.label(text=header_str)
-            if panel_body is not None:
+        if func_name not in cached_hook_subs:
+            return
 
-                panel_body.separator(factor=0.5)
-                row = panel_body.row()
-                row.alignment = "LEFT"
-                row.operator("dgblocks.debug_force_refresh_ui", text="", icon="FILE_REFRESH")
-                row.label(text="Last Trigger")
-                ts = datetime.fromtimestamp(hook_RTC_instance.timestamp_ms_last_attempt / 1000)
-                row.label(text=ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
+        # hook_sub_instance = next((i for i in cached_hook_subs[func_name] if i.hook_func_name == selected_hook.hook_func_name), None)
+        # if hook_RTC_instance:
 
-                grid = panel_body.grid_flow(columns=2)
+        #     header_str = hook_func_name # f"{hook_RTC_instance.hook_func_name}    ->    {hook_RTC_instance.subscriber_block_id}"
+        #     details_box = container.box()
+        #     panel_header, panel_body = details_box.panel(idname="_dummy_dgblocks_core_scene_selected_hook", default_closed=True)
+        #     row = panel_header.row()
+        #     row.alignment = "CENTER"
+        #     row.label(text=header_str)
+        #     if panel_body is not None:
 
-                total_run_count = hook_RTC_instance.count_hook_propagate_success + hook_RTC_instance.count_hook_propagate_failure
-                grid.label(text="Avg Run Time (ms)")
-                if total_run_count == 0:
-                    grid.label(text="N/A")
-                else:
-                    grid.label(text=str((hook_RTC_instance.total_nanos_running_time) / float(total_run_count)))
+        #         panel_body.separator(factor=0.5)
+        #         row = panel_body.row()
+        #         row.alignment = "LEFT"
+        #         row.operator("dgblocks.debug_force_refresh_ui", text="", icon="FILE_REFRESH")
+        #         row.label(text="Last Trigger")
+        #         ts = datetime.fromtimestamp(hook_RTC_instance.timestamp_ms_last_attempt / 1000)
+        #         row.label(text=ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
 
-                grid.label(text="Successful Runs")
-                grid.label(text=str(hook_RTC_instance.count_hook_propagate_success))
+        #         grid = panel_body.grid_flow(columns=2)
 
-                grid.label(text="Failed Runs")
-                grid.label(text=str(hook_RTC_instance.count_hook_propagate_failure))
+        #         total_run_count = hook_RTC_instance.count_hook_propagate_success + hook_RTC_instance.count_hook_propagate_failure
+        #         grid.label(text="Avg Run Time (ms)")
+        #         if total_run_count == 0:
+        #             grid.label(text="N/A")
+        #         else:
+        #             grid.label(text=str((hook_RTC_instance.total_nanos_running_time) / float(total_run_count)))
 
-                grid.label(text="Bypassed Runs")
-                grid.label(text=str(hook_RTC_instance.count_bypass_via_data_filter))
+        #         grid.label(text="Successful Runs")
+        #         grid.label(text=str(hook_RTC_instance.count_hook_propagate_success))
+
+        #         grid.label(text="Failed Runs")
+        #         grid.label(text=str(hook_RTC_instance.count_hook_propagate_failure))
+
+        #         grid.label(text="Bypassed Runs")
+        #         grid.label(text=str(hook_RTC_instance.count_bypass_via_data_filter))
 
 
 def _uilayout_draw_hooks_settings(context, container):
@@ -78,7 +83,7 @@ def _uilayout_draw_hooks_settings(context, container):
     core_props = context.scene.dgblocks_core_props
     box = container.box()
     panel_header, panel_body = box.panel(idname="_dummy_dgblocks_core_scene_hooks_mgmt", default_closed=True)
-    panel_header.label(text=f"All Hook Subscriptions ({len(context.scene.dgblocks_core_props.managed_hooks)})")
+    panel_header.label(text=f"All Hooks ({len(context.scene.dgblocks_core_props.managed_hooks)})")
     if panel_body is not None:
 
         # Draw column headers - should match draw_item layout exactly
@@ -113,7 +118,7 @@ class DGBLOCKS_UL_Hooks(bpy.types.UIList):
         # Subscriber block
         sub = row.row()
         sub.ui_units_x = col_widths[1]
-        sub.label(text=item.subscriber_block_id)
+        sub.label(text=item.src_block_id)
 
         # Is enabled status
         sub = row.row()

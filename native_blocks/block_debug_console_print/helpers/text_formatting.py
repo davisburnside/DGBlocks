@@ -19,7 +19,7 @@ from ...block_core.core_helpers.constants import Core_Runtime_Cache_Members
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Core_Debugging_Print_Options, debug_sort_hooks_choice_items
+from .constants import Debugging_Print_Options, debug_sort_hooks_choice_items
 
 # --------------------------------------------------------------
 # Helper funcs for formatting data
@@ -928,7 +928,7 @@ def extract_core_block_data_to_print(context, other_input):
     data_to_return = {}
     
     # Return unfiltered table string, of hook subscriber metadata
-    if other_input == Core_Debugging_Print_Options.HOOK_SUBSCRIBERS:
+    if other_input == Debugging_Print_Options.HOOK_SUBSCRIBERS:
         print_section_separator("All Hooks in Addon")
         
         column_rename_map = {item[0]: item[1] for item in debug_sort_hooks_choice_items}
@@ -940,16 +940,16 @@ def extract_core_block_data_to_print(context, other_input):
         data_to_return += get_data_for_unused_hooks_list()
              
     # Return entire runtime cache
-    elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_RTC_MEMBERS:
+    elif other_input == Debugging_Print_Options.ALL_BLOCKS_RTC_MEMBERS:
         print_section_separator(f"All Runtime Cache Data")
         data_to_return = Wrapper_Runtime_Cache._cache
     
     # Return JSON representation of all current-scene properties related to Blocks
-    elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_BL_SCENE_PROPS:
+    elif other_input == Debugging_Print_Options.ALL_BLOCKS_BL_SCENE_PROPS:
         print_section_separator(f"All Scene-Owned Addon data")
         data_to_return = get_propertygroup_values(context.scene, prefix = "dgblock")
         
-    # elif other_input == Core_Debugging_Print_Options.ALL_BLOCKS_BL_PREFERENCES_PROPS:
+    # elif other_input == Debugging_Print_Options.ALL_BLOCKS_BL_PREFERENCES_PROPS:
     #     print_section_separator(f"All Scene-Owned Addon data")
     #     prefs = get_addon_preferences(context)
     #     data_to_return = get_members_and_values_of_propertygroup_with_name_prefix(prefs, "dgblock")

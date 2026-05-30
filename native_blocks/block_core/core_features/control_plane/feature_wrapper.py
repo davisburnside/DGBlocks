@@ -27,8 +27,7 @@ from .msgbus import clear_msgbuses, msgbus_subs
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
-enum_hook_blocks_registered = Core_Block_Hook_Sources.hook_block_registered
-enum_hook_blocks_unregistered = Core_Block_Hook_Sources.hook_block_unregistered
+enum_hook_post_startup = Core_Block_Hook_Sources.hook_post_startup
 
 # ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
@@ -71,11 +70,14 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             logger.info("Already completed post-bpy init for Wrapper_Control_Plane, returning early")
             return
 
-        # 1: (Debugging) clear all saved properties if needed
+        # 0: (Debugging) clear all saved properties if needed
         core_props = bpy.context.scene.dgblocks_core_props
         if core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
             logger.warning("(Debugging) Clearing all DGBLOCK saved properties")
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger=logger)
+
+        # 1: Create & cache hook-subscription instances for all hook sources
+        Wrapper_Hooks.rebuild_hook_subs_cache()
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 2: initialize all Feature Wrapper Classes, of all blocks (except block-core, which was initialized during addon register)
@@ -107,12 +109,12 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         # logger.info("msgbus scene-change listener registered")
 
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 6: Run post-register initialization actions for all blocks with "hook_block_registered" function in their __init__.py
+        # 6: Run post-register initialization actions for all blocks with "hook_post_startup" function in their __init__.py
         logger.info(f"Running final-init hook for all subscriber Blocks")
         blocks_cache = Wrapper_Runtime_Cache.get_cache(cache_key_blocks, should_copy=True)
-        kwargs = {"block_instances": blocks_cache}
+        kwargs = {}
         _ = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name=enum_hook_blocks_registered,
+            hook_func_name=enum_hook_post_startup,
             should_halt_on_exception=False,
             **kwargs)
 
@@ -201,9 +203,12 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         # It is the only "trace" that should remain of a removed block.
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+        _, block_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_blocks, "block_id", block_id)
+        if block_instance is None:
+            logger.error("Block 'block_id' is not registered, nothing to remove")
+            return 
+        
         logger.debug(f"Starting removal of block '{block_instance.block_id}'")
-
-        block_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_blocks, "block_id", block_id)
 
         _remove_block_FWC_instances(block_instance, logger)
 
