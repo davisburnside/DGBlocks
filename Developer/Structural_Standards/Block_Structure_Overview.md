@@ -1,51 +1,96 @@
 
-# Blender Addon Architecture Patterns - Comprehensive Analysis
+# Blender Addon Architecture Patterns — Comprehensive Analysis
 
-Note that any instance of "DGBLOCKS", in any capitilization, is to be replaced with your own addon's name in the final export step
-TODO create export code later
-TODO changes to make:
-1.namingConvention.classes: "UP" for prefs panels should be "AP"
+> **Source-of-truth precedence:** current working code in reference blocks > this document.
+> If any example in this file disagrees with the actual source, the code wins. Update the doc.
+
+Note that any instance of "DGBLOCKS", in any capitalisation, is replaced with your own addon's
+prefix (the value of `addon_bl_type_prefix` in `addon_config/static_settings.py`) in the final
+export step.
 
 ---
 
 ## 1. FILE ORGANIZATION & NAMING
 
-### Block Structure
-Each block follows a semi-consistent directory layout:
+### Repository Layout
+
 ```
-block_name/
-├── __init__.py              # Registration, UI, operators, hook implementations
-├── constants.py             # Enums for loggers, hooks, RTC members, and block-specific data structures
-├── feature_.py              # Main feature implementation (Abstract_Feature_Wrapper)
-├── helpers.py               # UI drawing & operator execution logic
-└── README.md                # Block documentation
+<addon_root>/
+├── __init__.py                  # bl_info, addon register/unregister entry points
+├── addon_config/                # addon_name, addon_title, addon_bl_type_prefix, Documentation_URLs, static_settings
+├── addon_helpers/               # Generic utilities; NEVER imports from any block
+│   └── data_structures.py       # All shared abstract classes and declaration dataclasses live here
+├── native_blocks/               # Blocks shipped with the template
+│   ├── block_core/              # REQUIRED by every other block
+│   └── block_<name>/
+├── unfinished_blocks/           # WIP/stub blocks — read-only reference by default
+└── Developer/                   # Docs, cheatsheets, Memory Bank
 ```
 
-These names are suggestions, not hard rules. For certain blocks, it may be more logical to create subfolders for helpers / functions
+### Block Folder Layout
 
-### Canonical Example Blocks
-The `_example_usecase_*` blocks under `native_blocks/_example_usecases/` are the **authoritative templates** for all new blocks:
+```
+block_<feature_name>/
+├── __init__.py          # _BLOCK_DECLARATION, register_block_props(), unregister_block_props()
+├── constants.py         # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors
+├── feature_<name>.py    # One Feature Wrapper Class (FWC) per file
+├── helper_functions.py  # uilayout_* and op_* helpers (optional)
+└── README.md            # Recommended for every non-trivial block
+```
 
-| Example | Purpose | Key Patterns Demonstrated |
-|---------|---------|---------------------------|
-| `_block_usecase_01_minimal` | Absolute minimum viable block | Empty block registration, no features |
-| `_block_usecase_02_basic` | Fully wired standard block | Logger, RTC member, PropertyGroup, operator, panel, hooks |
-| `_block_usecase_02B_basic` | Full BL↔RTC data-mirror | Custom `PropertyGroup` + `UIList`, two-way sync via `Abstract_BL_RTC_List_Syncronizer`, `create_instance` / `destroy_instance` CRUD |
+These are suggestions, not hard rules. Blocks with many features may use subfolders (see
+`block_core/core_features/` for a real example of this).
 
-**All developers and AI tools should use these three blocks as the standard reference** when scaffolding a new block. Copy the closest example and extend from there.
+### `block_core` Internal Structure
+
+`block_core` is the most complex block and uses a nested layout. Other blocks should not mirror
+this verbatim, but it serves as the authoritative example for how to organise large blocks.
+
+```
+block_core/
+├── __init__.py
+├── core_features/
+│   ├── control_plane/      # Wrapper_Control_Plane — addon lifecycle & block registry
+│   │   ├── feature_wrapper.py
+│   │   ├── data_structures.py
+│   │   ├── helpers.py
+│   │   ├── app_handlers.py  # bpy.app.handlers callbacks (load_post, undo, redo, depsgraph)
+│   │   ├── msgbus.py
+│   │   └── ui.py
+│   ├── hooks/              # Wrapper_Hooks — hook source/subscriber registry
+│   │   ├── feature_wrapper.py
+│   │   ├── data_structures.py
+│   │   └── ui.py
+│   ├── loggers/            # Wrapper_Loggers — per-concern logger registry
+│   │   ├── feature_wrapper.py
+│   │   ├── data_structures.py
+│   │   └── ui.py
+│   └── runtime_cache/      # Wrapper_Runtime_Cache — thread-safe Python-only cache
+│       ├── feature_wrapper.py
+│       └── data_sync_tools.py
+└── core_helpers/
+    ├── constants.py        # Core_Block_Hook_Sources, Core_Block_Loggers, Core_Runtime_Cache_Members, Core_Data_Mirrors
+    ├── props.py            # DGBLOCKS_PG_Core_Props (scene PropertyGroup)
+    ├── ops.py              # Core operators
+    └── ui.py               # Core panel
+```
 
 ### Naming Conventions
-- **Block IDs**: Lowercase with hyphens: `"block-stable-timers"`, `"block-core"`
-- **Files**: Snake_case: `core_feature_logs.py`, `feature_timer_wrapper.py`
-- **Classes**: PascalCase with prefixes:
-  - `DGBLOCKS_PG_*` - PropertyGroups
-  - `DGBLOCKS_OT_*` - Operators
-  - `DGBLOCKS_PT_*` - Panels
-  - `DGBLOCKS_UL_*` - UILists
-  - `DGBLOCKS_UP_*` - AddonPreferences
-- **Functions**: Snake_case: `register_block()`, `get_instance()`
-- **Hook functions**: `hook_` prefix: `hook_post_register_init`, `hook_timer_fire`
-- **Private/internal**: Leading underscore: `_rtc_get_all()`, `_register_bpy_timer()`
+
+- **Block folders**: `block_<feature_name>` snake_case
+- **Block IDs**: kebab-case: `"block-stable-timers"`, `"block-core"`
+- **Files**: snake_case: `constants.py`, `feature_draw_handler_manager.py`
+- **bpy classes** (prefix comes from `addon_bl_type_prefix`):
+  - `DGBLOCKS_PG_*` — PropertyGroups
+  - `DGBLOCKS_OT_*` — Operators
+  - `DGBLOCKS_PT_*` — Panels
+  - `DGBLOCKS_UL_*` — UILists
+  - `DGBLOCKS_UP_*` — AddonPreferences
+- **Feature Wrapper Classes (FWCs)**: `Wrapper_<Feature>` — e.g. `Wrapper_Draw_Handlers`
+- **RTC record dataclasses**: `RTC_<Feature>_Instance` — e.g. `RTC_Draw_Handler_Instance`
+- **Functions**: snake_case — `register_block_props()`, `get_logger()`
+- **Hook functions**: named exactly after the hook source member: `hook_post_startup`, `hook_draw_event`
+- **Private/internal**: leading underscore: `_rtc_get_all()`, `_callback_load_post()`
 - **Constants**: SCREAMING_SNAKE_CASE: `_BLOCK_ID`, `_BLOCK_VERSION`
 
 ---
@@ -53,7 +98,7 @@ The `_example_usecase_*` blocks under `native_blocks/_example_usecases/` are the
 ## 2. COMMENT & DOCUMENTATION STYLES
 
 ### Banner Comments (Section Separators)
-Used for major file sections with consistent formatting:
+
 ```python
 #================================================================================
 # MAJOR SECTION NAME
@@ -64,38 +109,36 @@ Used for major file sections with consistent formatting:
 # ------------------------------------------------------------
 ```
 
-**Pattern rules:**
+**Rules:**
 - Major sections: 80 `=` characters
 - Subsections: 60 `-` characters
-- ALL CAPS for major sections
-- Sentence case for subsections
+- ALL CAPS for major sections, Sentence case for subsections
 - Always blank line before/after
 
 ### Docstrings
-**Comprehensive docstrings** for wrapper classes and complex functions:
+
+Comprehensive docstrings for wrapper classes and complex functions:
+
 ```python
-class Timer_Wrapper(Abstract_Feature_Wrapper):
+class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     """
-    Manager — classmethods only, no instance state.
-    Manages Blender app timers with metadata tracking and hook propagation.
-    All per-timer state is stored in Timer_Instance_Data objects...
+    Manages a fixed set of toggleable members with BL ↔ RTC sync.
+    No instance creation/destruction — all members exist at dev time.
     """
 ```
 
 **Inline comments** explain non-obvious logic:
+
 ```python
 # Re-entrancy guard
-if data.is_currently_running:
-    logger.debug(f"Already running — skipping")
-    return data.frequency_ms / 1000.0
+if instance.is_currently_running:
+    instance.count_bypass_via_status += 1
+    continue
 ```
 
 ### Documentation Headers
-Functions document:
-- Purpose (one-liner or paragraph)
-- Args (with types)
-- Returns (with type and meaning)
-- Side effects / behavior notes
+
+Functions document: purpose, args (with types), returns, and side effects.
 
 ---
 
@@ -104,402 +147,435 @@ Functions document:
 **Strict three-tier hierarchy** with visual separators:
 
 ```python
+# Standard library (no separator)
+import sys
+import threading
+
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_config import addon_name
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
 
 # --------------------------------------------------------------
 # Inter-block imports (from other blocks)
 # --------------------------------------------------------------
-from .._block_core.core_feature_logs import get_logger
-from .._block_core.core_feature_runtime_cache import Wrapper_Runtime_Cache
+from ..block_core.core_features.loggers.feature_wrapper import get_logger
+from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
 # --------------------------------------------------------------
 # Intra-block imports (same block, other files)
 # --------------------------------------------------------------
-from .block_constants import Block_Logger_Definitions
-from .feature_timer_wrapper import Timer_Wrapper
+from .constants import Block_Loggers, Block_RTC_Members
+from .feature_draw_handler_manager import Wrapper_Draw_Handlers
 ```
 
 **Rules:**
 1. Standard library first (no separator)
-2. Then addon-level, inter-block, intra-block with separators
-3. Relative imports preferred within addon
-4. `# type: ignore` on bpy imports to suppress type checker warnings
+2. Addon-level, then inter-block, then intra-block — each with a separator
+3. Relative imports always within the addon
+4. `import bpy # type: ignore` to suppress type-checker warnings
+5. Never import from a block not listed in `_BLOCK_DEPENDENCIES`
 
 ---
 
-## 4. CONSTANTS & ENUM PATTERNS
+## 4. CONSTANTS & DECLARATION DATACLASSES
 
-### Block Metadata (Always at top of `__init__.py`)
+### Declaration Dataclasses (defined in `addon_helpers/data_structures.py`)
+
+All constants values use typed **declaration dataclasses** — not raw tuples:
+
+| Dataclass | Used for | Key fields |
+|---|---|---|
+| `Logger_Declaration(default_level)` | Each logger | `default_level: str` |
+| `Hook_Source_Declaration(arg_types)` | Each hook source | `arg_types: dict[str, any]` |
+| `RTC_Member_Declaration(default_value)` | Each RTC slot | `default_value: any` (defaults to `[]`) |
+| `RTC_Member_Data_Mirror_Declaration(...)` | BL↔RTC sync links | see §9 below |
+
+### `String_Comparable_Mixin`
+
+All three standard constants classes (and Data Mirrors) inherit from `String_Comparable_Mixin`,
+a custom Enum subclass defined in `addon_helpers/data_structures.py`. It makes enum members
+compare equal to their `.name` as a plain string, which lets the framework resolve enum members
+to their string key without explicit `.name` calls.
+
+### The Three Standard Constants Classes
+
+Defined in each block's `constants.py`:
+
+**1. `Block_Hook_Sources`** — hook events this block publishes
+
 ```python
-_BLOCK_ID = "block-stable-timers"
-_BLOCK_VERSION = (1,0,0)
-_BLOCK_DEPENDENCIES = [_block_core._BLOCK_ID]
+class Block_Hook_Sources(String_Comparable_Mixin):
+    # Member name IS the hook function name that subscriber blocks must implement
+    hook_draw_event = Hook_Source_Declaration({"draw_handler_instance": any})
+    hook_post_startup = Hook_Source_Declaration()  # no args
 ```
 
-### Enum Classes for Structured Data
-Three standard enums in `block_constants.py`:
+**2. `Block_Loggers`** — per-concern loggers
 
-**1. Block_Logger_Definitions**
 ```python
-class Block_Logger_Definitions(Enum):
-    TIMER_FIRE = ("timer-exec", "INFO")
-    TIMER_LIFECYCLE = ("timer-lifecycle", "DEBUG")
-    # Format: (display_name:, default_log_level)
+class Block_Loggers(String_Comparable_Mixin):
+    DRAWHANDLER_LIFECYCLE = Logger_Declaration("DEBUG")
+    SHADER_BATCH_EVENTS   = Logger_Declaration("DEBUG")
 ```
 
-**2. Block_Hooks**
-```python
-class Block_Hooks(Enum):
-    TIMER_FIRE = ("hook_timer_fire", {
-        "context": bpy.types.Context, 
-        "timer_name": str
-    })
-    # Format: (function_name, expected_args_dict)
-```
+**3. `Block_RTC_Members`** — runtime cache slots
 
-**3. Block_Runtime_Cache_Members**
 ```python
-class Block_Runtime_Cache_Members(Enum):
-    TIMER_INSTANCES = ("timer-instances", {})
-    # Format: (cache_key_string, default_value)
+class Block_RTC_Members(String_Comparable_Mixin):
+    DRAW_PHASES = RTC_Member_Declaration({})   # default value is empty dict
+    SHADERS     = RTC_Member_Declaration({})
 ```
 
 **Pattern notes:**
-- Enum NAMES are used as identifiers (autocomplete-friendly)
-- Enum VALUES hold metadata (tuple unpacking)
-- Comments document the value format
-- Prevents "magic string" anti-pattern
+- Member **names** are used as RTC keys and logger names (autocomplete-friendly, no magic strings)
+- Member **values** are typed declaration dataclasses (not tuples)
+- `String_Comparable_Mixin` lets `key == "DRAW_PHASES"` work, avoiding `.name` everywhere
+
+### Block Metadata (Always at top of `__init__.py`)
+
+```python
+_BLOCK_ID = "block-onscreen-drawing"
+_BLOCK_VERSION = (1, 0, 0)
+_BLOCK_DEPENDENCIES = ["block-core"]
+```
 
 ---
 
 ## 5. ARCHITECTURE PATTERNS
 
-### Abstract Base Classes (Core Pattern)
+### Feature Wrapper Classes (FWCs)
 
-**Two-tier abstraction system:**
+Every feature is packaged in a single **Feature Wrapper Class** (FWC). All FWCs inherit
+`Abstract_Feature_Wrapper`. They may also inherit one or both of the two optional abstract classes:
 
 ```python
-# All feature wrappers inherit from this
 class Abstract_Feature_Wrapper(ABC):
     @classmethod
     @abstractmethod
-    def init_pre_bpy(cls, **kwargs): pass
-    
+    def init_wrapper(cls) -> bool:
+        """Called during block registration. No extra arguments."""
+        ...
+
     @classmethod
     @abstractmethod
-    def init_post_bpy(cls, **kwargs): pass
-    
-    @classmethod
-    @abstractmethod
-    def destroy_wrapper(cls, **kwargs): pass
+    def destroy_wrapper(cls):
+        """Called during block unregistration. No extra arguments."""
+        ...
 ```
+
+> **Note:** The old two-phase `init_pre_bpy` / `init_post_bpy` pattern no longer exists.
+> There is a single `init_wrapper()`. The addon-wide post-bpy deferred init is handled
+> exclusively by `Wrapper_Control_Plane.init_post_bpy()` via app-timer and `load_post` handlers.
+
+**Optional abstract extensions:**
 
 ```python
-# Multi-instance features add CRUD operations
 class Abstract_Datawrapper_Instance_Manager(ABC):
-    @classmethod
-    @abstractmethod
-    def create_instance(cls, **kwargs) -> any: pass
-    
-    @classmethod
-    @abstractmethod
-    def get_instance(cls, **kwargs) -> any: pass
-    
-    @classmethod
-    @abstractmethod
-    def set_instance(cls, **kwargs): pass
-    
-    @classmethod
-    @abstractmethod
-    def destroy_instance(cls, **kwargs): pass
+    # For FWCs that manage 0-to-many instances of a @dataclass
+    def create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any: ...
+    def destroy_instance(cls, event: Enum_Sync_Events, **kwargs): ...
+
+class Abstract_BL_RTC_List_Syncronizer(ABC):
+    # Required when the FWC has at least one Data Mirror (see §9)
+    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events): ...
+    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): ...
 ```
 
-### Wrapper + Instance Pattern
+### Wrapper + RTC Record Pattern
 
 **Manager-Record separation:**
-- **Wrapper class** 
-    - Manager (classmethods only, no state/data)
-    -  Allows cleaner breakpoint-based debug workflow
-- **Instance dataclass** 
-    - Record (data only, no logic)
-    - Allows cleaner data-based debugging, like when using the builtin console-print tools with dev-friendly formatted & filtered output
 
-Example:
+- **Wrapper class** (`Wrapper_<Feature>`): stateless, `@classmethod` only, owns all behavior,
+  reads/writes RTC record dataclasses.
+- **RTC record dataclass** (`RTC_<Feature>_Instance`): data only, no logic, stored in RTC.
+
 ```python
 @dataclass
-class Timer_Instance_Data:
+class RTC_Draw_Handler_Instance:
     """Record — instance state only, no manager logic."""
-    timer_name: str
-    frequency_ms: int
-    is_enabled: bool = True
-    # ... metadata fields
-    _timer_func: Optional[Callable] = field(default=None, init=False, repr=False)
+    draw_phase_name: str
+    region_name: str
+    groups_to_shaders_map: defaultdict[list]
+    _optional_draw_callback: Callable = field(default=None, repr=False)
+    _generated_handle: Callable = field(init=False, default=None, repr=False)
 
-class Timer_Wrapper(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager):
+class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     """Manager — classmethods only, no instance state."""
-    
+
     @classmethod
-    def create_instance(cls, timer_name: str, ...):
-        # Creates Timer_Instance_Data, stores in RTC
+    def init_wrapper(cls) -> bool:
+        # Creates RTC_Draw_Handler_Instance entries in RTC at startup
+        ...
+
+    @classmethod
+    def enable_draw_handler(cls, draw_phase_name: str, ...):
+        draw_handler_instance = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)[draw_phase_name]
+        ...
 ```
 
-**Key insight:** All instance data lives in a dataclass in the RTC (Runtime Cache), not in the stateless wrapper class.
-Wrappers without instances can still create/edit/delete data in the RTC
+**Key insight:** All instance data lives in a `@dataclass` stored in the RTC. The wrapper
+class itself holds no state.
 
 ---
 
-## 6. DATA STORAGE ARCHITECTURE
+## 6. BLOCK DECLARATION & REGISTRATION LIFECYCLE
 
-### Two-Tier Data System
+### `Block_Declaration` Dataclass
 
-**Scene Properties (Source of Truth)**
-- Persistent (saved in .blend file)
-- User-editable via UI
-- PropertyGroups attached to `bpy.types.Scene`
+Every `__init__.py` creates a single `_BLOCK_DECLARATION` at module level that bundles all
+block metadata. This replaces the old `register_block_components()` helper function pattern.
 
-**Runtime Cache (Transient)**
-- Volatile (lost on reload/unregister)
-- Stores instance metadata, callables, references
-- Thread-safe dictionary managed by `Wrapper_Runtime_Cache`
-
-**Synchronization Pattern:**
 ```python
-@classmethod
-def sync_scene_to_rtc(cls, scene) -> None:
-    """
-    Rebuild RTC from scene properties.
-    Scene properties are the source of truth.
-    
-    Called:
-      - During post-register init (app startup / file load)
-      - When properties change (via update callbacks)
-    """
-```
-
-**Update callback pattern:**
-```python
-is_enabled: BoolProperty(
-    name="Enabled",
-    update=lambda self, context: Timer_Wrapper.sync_scene_to_rtc(context.scene)
+_BLOCK_DECLARATION = Block_Declaration(
+    block_module = sys.modules[__name__],        # this __init__.py file
+    block_id = "block-onscreen-drawing",
+    block_dependencies = ["block-core"],
+    block_bpy_classes = [DGBLOCKS_PT_Debug_Drawing_Panel],
+    block_feature_wrapper_classes = [Wrapper_Draw_Handlers],
+    block_RTC_members = Block_RTC_Members,
+    block_loggers = Block_Loggers,
+    block_hook_sources = Block_Hook_Sources,     # optional
+    block_data_mirrors = Block_Data_Mirrors,     # optional
 )
 ```
 
+Fields that are not relevant to a given block can be omitted (they default to empty).
+
+### `register_block_props` / `unregister_block_props`
+
+The only explicit functions remaining in `__init__.py`. Called by the addon's top-level
+`register()` to attach / detach scene `PointerProperty` objects:
+
+```python
+def register_block_props():
+    bpy.types.Scene.dgblocks_my_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_My_Props)
+
+def unregister_block_props():
+    if hasattr(bpy.types.Scene, "dgblocks_my_props"):
+        del bpy.types.Scene.dgblocks_my_props
+```
+
+### `Wrapper_Control_Plane` — Central Lifecycle Manager
+
+`Wrapper_Control_Plane` is the FWC that drives the entire addon lifecycle:
+
+1. **`init_wrapper()`** (called during addon `register()`):
+   - Writes initial `Global_Addon_State` to RTC
+   - Installs all `bpy.app.handlers` (load_post, undo_post, redo_post, depsgraph_update_post)
+   - Schedules deferred `init_post_bpy()` via `bpy.app.timers`
+
+2. **`init_post_bpy()`** (deferred, called once bpy context is ready):
+   - Calls `init_wrapper()` on all other registered FWCs
+   - Runs two-pass BL↔RTC data mirror sync
+   - Fires `hook_post_startup` to all subscriber blocks
+   - Sets `ADDON_METADATA.POST_REG_INIT_HAS_RUN = True`
+
+3. **`create_instance(event, block_module)`**:
+   - Reads `block_module._BLOCK_DECLARATION`
+   - Registers bpy classes, FWC classes, RTC members, loggers, hook sources, data mirrors
+
+4. **`destroy_instance(event, block_id)`**:
+   - Removes bpy classes, FWC instances, RTC members for the given block
+
 ---
 
-## 7. LOGGING PATTERNS
+## 7. DATA STORAGE ARCHITECTURE
+
+### Two-Tier Data System
+
+| Layer | Description |
+|---|---|
+| **Blender Scene Properties** | Persistent (saved in `.blend`). User-editable. Attached to `bpy.types.Scene` via `PointerProperty`. Source of truth for all user-visible data. |
+| **Runtime Cache (RTC)** | Transient (lost on reload/unregister). Stores Python callables, dataclass instances, GPU handles, block registries. Thread-safe dict managed by `Wrapper_Runtime_Cache`. |
+
+### RTC Access Pattern
+
+```python
+# Get a cache slot by enum member
+all_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
+
+# Set a cache slot
+Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, all_handlers)
+```
+
+`get_actual_rtc_key(key)` resolves an enum member to its `.name` string automatically,
+so enum members can be passed directly.
+
+---
+
+## 8. LOGGING PATTERNS
 
 ### Logger Access
+
 ```python
-logger = get_logger(Block_Logger_Definitions.TIMER_LIFECYCLE)
+logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
 ```
 
 ### Log Level Usage
-- **DEBUG**: Detailed flow tracing (`"Starting sync_scene_to_rtc"`)
-- **INFO**: Significant state changes (`"Created timer 'my_timer'"`)
-- **WARNING**: Recoverable issues (`"Timer already exists — skipping"`)
-- **ERROR**: Failures with recovery (`"Failed to register timer"`, `exc_info=True`)
-- **CRITICAL**: Unrecoverable failures (addon broken)
 
-### Logging Conventions
-- Log at function entry/exit for lifecycle methods
-- Always use `exc_info=True` with exception logging
-- Include relevant IDs in messages: `f"Timer '{timer_name}' fired"`
-- Use verbs: "Starting", "Finished", "Skipping", "Removing"
+- **DEBUG**: Detailed flow tracing
+- **INFO**: Significant state changes
+- **WARNING**: Recoverable issues
+- **ERROR**: Failures (`exc_info=True` always)
+- **CRITICAL**: Unrecoverable failures
 
----
+### Conventions
 
-## 8. REGISTRATION LIFECYCLE
-
-### Consistent Registration Flow
-
-**In every `__init__.py`:**
-
-```python
-_block_classes_to_register = [
-    DGBLOCKS_PG_Timer_Props,
-    DGBLOCKS_OT_Timer_Add,
-    DGBLOCKS_PT_Timer_Panel,
-]
-
-def register_block():
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
-    
-    register_block_components(
-        block_id=_BLOCK_ID,
-        block_classes=_block_classes_to_register,
-        block_runtime_cache_members=Block_Runtime_Cache_Members,
-        block_hooks=Block_Hooks,
-        block_loggers=Block_Logger_Definitions
-    )
-    
-    # Attach PropertyGroup to Scene
-    bpy.types.Scene.dgblocks_timer_props = PointerProperty(type=DGBLOCKS_PG_Timer_Props)
-    
-    logger.info(f"Finished registration for '{_BLOCK_ID}'")
-
-def unregister_block():
-    logger = get_logger(Core_Block_Loggers.REGISTRATE)
-    logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
-    
-    # Cleanup before unregistering
-    Timer_Wrapper.destroy_wrapper()
-    
-    unregister_block_components(
-        block_id=_BLOCK_ID,
-        block_classes=_block_classes_to_register,
-        block_runtime_cache_members=Block_Runtime_Cache_Members,
-        block_hooks=Block_Hooks,
-        block_loggers=Block_Logger_Definitions
-    )
-    
-    # Remove PropertyGroup
-    if hasattr(bpy.types.Scene, "dgblocks_timer_props"):
-        del bpy.types.Scene.dgblocks_timer_props
-    
-    logger.info(f"Finished unregistration for '{_BLOCK_ID}'")
-```
-
-**Pattern rules:**
-1. List classes at module level (`_block_classes_to_register`)
-2. Log at start/end of register/unregister
-3. Use helper functions (`register_block_components`)
-4. Clean up in reverse order (wrappers before components)
-5. Defensive checks (`hasattr` before `del`)
+- Use `get_logger(...)` always — never `print()` in checked-in code
+- Log at entry/exit of lifecycle methods
+- Include identifiers in messages: `f"Draw handler '{draw_phase_name}' enabled"`
+- Use verb prefixes: "Running", "Finished", "Skipping", "Removing", "Enabling", "Disabling"
 
 ---
 
 ## 9. HOOK SYSTEM PATTERNS
 
-### Hook Definition
-In `block_constants.py`:
+### Publishing a Hook (Source Block)
+
+Declare in `constants.py`. **The member name is the hook function name:**
+
 ```python
-class Block_Hooks(Enum):
-    TIMER_FIRE = ("hook_timer_fire", {
-        "context": bpy.types.Context, 
-        "timer_name": str
-    })
+class Block_Hook_Sources(String_Comparable_Mixin):
+    hook_draw_event = Hook_Source_Declaration({"draw_handler_instance": any})
 ```
 
-### Hook Implementation
-In block's `__init__.py`:
-```python
-def hook_timer_fire(timer_instance: Timer_Instance_Data):
-    """Respond to timer events"""
-    logger = get_logger(My_Logger)
-    # ... implementation
-    return True  # Optional return value
-```
+Publish (fire) the hook from within the source block:
 
-### Hook Propagation
 ```python
 Wrapper_Hooks.run_hooked_funcs(
-    hook_func_name=Block_Hooks.TIMER_FIRE,
-    should_halt_on_exception=False,  # Continue even if one fails
-    timer_instance=timer_instance,
+    hook_func_name = Block_Hook_Sources.hook_draw_event,
+    should_halt_on_exception = False,
+    draw_handler_instance = draw_handler_instance,
 )
 ```
 
-### Hook Data Filter Decorator
+### Subscribing to a Hook (Subscriber Block)
+
+Implement a **top-level function** in `__init__.py` whose name exactly matches the hook member
+name. No explicit subscription registration is needed — discovery is by name at block registration:
+
 ```python
-@hook_data_filter(lambda hook_metadata, context, **_:
-    context.scene.my_props.is_enabled)
-def hook_timer_fire(context):
-    # Only runs when predicate returns True
+def hook_draw_event(draw_handler_instance):
+    """Called by block_onscreen_drawing on every draw tick."""
+    ...
+```
+
+### Core Hooks (from `block_core`)
+
+| Hook | Fires when |
+|---|---|
+| `hook_post_startup` | Once, after addon is fully initialised and bpy context is ready |
+| `hook_core_event_undo` | After Blender processes an undo |
+| `hook_core_event_redo` | After Blender processes a redo |
+| `SCENE_MONITOR_ACTIVE_SCENE_CHANGED` | Active scene changes (depsgraph) |
+| `SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED` | Active workspace changes |
+| `SCENE_MONITOR_ACTIVE_MODE_CHANGED` | Active mode (OBJECT, EDIT…) changes |
+| `SCENE_MONITOR_ACTIVE_OBJ_CHANGED` | Active object changes |
+
+### `@hook_data_filter` Decorator
+
+Optional predicate attached to a subscriber hook function. Evaluated before the hook is called;
+if it returns `False`, the call is skipped and counted as `bypass-via-data-filter`:
+
+```python
+@hook_data_filter(lambda hook_metadata, context, **_: context.scene.my_props.is_enabled)
+def hook_post_startup():
+    # Only runs when is_enabled is True
     pass
 ```
 
-**Pattern notes:**
-- Hooks are optional (blocks without them are skipped)
-- Return values aggregated (first non-`PASS_THROUGH` wins for modals)
-- Metadata tracks success/failure counts, bypass reasons, timing
-- Re-entrancy protection via `is_currently_running` flag
+---
+
+## 10. DATA MIRRORS (BL ↔ RTC SYNC)
+
+Data mirrors formally link a Blender `CollectionProperty` to an RTC list, and drive automatic
+bidirectional sync on init / undo / redo.
+
+### Declaration (in `constants.py`)
+
+```python
+class Block_Data_Mirrors(String_Comparable_Mixin):
+    MY_LIST = RTC_Member_Data_Mirror_Declaration(
+        RTC_key = "MY_RTC_KEY",           # must match a Block_RTC_Members member name
+        FWC_name = "Wrapper_MyFeature",   # class name of the owning FWC (as string)
+        mirrored_key_field_names = ["id_field"],         # unique identity fields
+        mirrored_data_field_names = ["editable_field"],  # fields synced between layers
+        default_data_path_in_scene = "dgblocks_my_props.my_collection",  # dotted scene path
+    )
+```
+
+### Default vs. Custom Sync
+
+- If **`default_data_path_in_scene` is set**: `Wrapper_Runtime_Cache.resync_data_mirrors()`
+  handles both directions automatically using the declared field names.
+- If **`default_data_path_in_scene` is `None`**: the owning FWC **must** implement both
+  `update_RTC_with_mirrored_BL_data(event)` and `update_BL_with_mirrored_RTC_data(event)`.
+  Both functions must be present; the framework will call them during sync events.
+
+### Sync Triggers
+
+`Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source)` is called:
+- During addon init (twice: once RTC→BL, once BL→RTC)
+- On every undo / redo via `bpy.app.handlers`
+
+### Property Update Callback Guard
+
+Property update callbacks that trigger a sync must guard against re-entrant loops:
+
+```python
+def _my_update_callback(self, context):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Block_RTC_Members.MY_RTC_KEY):
+        return
+    Wrapper_Runtime_Cache.resync_data_mirrors(Enum_Sync_Events.PROPERTY_UPDATE, BL_is_truth_source=True, ...)
+```
 
 ---
 
-## 10. UI PATTERNS
+## 11. UI PATTERNS
 
-### Panel Header Pattern
+### Panel Header
+
 ```python
 def draw_header(self, context):
-    # Dynamic label showing state
-    status = "( On )" if is_enabled else "( Off )"
-    label = f"{_BLOCK_ID.upper()} {status}"
-    
-    uilayout_draw_block_panel_header(
-        context, 
-        self.layout, 
-        label, 
-        Documentation_URLs.MY_PLACEHOLDER_URL, 
-        icon_name="TIME"
+    ui_draw_block_panel_header(
+        context,
+        self.layout,
+        _BLOCK_DECLARATION.block_id,
+        Documentation_URLs.MY_PLACEHOLDER_URL,
+        icon_name = "FILE_3D"
     )
 ```
 
 ### UI Drawing Separation
+
+Drawing logic lives in `helper_functions.py` (or a dedicated helper module); the panel
+class only delegates:
+
 ```python
-# In helper_functions.py
-def uilayout_draw_timer_panel(context, container):
-    """All drawing logic lives here"""
-    box = create_ui_box_with_header(context, container, "Timer Control")
-    # ... layout code
+# helper_functions.py
+def uilayout_draw_debug_settings(context, container):
+    """All drawing logic lives here."""
+    ...
 
-# In __init__.py Panel.draw()
+# __init__.py
 def draw(self, context):
-    uilayout_draw_timer_panel(context, self.layout)
+    uilayout_draw_debug_settings(context, self.layout)
 ```
-
-**Rationale:** Keeps `__init__.py` clean, drawing logic reusable/testable
 
 ### Operator Execution Separation
+
 Same pattern for operators:
+
 ```python
-# In helper_functions.py
-def op_timer_add(context):
-    """Execution logic"""
-    # ... implementation
+# helper_functions.py
+def op_my_action(context):
+    ...
     return {'FINISHED'}
 
-# In __init__.py Operator.execute()
+# __init__.py
 def execute(self, context):
-    return op_timer_add(context)
-```
-
----
-
-## 11. TYPE HINTS & ANNOTATIONS
-
-### Comprehensive Type Hinting
-```python
-@classmethod
-def create_instance(
-    cls,
-    timer_name: str,
-    frequency_ms: int,
-    is_enabled: bool = True,
-) -> bool:
-```
-
-### Blender Property Type Annotations
-```python
-timer_name: StringProperty(...) # type: ignore
-frequency_ms: IntProperty(...) # type: ignore
-is_enabled: BoolProperty(...) # type: ignore
-```
-**Note:** `# type: ignore` suppresses false positives from static analyzers
-
-### Dataclass Field Annotations
-```python
-@dataclass
-class Timer_Instance_Data:
-    timer_name: str
-    frequency_ms: int
-    is_enabled: bool = True
-    
-    # Private fields excluded from __init__ and __repr__
-    _timer_func: Optional[Callable] = field(default=None, init=False, repr=False)
+    return op_my_action(context)
 ```
 
 ---
@@ -507,34 +583,37 @@ class Timer_Instance_Data:
 ## 12. ERROR HANDLING PATTERNS
 
 ### Try-Except-Finally for Cleanup
+
 ```python
 try:
-    Wrapper_Hooks.run_hooked_funcs(...)
-    data.count_fire_success += 1
+    result = instance.actual_function(**kwargs)
+    instance.count_hook_propagate_success += 1
 except Exception as e:
-    data.count_fire_failure += 1
-    logger.error(f"Exception in callback", exc_info=True)
+    instance.count_hook_propagate_failure += 1
+    logger.error(f"Exception in hook '{hook_func_name}'", exc_info=True)
+    if should_halt_on_exception:
+        raise e
 finally:
-    # Always clean up
-    data.is_currently_running = False
+    instance.is_currently_running = False
 ```
 
 ### Graceful Degradation
+
 ```python
-if metadata is None:
-    logger.warning(f"Timer metadata not found — stopping")
-    return None  # Stop the timer, don't crash
+if draw_handler_instance._generated_handle is None:
+    logger.warning("Draw handler already disabled, returning with no action")
+    return
 ```
 
 ### Defensive Programming
-```python
-if not hasattr(scene, "dgblocks_timer_props"):
-    logger.warning("Scene has no timer props")
-    return  # Early exit
 
-if timer_name not in all_timers:
-    logger.warning(f"Timer '{timer_name}' not found")
-    return False
+```python
+if not hasattr(bpy.types.Scene, "dgblocks_my_props"):
+    logger.warning("Scene has no my_props")
+    return
+
+if hasattr(bpy.types.Scene, "dgblocks_my_props"):
+    del bpy.types.Scene.dgblocks_my_props
 ```
 
 ---
@@ -542,129 +621,93 @@ if timer_name not in all_timers:
 ## 13. NAMING SEMANTICS
 
 ### Verb Conventions
-- **create_**: Makes new instance, fails if exists
-- **get_**: Retrieves existing, returns None if missing
-- **set_**: Updates existing, creates if missing
-- **destroy_**: Removes instance
-- **sync_**: Rebuilds cache from source of truth
-- **register_**: Adds to Blender's registry
-- **unregister_**: Removes from Blender's registry
-- **activate_/deactivate_**: Enable/disable without destroying
-- **init_**: One-time setup
-- **destroy_wrapper**: Complete teardown
+
+| Prefix | Meaning |
+|---|---|
+| `get_*` | Retrieve existing value; return `None` if missing |
+| `create_*` | Create new instance; fail/warn if already exists |
+| `set_*` | Upsert (create or overwrite) |
+| `destroy_*` | Remove instance or tear down wrapper |
+| `init_wrapper` | One-time setup during block registration |
+| `destroy_wrapper` | Complete teardown during block unregistration |
+| `update_RTC_with_mirrored_BL_data` | Rebuild RTC from BL (BL is source of truth) |
+| `update_BL_with_mirrored_RTC_data` | Push RTC data into BL |
+| `enable_` / `disable_` | Toggle without destroying |
+| `register_*` / `unregister_*` | Blender registry operations |
+| `hook_*` | Top-level subscriber hook function in `__init__.py` |
+| `_callback_*` | `bpy.app.handlers` or timer callbacks |
 
 ### Prefix Conventions
-- `_rtc_`: Private RTC helper functions
-- `hook_`: Callback functions for hook system
-- `callback_`: Blender callbacks (update functions, handlers)
-- `uilayout_`: UI drawing functions
-- `op_`: Operator execution logic
-- `debug_`: Debug-only features
+
+| Prefix | Used for |
+|---|---|
+| `_rtc_` | Private RTC helper functions |
+| `hook_` | Hook subscriber functions (also hook source member names) |
+| `uilayout_` / `ui_draw_` | UI drawing functions in `helper_functions.py` |
+| `op_` | Operator execution logic in `helper_functions.py` |
+| `RTC_` | RTC record dataclasses |
+| `Wrapper_` | Feature Wrapper Classes |
 
 ---
 
-## 14. CONSISTENCY PATTERNS
+## 14. TYPE HINTS & ANNOTATIONS
 
+### Function Signatures
 
 ```python
-def _factory_property_update_func(listener_def: Enum) -> Callable:
-    """Create unique update function for each listener"""
-    def update(self, context):
-        if getattr(self, listener_def.property_name):
-            _add_listener(listener_def)
-        else:
-            _remove_listener(listener_def)
-    return update
+@classmethod
+def enable_draw_handler(
+    cls,
+    draw_phase_name: str,
+    region_name: str = "WINDOW",
+    draw_callback: Optional[Callable] = None,
+) -> None:
 ```
 
-### RTC Convenience Helpers
-**Module-level private helpers** for RTC access:
+### Blender Property Annotations
+
 ```python
-def _rtc_get_all() -> Dict[str, Timer_Instance_Data]:
-    """Return live dict from RTC."""
-    return Wrapper_Runtime_Cache.get_cache(Block_Runtime_Cache_Members.TIMER_INSTANCES)
-
-def _rtc_set_all(data: Dict[str, Timer_Instance_Data]) -> None:
-    """Write dict to RTC."""
-    Wrapper_Runtime_Cache.set_cache(Block_Runtime_Cache_Members.TIMER_INSTANCES, data)
+is_enabled: bpy.props.BoolProperty(default=True)  # type: ignore
 ```
 
----
+### Dataclass Field Annotations
 
-## 15. DOCUMENTATION PATTERNS
-
-### README.md Structure
-Every block README follows this outline:
-1. **Purpose** - One-paragraph overview
-2. **Features** - Bullet list of capabilities
-3. **Architecture** - Data storage layers, wrapper pattern
-4. **Usage** - For users and developers
-5. **Implementation Details** - Lifecycle, sync, callbacks
-6. **Dependencies** - Internal/external
-7. **Files** - Brief description of each file
-
-### Inline Architecture Documentation
-```python
-"""
-Record — instance state only, no manager logic.
-Holds all metadata for a single timer...
-"""
-
-"""
-Manager — classmethods only, no instance state.
-Manages Blender app timers...
-"""
-```
-**Pattern:** Every class docstring identifies its architectural role
-
----
-
-## 16. ADVANCED PATTERNS
-
-### Callable Instance Pattern (Event Listeners)
 ```python
 @dataclass
-class Event_Listener_Wrapper:
-    handler_type: Enum
-    
-    def __call__(self, *args) -> None:
-        """Makes instance usable as Blender handler callback."""
-        # ... implementation
+class RTC_Draw_Handler_Instance:
+    draw_phase_name: str
+    region_name: str
+    groups_to_shaders_map: defaultdict[list]
 
-# Register the instance itself
-bpy.app.handlers.depsgraph_update_post.append(listener_wrapper)
+    # Private fields: excluded from repr, not set via __init__
+    _generated_handle: Callable = field(init=False, default=None, repr=False)
 ```
 
-### Return Value Aggregation (Modal)
-```python
-def _aggregate_hook_returns(self, results: dict, default: set) -> set:
-    """First non-PASS_THROUGH wins"""
-    for block_id, return_value in results.items():
-        if return_value != {'PASS_THROUGH'}:
-            return return_value
-    return default
-```
+---
 
-### Helper Utilities for Data Sync
-```python
-def diff_collections(old_keys, new_keys):
-    """Returns (to_add, to_remove, to_update)"""
-    
-def merge_dataclass_with_dict(dataclass_instance, update_dict):
-    """Update dataclass fields from dict, preserve others"""
-```
+## 15. REGISTRATION CHECKLIST (per block)
+
+- [ ] `_BLOCK_ID`, `_BLOCK_VERSION`, `_BLOCK_DEPENDENCIES` defined
+- [ ] `_BLOCK_DECLARATION` created with `Block_Declaration(...)`
+- [ ] `register_block_props()` and `unregister_block_props()` defined if block has Scene properties
+- [ ] All bpy classes listed in `block_bpy_classes`
+- [ ] All FWCs listed in `block_feature_wrapper_classes`
+- [ ] `constants.py` declares `Block_Hook_Sources`, `Block_Loggers`, `Block_RTC_Members` (and `Block_Data_Mirrors`) using `String_Comparable_Mixin` and typed declaration dataclasses
+- [ ] If block has Data Mirrors with `default_data_path_in_scene=None`, the FWC implements both `update_RTC_with_mirrored_BL_data` and `update_BL_with_mirrored_RTC_data`
+- [ ] No `print()`, no magic string literals for hook/logger/RTC IDs
+- [ ] Dependent blocks listed in `_BLOCK_DEPENDENCIES` before any inter-block imports
 
 ---
 
 ## Summary: Key Architectural Principles
 
 1. **Separation of Concerns**: UI, logic, data storage in separate files
-2. **Declarative Configuration**: Enums define structure, minimize magic strings
-3. **Manager-Record Pattern**: Wrappers manage, dataclasses hold state
-4. **Two-Tier Data**: Scene (persistent) → RTC (transient) with sync
-5. **Hook-Based Communication**: Blocks communicate via hook system, not direct calls
-6. **Graceful Degradation**: Defensive checks, logging, early returns
-7. **Lifecycle Discipline**: Init/destroy pairs, cleanup in reverse order
-8. **Type Safety**: Comprehensive hints, dataclasses, abstract base classes
-9. **Consistency**: Naming, structure, patterns repeated across all blocks
-10. **Documentation**: Inline comments, docstrings, READMEs follow templates
+2. **`Block_Declaration`**: Single declarative object bundles all block metadata; no manual register/unregister helper calls
+3. **Typed Declarations**: `Hook_Source_Declaration`, `Logger_Declaration`, `RTC_Member_Declaration` replace raw tuples in enums
+4. **Manager-Record Pattern**: `Wrapper_*` classes manage; `RTC_*_Instance` dataclasses hold state
+5. **Two-Tier Data**: Scene PropertyGroups (persistent) ↔ RTC (transient) with Data Mirror sync
+6. **Hook-Based Communication**: Blocks communicate via named hook functions, not direct calls
+7. **Single init**: `init_wrapper()` replaces the old two-phase `init_pre_bpy` / `init_post_bpy`
+8. **Graceful Degradation**: Defensive checks, structured logging, early returns
+9. **Lifecycle Discipline**: `Wrapper_Control_Plane` drives all init/destroy sequencing
+10. **Consistency**: Naming, structure, patterns repeated across all blocks
