@@ -1,8 +1,14 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
-from typing import Callable, Optional
+import time
+from typing import Any, Callable, Optional
+
+import numpy as np
 import bpy
+import gpu
+from gpu_extras.batch import batch_for_shader
+from mathutils import Matrix, Vector
 
 # ==============================================================================================================================
 # DRAW_HANDLER_CONSTANTS
@@ -95,6 +101,42 @@ class Shader_Types(StrEnum):
 # ==============================================================================================================================
 
 @dataclass
+class Handler_Def:
+    """
+    Internal grouping structure derived from a set of Shader_Defs that share
+    the same (space, region, phase) tuple.  Not constructed by callers — built
+    by Draw_Handler_Manager.set_state() during grouping.
+    """
+    space: Draw_Space_Types
+    region: Draw_Region_Type
+    phase: Draw_Phase_type
+    shaders: list = field(default_factory=list)  # list[Shader_Def]
+
+
+@dataclass
+class Handler_Instance:
+    """
+    Owns a single live Blender draw handler and the Shader_Instance objects
+    that belong to it.  Responsible for its own full teardown.
+    """
+    space: Draw_Space_Types
+    region: Draw_Region_Type
+    phase: Draw_Phase_type
+    shaders: list = field(default_factory=list)  # list[Shader_Instance]
+    _handle: Any = field(init=False, default=None)
+
+    def teardown(self) -> None:
+        """Remove the Blender draw handler and discard all shader references."""
+        if self._handle is not None:
+            try:
+                self.space.value.draw_handler_remove(self._handle, self.region.value)
+            except Exception:
+                pass  # handler may already be gone (e.g. context teardown)
+            self._handle = None
+        self.shaders.clear()
+
+
+@dataclass
 class Shader_Def:
     """
     Flat descriptor for a single shader.  The caller supplies one Shader_Def per
@@ -126,16 +168,131 @@ class Shader_Def:
 
 
 @dataclass
-class Handler_Def:
-    """
-    Internal grouping structure derived from a set of Shader_Defs that share
-    the same (space, region, phase) tuple.  Not constructed by callers — built
-    by Draw_Handler_Manager.set_state() during grouping.
-    """
-    space: Draw_Space_Types
-    region: Draw_Region_Type
-    phase: Draw_Phase_type
-    shaders: list = field(default_factory=list)  # list[Shader_Def]
+class Shader_Instance:
+    
+    # Required fields for init
+    shader_type: str # Enum of 'POINTS', 'LINES', 'TRIS'
+    shader_uid: str
+    shader_group_id: str
+
+    last_draw_attempt_timestamp: int = -1
+    is_enabled: bool = True
+    error_str: str = None
+
+    # Optional draw override.  Signature: func(shader_instance, *args).
+    # When set, replaces the default bind+batch-draw pipeline entirely.
+    # draw_error_count and batch telemetry are still auto-tracked by the outer callback.
+    draw_override_func: Optional[Callable] = None
+    draw_override_args: tuple = field(default_factory=tuple)
+
+    # Telemetry — auto-tracked; do not set manually
+    batch_creation_duration_ms: float = 0.0  # wall-clock ms of the last _update_batch() call
+    batch_creation_count: int = 0             # total number of batches created on this instance
+    draw_error_count: int = 0                 # total exceptions caught by callback_omnishader_draw
+
+    # If 'builtin_shader_name' is None, the shader is custom and must must self-create inside its __post_init__ override
+    builtin_shader_name: Optional[str] = None 
+    shader_actual: Any = field(init=False, default=None) # Actual gpu.shader. Will be populated for both custom and builtin shaders
+
+    # Internal State
+    _batch: gpu.types.GPUBatch = field(init=False, default=None) # Expensive to update, should only update if _points or _colors change
+    _texture: Any = field(init=False, default=None) # Only used for Images
+    _points: np.ndarray = field(init=False, default=None)
+    _colors: np.ndarray = field(init=False, default=None) # Only used for SMOOTH_COLOR, not UNIFORM_COLOR Shaders
+    _indices: np.ndarray = field(init=False, default=None) # Only used for TRIS-type shaders
+    _highest_index: int = -1 # used when dynamically updating a batch with new tris
+    _needs_new_batch: bool = True
+
+    def __post_init__(self):
+        
+        shader_types_list = [i.name for i in list(Shader_Types)]
+        if self.shader_type not in shader_types_list:
+            raise Exception(f"Invalid Shader type '{self.shader_type }', must be {shader_types_list}")
+                
+        if self.builtin_shader_name is not None:
+            
+            bulitin_shaders_list =  [i.name for i in list(Builtin_Shader_Names)]
+            if self.builtin_shader_name not in bulitin_shaders_list:
+                raise Exception(f"Invalid Shader bulitin name '{self.builtin_shader_name }', must be {bulitin_shaders_list}")
+            
+            # Create a custom Shader. If the builtin name is None, the custom shader must be created manually
+            self.shader_actual = gpu.shader.from_builtin(self.builtin_shader_name)
+
+    #==========================================
+    # CALLED BEFORE SHADER DRAW - Causes expensive batch update.
+    # Should only be called if indices, points, or colors have changed since last draw
+
+    def set_indices(self, value):
+        self._indices = np.asarray(value, dtype=np.uint32)
+        self._needs_new_batch = True
+    
+    def set_points(self, value):
+        self._points = np.asarray(value, dtype=np.float32)
+        self._needs_new_batch = True
+    
+    def set_colors(self, value):
+        self._colors = np.asarray(value, dtype=np.float32)
+        self._needs_new_batch = True
+
+    #==========================================
+    # CALLED BEFORE SHADER DRAW 
+    # No batch update needed
+
+    def set_uniform(self, name: str, value: Any):
+        """Handles uniform mapping to GPU types"""
+        
+        if isinstance(value, (tuple, list, Matrix, Vector, float, np.ndarray)):
+            self.shader_actual.uniform_float(name, value)
+        elif isinstance(value, bool):
+            self.shader_actual.uniform_bool(name, value)
+        elif isinstance(value, int):
+            self.shader_actual.uniform_int(name, value)
+        elif isinstance(value, gpu.types.GPUTexture):
+            self.shader_actual.uniform_sampler(name, value)
+
+    #==========================================
+    # SHADER DRAW
+
+    def _update_batch(self):
+        """Rebuilds the GPU batch from numpy data.  Tracks timing and creation count."""
+
+        if self._points is None:
+            return
+
+        content = {"pos": self._points}
+        if self._colors is not None:
+            content["color"] = self._colors
+
+        _t0 = time.perf_counter()
+        self._batch = batch_for_shader(self.shader_actual, self.shader_type, content)
+        self.batch_creation_duration_ms = (time.perf_counter() - _t0) * 1000.0
+        self.batch_creation_count += 1
+        self._needs_new_batch = False
+
+    def draw(self):
+        """
+        Draw this shader.  If draw_override_func is set it is called instead of the
+        default bind+batch pipeline.  Signature: func(shader_instance, *draw_override_args).
+        draw_error_count is incremented by callback_omnishader_draw on any exception,
+        so both paths are automatically tracked.
+        """
+
+        if self._needs_new_batch:
+            self._update_batch()
+            self._needs_new_batch = False
+
+        if self._batch is None:
+            raise Exception(f"Shader {self.shader_uid} batch is null")
+
+        if self.draw_override_func is not None:
+            self.draw_override_func(self, *self.draw_override_args)
+            return
+
+        self.shader_actual.bind()
+        self._batch.draw(self.shader_actual)
+
+
+
 
 
 # ==============================================================================================================================

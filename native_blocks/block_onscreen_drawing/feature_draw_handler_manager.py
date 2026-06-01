@@ -21,37 +21,8 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 # Intra-block imports
 # --------------------------------------------------------------
 from .common_constants import Block_Loggers, Block_RTC_Members
-from .drawing_constants import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Handler_Def
-from .feature_shader import Shader_Instance
+from .data_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Handler_Def, Handler_Instance, Shader_Instance
 from .helpers import callback_omnishader_draw, validate_shader_definitions  # type: ignore
-
-# ==============================================================================================================================
-# RUNTIME INSTANCE
-# ==============================================================================================================================
-
-@dataclass
-class Handler_Instance:
-    """
-    Owns a single live Blender draw handler and the Shader_Instance objects
-    that belong to it.  Responsible for its own full teardown.
-    """
-    space: Draw_Space_Types
-    region: Draw_Region_Type
-    phase: Draw_Phase_type
-    shaders: list = field(default_factory=list)  # list[Shader_Instance]
-    _handle: Any = field(init=False, default=None)
-
-    def teardown(self) -> None:
-        """Remove the Blender draw handler and discard all shader references."""
-        if self._handle is not None:
-            try:
-                self.space.value.draw_handler_remove(self._handle, self.region.value)
-            except Exception:
-                pass  # handler may already be gone (e.g. context teardown)
-            self._handle = None
-        self.shaders.clear()
-
-
 
 # ==============================================================================================================================
 # WRAPPER CLASS
@@ -208,12 +179,6 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, rtc_draw_phases)
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, rtc_shaders)
 
-        # 5. Push new shader set to BL data mirror so is_enabled toggles persist across saves
-        try:
-            cls.update_BL_with_mirrored_RTC_data(Enum_Sync_Events.PROPERTY_UPDATE)
-        except Exception:
-            pass  # bpy.context.scene may not be accessible during early init; mirror syncs on init_post_bpy
-
         logger.debug("set_state complete")
 
     @classmethod
@@ -237,66 +202,3 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     def get_shader(cls, uid: str) -> Optional[Shader_Instance]:
         """Return the live Shader_Instance for a given uid, or None."""
         return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS).get(uid)
-
-    # ----------------------------------------------------------
-    # Abstract_BL_RTC_List_Syncronizer implementation
-    # Custom sync is required because SHADERS is a dict (not a list), so the
-    # default list-based sync logic in data_sync_tools.py cannot be used.
-    # ----------------------------------------------------------
-
-    @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events, *args) -> None:
-        """
-        RTC → BL: push the current SHADERS dict into the managed_shaders
-        CollectionProperty so is_enabled values survive saves and reloads.
-        Called automatically by the framework on undo/redo and explicitly by
-        set_state() after new shaders are created.
-        """
-        scene = getattr(bpy.context, "scene", None)
-        if scene is None or not hasattr(scene, "dgblocks_drawing_props"):
-            return
-
-        shaders: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
-        col = scene.dgblocks_drawing_props.managed_shaders
-
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, True)
-        try:
-            # Remove rows whose uid is no longer in the live SHADERS dict
-            uids_in_rtc = set(shaders.keys())
-            for i in reversed(range(len(col))):
-                if col[i].shader_uid not in uids_in_rtc:
-                    col.remove(i)
-
-            # Add new rows / update is_enabled on existing rows
-            existing_uids = {col[i].shader_uid for i in range(len(col))}
-            for uid, shader in shaders.items():
-                if uid not in existing_uids:
-                    row = col.add()
-                    row.shader_uid = uid
-                    row.is_enabled = shader.is_enabled
-                else:
-                    for i in range(len(col)):
-                        if col[i].shader_uid == uid:
-                            col[i].is_enabled = shader.is_enabled
-                            break
-        finally:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, False)
-
-    @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events, *args) -> None:
-        """
-        BL → RTC: apply persisted is_enabled values from managed_shaders back
-        onto the live Shader_Instance objects.  Called by the framework on
-        undo/redo to restore the pre-undo toggle state.
-        """
-        scene = getattr(bpy.context, "scene", None)
-        if scene is None or not hasattr(scene, "dgblocks_drawing_props"):
-            return
-
-        shaders: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
-        col = scene.dgblocks_drawing_props.managed_shaders
-
-        for row in col:
-            shader = shaders.get(row.shader_uid)
-            if shader is not None:
-                shader.is_enabled = row.is_enabled

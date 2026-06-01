@@ -1,14 +1,14 @@
 
 from dataclasses import dataclass, field
 from typing import Any
-import bpy
-import gpu
-from gpu_extras.batch import batch_for_shader  # type: ignore
+import bpy # type: ignore
+import gpu # type: ignore
+from gpu_extras.batch import batch_for_shader # type: ignore
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ....native_blocks.block_onscreen_drawing.feature_shader import Shader_Instance
+from ....native_blocks.block_onscreen_drawing.data_structures import Shader_Instance
 
 # =================================================================================
 # SHADER CONSTANTS

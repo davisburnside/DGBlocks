@@ -49,11 +49,11 @@ def force_reload_all_scripts(context, logger = None):
             logger.debug("Reactivating UI Display Modal")
         bpy.ops.script.reload()
 
-def force_redraw_ui(context:bpy.context):
+def force_redraw_ui(context:bpy.context, area_type:str = "VIEW_3D"):
     
     for window in context.window_manager.windows:
         for area in window.screen.areas:
-            if area.type == 'VIEW_3D':
+            if area.type == area_type:
                 area.tag_redraw()
 
 def get_addon_preferences(context:bpy.context):
@@ -157,8 +157,6 @@ def validate_block_list_before_registration(blocks_to_register: list[any]):
     return valid_blocks, invalid_blocks
 
 
-
-
 # --------------------------------------------------------------
 # Feature-Wrapper-Class tools
 # --------------------------------------------------------------
@@ -199,6 +197,7 @@ def determine_FWC_abstract_funcs(actual_class: type) -> list[str]:
 
 def validate_FWC_data_mirrors_after_init():
     pass
+
 # --------------------------------------------------------------
 # Other
 # --------------------------------------------------------------

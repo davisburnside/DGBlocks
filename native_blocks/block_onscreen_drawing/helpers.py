@@ -1,6 +1,7 @@
 
 import time
 
+
 # --------------------------------------------------------------
 # Addon-level imports
 from ...addon_helpers.generic_tools import get_exception_last_n_lines
@@ -8,12 +9,11 @@ from ...addon_helpers.generic_tools import get_exception_last_n_lines
 # --------------------------------------------------------------
 # Inter-block imports
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
-from ...native_blocks.block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_constants import Block_Hook_Sources, Block_Loggers
-from .drawing_constants import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
+from .common_constants import Block_Loggers
+from .data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
 
 # ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
@@ -27,13 +27,6 @@ def callback_omnishader_draw(handler_instance) -> None:
 
     logger = get_logger(Block_Loggers.SHADER_BATCH_EVENTS)
 
-    # Fire before_first_draw hook — subscribers receive the handler instance
-    # Wrapper_Hooks.run_hooked_funcs(
-    #     hook_func_name = Block_Hook_Sources.before_first_draw,
-    #     should_halt_on_exception = False,
-    #     draw_handler_instance = handler_instance,
-    # )
-
     # Try each draw. Flag shader instance upon exception and increment error count
     failed_shaders = []
     for shader in handler_instance.shaders:
@@ -42,6 +35,8 @@ def callback_omnishader_draw(handler_instance) -> None:
                 shader.last_draw_attempt_timestamp = time.time()
                 shader.draw()
                 shader.error_str = None
+            else:
+                pass
         except Exception as e:
             shader.is_valid = False
             shader.draw_error_count += 1
@@ -56,14 +51,8 @@ def callback_omnishader_draw(handler_instance) -> None:
 
         max_uid_length = max([len(s.shader_uid) for s in failed_shaders])
         for shader in failed_shaders:
-            logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.disableerror_strd_reason}")
+            logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.error_str}")
 
-    # Fire after_last_draw hook — subscribers receive the handler instance
-    # Wrapper_Hooks.run_hooked_funcs(
-    #     hook_func_name = Block_Hook_Sources.after_last_draw,
-    #     should_halt_on_exception = False,
-    #     draw_handler_instance = handler_instance,
-    # )
 
 # ----------------------------------------------------------
 # Internal validation 

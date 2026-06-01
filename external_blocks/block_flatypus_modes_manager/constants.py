@@ -1,6 +1,6 @@
 
 from ...addon_helpers.data_structures import Logger_Declaration, RTC_Member_Declaration, String_Comparable_Mixin
-from ...native_blocks.block_onscreen_drawing.drawing_constants import (
+from ...native_blocks.block_onscreen_drawing.data_structures import (
     Shader_Def,
     Shader_Types,
     Builtin_Shader_Names,
