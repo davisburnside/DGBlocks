@@ -22,7 +22,7 @@ without drowning in noise.
 
 | PropertyGroup | Scene path | Purpose |
 |---|---|---|
-| `DGBLOCKS_PG_Debug_Props_Profile` | `bpy.types.Scene.dgblocks_debug_console_print_props` | Persistent user settings: clear-on-print, min-verbosity, JSON indent, memory address/size, max rows, search depth, dict-key filters, numeric/string data filters, active filter section, table sort-order |
+| `DGBLOCKS_PG_Debug_Props_Profile` | `bpy.types.Scene.dgblocks_debug_console_print_props` | Persistent user settings: clear-on-print, min-verbosity, JSON indent, memory address/size (primitives excluded), filter-indices toggle, max rows, search depth, dict-key filters, numeric/string data filters, active filter section, table sort-order |
 | `DGBLOCKS_PG_Numeric_Filter` | `...props.debug_console_print_numeric_filters` (CollectionProperty) | One numeric leaf comparison row (`operation`, `value`). Rows are AND-combined |
 | `DGBLOCKS_PG_String_Filter` | `...props.debug_console_print_string_filters` (CollectionProperty) | One string leaf comparison row (`operation`, `text`). Rows are OR-combined |
 
@@ -92,7 +92,8 @@ It contains:
 1. **Settings** — one collapsible panel whose body opens with a single radio-button range
    (`debug_console_print_active_filter_section`) selecting which of three sections is shown:
    - **General:** clear console toggle, min-verbosity, JSON indent size, max rows per container,
-     max search depth, data-type display, memory-address display, memory-size (KB) display.
+     max search depth, data-type display, memory-address display, memory-size (KB) display
+     (primitives excluded), show-original-indices toggle.
    - **Dict Keys Filter:** an enable toggle (icon-reflected) plus comma-separated wildcard include/exclude
      strings. A branch is retained if any descendant key matches the include set within the search
      depth (ancestor retention); a key matched by the exclude set drops its whole subtree.
@@ -101,9 +102,10 @@ It contains:
      filters treat `mathutils.Vector` and 1-D numpy arrays as magnitude; matrices / >1-D arrays are
      discarded. Each category has its own enable toggle and icon.
 
-   Filtered containers print each surviving member with its original index (`[4] "val"`), and
-   depth-truncated containers annotate how many direct members a shallow pass would drop, e.g.
-   `mirrored_key_field_names: list(2 items, 1 filtered)`.
+   Filtered containers can optionally print each surviving member with its original index
+   (`[4] "val"`) when `debug_console_print_show_filter_indices` is enabled (default: on).
+   Depth-truncated containers annotate how many direct members a shallow pass would drop,
+   e.g. `mirrored_key_field_names: list(2 items, 1 filtered)`.
 
 
 2. **Per-subscriber-block debug settings** — populated dynamically via `hook_debug_uilayout_draw_console_print_settings`

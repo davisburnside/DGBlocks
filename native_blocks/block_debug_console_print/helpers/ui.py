@@ -54,6 +54,7 @@ def _draw_general_section(context, body, debug_props):
     box_r.prop(debug_props, "debug_console_print_include_data_type")
     box_r.prop(debug_props, "debug_console_print_include_memory_address")
     box_r.prop(debug_props, "debug_console_print_include_memory_size")
+    box_r.prop(debug_props, "debug_console_print_show_filter_indices")
 
 
 def _draw_keys_section(context, body, debug_props):

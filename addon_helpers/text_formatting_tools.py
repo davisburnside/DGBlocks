@@ -334,6 +334,7 @@ def make_pretty_json_string_from_data(
         show_memory_address: bool = False,
         show_memory_duplicates: bool = False,
         show_memory_size: bool = False,
+        show_filter_indices: bool = True,
         max_rows_of_each_container: int = 0,
         max_depth_of_container_search: int = 0,
         indent: int = 2,
@@ -375,11 +376,26 @@ def make_pretty_json_string_from_data(
     # Memory address tracker: addr -> (type_name, count)
     address_tracker: dict[int, tuple[str, int]] = {}
 
+    def is_primitive_type(item: Any) -> bool:
+        """True for simple value types that should never carry memory annotations.
+
+        Covers native Python scalars, mathutils.Vector, and numpy arrays.
+        """
+        if isinstance(item, str):# and item == "block_core":
+            pass
+        if is_native_type(item):
+            return True
+        if is_mathutils_vector(item):
+            return True
+        if is_numpy_array(item):
+            return True
+        return False
+
     def track_address(item: Any) -> None:
         """Record an object's address and type for duplicate detection."""
         if not show_memory_duplicates:
             return
-        if is_native_type(item):
+        if is_primitive_type(item):
             return
         addr = id(item)
         type_name = type(item).__name__
@@ -667,10 +683,10 @@ def make_pretty_json_string_from_data(
 
     def addr_str(item: Any) -> str:
         """Return memory address string if show_memory_address is enabled.
-        Skips native types (int, float, str, bool, None)."""
+        Skips primitive types (native scalars, mathutils.Vector, numpy arrays)."""
         if not show_memory_address:
             return ""
-        if is_native_type(item):
+        if is_primitive_type(item):
             return ""
         return f" @{hex(id(item))}"
 
@@ -849,7 +865,7 @@ def make_pretty_json_string_from_data(
         node.children = kept
         node.total_count = total
         node.filtered_count = filtered
-        node.show_indices = filtered > 0
+        node.show_indices = (filtered > 0) and show_filter_indices
         node.subtree_has_include = node_inc
         return node
 
@@ -884,20 +900,23 @@ def make_pretty_json_string_from_data(
         return str(obj)
 
     def leaf_repr(obj, level) -> str:
-        suffix = size_str(obj)
+        if is_primitive_type(obj):
+            mem = ""
+        else:
+            mem = f"{addr_str(obj)}{size_str(obj)}"
         if isinstance(obj, str):
-            return f"'{obj}'{suffix}"
+            return f"'{obj}'{mem}"
         if isinstance(obj, bool):
-            return f"{obj}{suffix}"
+            return f"{obj}{mem}"
         if obj is None:
-            return f"None{suffix}"
+            return f"None{mem}"
         if isinstance(obj, (int, float)):
-            return f"{obj}{suffix}"
+            return f"{obj}{mem}"
         if is_mathutils_vector(obj):
-            return f"Vector({', '.join(f'{c:.3f}' for c in obj)}){addr_str(obj)}{suffix}"
+            return f"Vector({', '.join(f'{c:.3f}' for c in obj)}){mem}"
         if is_numpy_array(obj):
-            return f"{format_numpy_array(obj, level)}{addr_str(obj)}{suffix}"
-        return f"{str(obj)}{addr_str(obj)}{suffix}"
+            return f"{format_numpy_array(obj, level)}{mem}"
+        return f"{str(obj)}{mem}"
 
     def child_type_label(key, child) -> str:
         if not show_type_labels:

@@ -59,6 +59,7 @@ class DGBLOCKS_PG_Debug_Props_Profile(bpy.types.PropertyGroup):
     debug_console_print_include_memory_address: bpy.props.BoolProperty(default = False, name = "Show Memory address?") # type: ignore
     debug_console_print_include_memory_size: bpy.props.BoolProperty(default = False, name = "Show Memory Size (KB)?") # type: ignore
     debug_console_print_include_data_type: bpy.props.BoolProperty(default = False, name = "Show Data Type?") # type: ignore
+    debug_console_print_show_filter_indices: bpy.props.BoolProperty(default = True, name = "Show Original Indices When Data-Filtering?") # type: ignore
     debug_console_print_filter_data_max_rows_in_each_container: bpy.props.IntProperty(default = 0, min = 0, name = "Max Rows to Print") # type: ignore
     debug_console_print_depth_to_truncate: bpy.props.IntProperty(default = 2, min = 0, name = "Max Depth to Search") # type: ignore
 
@@ -187,6 +188,7 @@ class DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics(bpy.types.Operator):
                 show_memory_address = core_block_props.debug_console_print_include_memory_address,
                 show_memory_duplicates = core_block_props.debug_console_print_include_memory_address,
                 show_memory_size = core_block_props.debug_console_print_include_memory_size,
+                show_filter_indices = core_block_props.debug_console_print_show_filter_indices,
                 indent = core_block_props.debug_console_print_json_indent_width)
 
         print(string_to_print)
