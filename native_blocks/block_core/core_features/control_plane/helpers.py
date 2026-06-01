@@ -1,16 +1,12 @@
-from abc import ABC
-from enum import Enum
-import inspect
-from types import ModuleType
-from typing import Callable
+
 import bpy # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import  Block_Declaration, Enum_Sync_Events, Hook_Source_Declaration, Logger_Declaration, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_BL_RTC_List_Syncronizer
-from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_folder_parts, get_names_of_parent_classes, is_same_class_by_name, validate_func_args
+from .....addon_helpers.data_structures import  Block_Declaration, Enum_Sync_Events, Hook_Source_Declaration, Logger_Declaration, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
+from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_folder_parts, is_same_class_by_name, validate_func_args
 
 # Intra-block imports
-from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
+from ...core_helpers.constants import Core_Block_Hook_Sources, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
 from ...core_features.control_plane.data_structures import RTC_Block_Instance
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import Wrapper_Loggers
@@ -22,11 +18,6 @@ cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
 enum_hook_post_startup = Core_Block_Hook_Sources.hook_post_startup
-
-
-
-
-
 
 # ==============================================================================================================================
 # VALIDATION
@@ -55,7 +46,6 @@ def shallow_validate_block_module(block_module):
         raise Exception(f"Could not register {file_dunder_name} as a Block. Its '_BLOCK_DECLARATION' object is the supposed to be a {Block_Declaration.__class__}, is instead a {block_module._BLOCK_DECLARATION.__class__}")
 
 
-
 def shallow_validate_block_declaration(block_declaration, logger):
 
     block_id = block_declaration.block_id
@@ -82,10 +72,8 @@ def shallow_validate_block_declaration(block_declaration, logger):
             if not isinstance(single_dec, dec_type):
                 return f"Invlaid type: Declaration '{single_dec}' needs to be a {dec_type.__class__}"
 
-
 # ==============================================================================================================================
 # BLOCK CREATION
-
 
 def _create_new_block_properties(block_declaration, logger):
 
@@ -251,7 +239,6 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
 # ==============================================================================================================================
 # BLOCK REMOVAL
 
-
 def _remove_block_properties(block_instance, logger):
 
     try:
@@ -259,6 +246,7 @@ def _remove_block_properties(block_instance, logger):
             block_instance.block_module.unregister_block_props()
     except Exception as e:
         logger.error(e, exc_info = True)
+
 
 def _remove_block_bpy_classes(block_instance, logger):
 
@@ -270,6 +258,7 @@ def _remove_block_bpy_classes(block_instance, logger):
                 bpy.utils.unregister_class(bpy_class)
             except Exception as e:
                 logger.error(e, exc_info = True)
+
 
 def _remove_block_FWC_instances(block_instance, logger):
 

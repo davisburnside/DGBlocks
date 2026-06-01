@@ -81,80 +81,18 @@ Registry of Python `logging.Logger` instances, one per declared logger.
 
 - `get_logger(logger_id)` — Public convenience function. Returns the logger for the given
   enum member (or a fallback logger if the RTC is not yet initialised).
-- `create_instance(event, logger_name, src_block_id, level_name)` — Creates and caches a new logger.
+- `create_instance(event, logger_name, src_block_id, level_name)` — Creates and caches a new logger. Generally only called during startup, not runtime
 
 ### `Wrapper_Hooks`
 Registry of hook sources and their discovered subscriber functions.
 
 - `create_instance(event, src_block_id, hook_func_name, hook_func_named_args)` — Registers a
-  new hook source in RTC.
+  new hook source in RTC. Generally only called during startup, not runtime
 - `rebuild_hook_subs_cache()` — Scans all registered block modules for top-level functions
   whose names match declared hook source member names. Called once during `init_post_bpy()`.
 - `run_hooked_funcs(hook_func_name, ...)` — Fires a hook to all subscriber blocks. Handles
   re-entrancy protection, rate limiting, `@hook_data_filter` predicates, and execution timing.
 
----
-
-## Constants (`core_helpers/constants.py`)
-
-### `Core_Block_Loggers`
-| Member | Default Level |
-|---|---|
-| `HOOKS` | INFO |
-| `BLOCK_MGMT` | DEBUG |
-| `RTC_DATA_SYNC` | DEBUG |
-| `REGISTRATE` | DEBUG |
-| `POST_REGISTRATE` | DEBUG |
-| `UI` | WARNING |
-| `TRACKED_DATABLOCK_TYPES` | DEBUG |
-| `SCENE_MONITOR` | DEBUG |
-
-### `Core_Block_Hook_Sources`
-| Member (= hook function name) | Kwargs |
-|---|---|
-| `hook_post_startup` | _(none)_ |
-| `hook_core_event_undo` | _(none)_ |
-| `hook_core_event_redo` | _(none)_ |
-| `SCENE_MONITOR_ACTIVE_SCENE_CHANGED` | `old_id: tuple`, `new_id: tuple` |
-| `SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED` | `old_id: tuple`, `new_id: tuple` |
-| `SCENE_MONITOR_ACTIVE_MODE_CHANGED` | `old_id: tuple`, `new_id: tuple` |
-| `SCENE_MONITOR_ACTIVE_OBJ_CHANGED` | `old_id: tuple`, `new_id: tuple` |
-
-### `Core_Runtime_Cache_Members`
-| Member | Default Value | Purpose |
-|---|---|---|
-| `ADDON_METADATA` | `Global_Addon_State()` | Addon-wide state flags and context trackers |
-| `REGISTRY_ALL_BLOCKS` | `[]` | All registered `RTC_Block_Instance` records |
-| `REGISTRY_ALL_FWCS` | `[]` | All registered `RTC_FWC_Instance` records |
-| `REGISTRY_ALL_HOOK_SOURCES` | `[]` | All registered `RTC_Hook_Source_Instance` records |
-| `REGISTRY_ALL_HOOK_SUBSCRIBERS` | `{}` | Dict of `hook_func_name → [RTC_Hook_Subscriber_Instance]` |
-| `REGISTRY_ALL_LOGGERS` | `[]` | All registered `RTC_Logger_Instance` records |
-| `REGISTRY_ALL_DATA_MIRRORS` | `[]` | All registered `RTC_FWC_Data_Mirror_Instance` records |
-| `META_REGISTRIES_BEING_SYNCED` | `[]` | List of cache keys currently mid-sync (re-entrancy guard) |
-
-### `Core_Data_Mirrors`
-| Member | RTC Key | Scene Path | Purpose |
-|---|---|---|---|
-| `HOOKS_LIST` | `REGISTRY_ALL_HOOK_SOURCES` | `dgblocks_core_props.managed_hooks` | Persists hook enabled/disabled state |
-| `LOGGERS_LIST` | `REGISTRY_ALL_LOGGERS` | `dgblocks_core_props.managed_loggers` | Persists logger level settings |
-
----
-
-## Scene Properties (`DGBLOCKS_PG_Core_Props`)
-
-Attached to `bpy.types.Scene.dgblocks_core_props`:
-
-| Property | Type | Purpose |
-|---|---|---|
-| `addon_is_active` | BoolProperty | Master enable/disable switch |
-| `documentation_weblinks_enabled` | BoolProperty | Show `[?]` help buttons |
-| `debug_mode_enabled` | BoolProperty | Show extra debug UI |
-| `debug_log_all_RTC_BL_sync_actions` | BoolProperty | Verbose sync logging |
-| `debug_clear_BL_data_on_startup` | BoolProperty | Clear CollectionProps on each startup |
-| `managed_hooks` | CollectionProperty | Mirrors `REGISTRY_ALL_HOOK_SOURCES` |
-| `managed_loggers` | CollectionProperty | Mirrors `REGISTRY_ALL_LOGGERS` |
-
----
 
 ## Hook Subscriptions This Block Implements
 

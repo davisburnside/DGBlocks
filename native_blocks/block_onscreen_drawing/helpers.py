@@ -1,14 +1,21 @@
 
 import time
 
+# --------------------------------------------------------------
+# Addon-level imports
 from ...addon_helpers.generic_tools import get_exception_last_n_lines
 
+# --------------------------------------------------------------
+# Inter-block imports
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 
+# --------------------------------------------------------------
+# Intra-block imports
 from .common_constants import Block_Loggers
 from .drawing_constants import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
 
-
+# ----------------------------------------------------------
+# Drawing function used by all (builtin & custom) UI Shaders
 def callback_omnishader_draw(handler_instance) -> None:
     """
     # MODULE-LEVEL DRAW CALLBACK
@@ -40,10 +47,6 @@ def callback_omnishader_draw(handler_instance) -> None:
         max_uid_length = max([len(s.uid) for s in failed_shaders])
         for shader in failed_shaders:
             logger.error(f"{shader.uid.ljust(max_uid_length)} : {shader.disabled_reason}")
-
-
-
-
 
 # ----------------------------------------------------------
 # Internal validation 

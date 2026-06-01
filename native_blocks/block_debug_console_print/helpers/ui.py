@@ -11,68 +11,13 @@ from ...block_core.core_helpers.constants import _BLOCK_ID as core_block_id, Cor
 from ...block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key # type: ignore
 
 # Intra-block imports
-from .constants import Block_Hook_Sources, Debugging_Print_Options
-
-def uilayout_draw_core_block_console_print_panel(context:bpy.context, container:bpy.types.UILayout, block_id:str):
-    
-    debug_settings = context.scene.dgblocks_debug_console_print_props
-    button_scale = 1.5
-    
-    box = container.box()
-    row = box.row()
-    row.scale_y = button_scale
-    op = row.operator(f"dgblocks.debug_console_print_block_diagnostics", text = "All Hook Data (Table, Unfiltered)")
-    op.source_block_id = block_id
-    op.other_input = Debugging_Print_Options.HOOK_SUBSCRIBERS
-    split = box.split()
-    row_l = split.row()
-    row_r = split.row()
-    # row_l.label(text = "Sort by")
-    row_l.prop(debug_settings, "debug_block_hooks_table_sort_by") 
-    # row_r.prop(debug_settings, "debug_block_hooks_table_include_unused") 
-
-    box = container.box()
-    row = box.row()
-    row.scale_y = button_scale
-    op = row.operator(f"dgblocks.debug_console_print_block_diagnostics", text = "All RTC Data (JSON, Filtered)")
-    op.source_block_id = block_id
-    op.other_input = Debugging_Print_Options.ALL_BLOCKS_RTC_MEMBERS
-    
-    box = container.box()
-    row = box.row()
-    row.scale_y = button_scale
-    op = row.operator(f"dgblocks.debug_console_print_block_diagnostics", text = "BL-Scene Data (JSON, Filtered)")
-    op.source_block_id = block_id
-    op.other_input = Debugging_Print_Options.ALL_BLOCKS_BL_SCENE_PROPS
-    
-    box = container.box()
-    row = box.row()
-    row.scale_y = button_scale
-    op = row.operator(f"dgblocks.debug_console_print_block_diagnostics", text = "BL-Preferences Data (JSONified, Filtered)")
-    op.source_block_id = block_id
-    op.other_input = Debugging_Print_Options.ALL_BLOCKS_BL_PREFERENCES_PROPS
-
-    box = container.box()
-    row = box.row()
-    row.scale_y = button_scale
-    op = row.operator(f"dgblocks.debug_console_print_block_diagnostics", text = "UNIT TESTS")
-    op.source_block_id = "TEST"
+from .constants import Block_Hook_Sources
 
 def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayout):
     
-    debug_props = context.scene.dgblocks_debug_console_print_props
-    
-    box = container.box()
-
-    # Call drawing function for core-block. Since core-block is known dependency of this block, it's reference can be hardcoded here, unlike blocks in the next step
-    panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_print_console", default_closed=True)
-    panel_header.label(text = f"Print {core_block_id.upper()} State")
-    if panel_body is not None:  
-        uilayout_draw_core_block_console_print_panel(context, panel_body, core_block_id)
-
     # Call drawing functions in downstrean blocks which are hooked for function hook_debug_uilayout_draw_console_print_settings
     # Each block can have it's own presentation logic. This logic is triggered from a hook every screen-draw call (many times per second)
-    hook_func_name = Block_Hook_Sources.hook_debug_uilayout_draw_console_print_settings
+    drawing_hook_func_name = Block_Hook_Sources.hook_debug_uilayout_draw_console_print_settings
     cached_hook_subs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS)
     func_name = get_actual_rtc_key(Block_Hook_Sources.hook_debug_get_state_data_to_print)
     if func_name in cached_hook_subs:
@@ -83,12 +28,18 @@ def uilayout_draw_debug_settings(context:bpy.context, container:bpy.types.UILayo
             internal_panel_header.alignment = "CENTER"
             internal_panel_header.label(text = f"Print {block_id.upper()} State")
             if internal_panel_body: 
+
+                # Drawing is handled inside the hook func, using ui_container
                 Wrapper_Hooks.run_hooked_funcs(
-                    hook_func_name = hook_func_name, 
+                    hook_func_name = drawing_hook_func_name, 
                     subscriber_block_id = block_id, 
                     ui_container = internal_panel_body
                 )
 
+def ui_draw_filter_settings(context:bpy.context, container:bpy.types.UILayout):
+    
+    debug_props = context.scene.dgblocks_debug_console_print_props
+    
     # For console prints  
     box = container.box()
     panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_print_console_t2", default_closed=True)

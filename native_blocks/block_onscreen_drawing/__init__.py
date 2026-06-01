@@ -1,39 +1,22 @@
 
 import sys
-
 import bpy # type: ignore
-from typing import Optional
-
 
 # --------------------------------------------------------------
 # Addon-level imports
-# --------------------------------------------------------------
 from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
 # Inter-block imports
-# --------------------------------------------------------------
 from .. import block_core
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
-# --------------------------------------------------------------
 from .common_constants import Block_Loggers, Block_RTC_Members
 from .feature_draw_handler_manager import Wrapper_Draw_Handlers
-
-
-# ==============================================================================================================================
-# BLOCK DEFINITION
-# ==============================================================================================================================
-
-_BLOCK_ID = "block-onscreen-drawing"
-_BLOCK_VERSION = (1,0,0)
-_BLOCK_DEPENDENCIES = [
-    "block-core"
-]
 
 # ==============================================================================================================================
 # UI - Draw debugging panel

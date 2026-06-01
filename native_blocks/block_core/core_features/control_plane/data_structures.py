@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from enum import StrEnum, auto
 from types import ModuleType
 from typing import Optional
 import bpy

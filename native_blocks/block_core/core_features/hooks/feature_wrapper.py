@@ -195,17 +195,16 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
 
-        if hook_func_name not in cached_hook_subs:
+        if actual_hook_func_name not in cached_hook_subs:
             logger.debug(f"No subscriber listeners found for hook '{actual_hook_func_name}'")
             return all_returns
 
         current_time_ms = int(time.time() * 1000)
         start_time_nanos = None
         end_time_nanos = None
-        for instance in cached_hook_subs[hook_func_name]:
-            block_module = instance.subscriber_block_module
-            block_id = block_module._BLOCK_ID
-            if not instance.is_hook_enabled:
+        for hook_sub_instance in cached_hook_subs[actual_hook_func_name]:
+            block_id = hook_sub_instance.subscriber_block_id
+            if not hook_sub_instance.is_hook_enabled:
                 continue
 
             # 1. Filter by subscriber block if specified
@@ -213,30 +212,30 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 continue
 
             # 2. Check bypass timeout/reset logic
-            if instance.should_bypass_run and instance.max_ms_timout_for_bypass_reset > 0:
-                time_since_last = current_time_ms - instance.timestamp_ms_last_attempt
-                if time_since_last >= instance.max_ms_timout_for_bypass_reset:
-                    instance.should_bypass_run = False
+            if hook_sub_instance.should_bypass_run and hook_sub_instance.max_ms_timout_for_bypass_reset > 0:
+                time_since_last = current_time_ms - hook_sub_instance.timestamp_ms_last_attempt
+                if time_since_last >= hook_sub_instance.max_ms_timout_for_bypass_reset:
+                    hook_sub_instance.should_bypass_run = False
                     logger.debug(f"Reset bypass flag for hook '{actual_hook_func_name}' on block '{block_id}'")
 
             # 3. Check re-entrancy protection  [bypass-via-status]
-            if instance.is_currently_running:
-                instance.count_bypass_via_status += 1
+            if hook_sub_instance.is_currently_running:
+                hook_sub_instance.count_bypass_via_status += 1
                 logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (re-entrancy protection)")
                 continue
 
             # 4. Check rate limiting  [bypass-via-frequency]
-            if instance.min_ms_between_runs > 0:
-                time_since_last = current_time_ms - instance.timestamp_ms_last_attempt
-                if time_since_last < instance.min_ms_between_runs:
-                    instance.count_bypass_via_frequency += 1
+            if hook_sub_instance.min_ms_between_runs > 0:
+                time_since_last = current_time_ms - hook_sub_instance.timestamp_ms_last_attempt
+                if time_since_last < hook_sub_instance.min_ms_between_runs:
+                    hook_sub_instance.count_bypass_via_frequency += 1
                     logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (rate limited)")
                     continue
 
             # 5. Check @hook_data_filter predicate  [bypass-via-data-filter]
-            if instance.arg_filter is not None:
+            if hook_sub_instance.arg_filter is not None:
                 try:
-                    should_run = instance.arg_filter(instance, **kwargs)
+                    should_run = hook_sub_instance.arg_filter(hook_sub_instance, **kwargs)
                 except Exception:
                     logger.error(
                         f"arg_filter raised an exception for hook '{actual_hook_func_name}' on block '{block_id}' — skipping",
@@ -244,7 +243,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                     )
                     should_run = False
                 if not should_run:
-                    instance.count_bypass_via_data_filter += 1
+                    hook_sub_instance.count_bypass_via_data_filter += 1
                     logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (data filter)")
                     continue
 
@@ -252,12 +251,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             # 7. Execute with timing and re-entrancy protection
             start_time_nanos = time.time()  # recalculate right before func call
-            instance.is_currently_running = True
-            instance.timestamp_ms_last_attempt = start_time_nanos * 1000
+            hook_sub_instance.is_currently_running = True
+            hook_sub_instance.timestamp_ms_last_attempt = start_time_nanos * 1000
             try:
-                result = instance.actual_function(**kwargs)
+                result = hook_sub_instance.actual_function(**kwargs)
                 end_time_nanos = time.time()  # recalculate right after func call
-                instance.count_hook_propagate_success += 1
+                hook_sub_instance.count_hook_propagate_success += 1
 
                 if subscriber_block_id is not None:
                     return result
@@ -265,7 +264,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             except Exception as e:
                 end_time_nanos = time.time()
-                instance.count_hook_propagate_failure += 1
+                hook_sub_instance.count_hook_propagate_failure += 1
                 logger.error(f"Exception when calling hook '{actual_hook_func_name}' of subscriber '{block_id}'", exc_info=True)
                 if should_halt_on_exception:
                     raise e
@@ -273,11 +272,11 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             finally:
                 # Always reset running flag, even on exception
-                instance.is_currently_running = False
+                hook_sub_instance.is_currently_running = False
 
                 # Track execution time
                 execution_time_nanos = end_time_nanos - start_time_nanos
-                instance.total_nanos_running_time += execution_time_nanos
+                hook_sub_instance.total_nanos_running_time += execution_time_nanos
 
         return all_returns
 
