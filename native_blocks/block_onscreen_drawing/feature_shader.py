@@ -2,7 +2,8 @@
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
 import logging
-from typing import Any, Optional, Dict, List
+import time
+from typing import Any, Callable, Optional, Dict, List
 import numpy as np
 import bpy # type: ignore
 import gpu # type: ignore
@@ -30,9 +31,19 @@ class Shader_Instance:
 
     last_draw_attempt_timestamp: int = -1
     is_enabled: bool = True
-    is_valid: bool = True
-    disabled_reason: str = None
-    
+    error_str: str = None
+
+    # Optional draw override.  Signature: func(shader_instance, *args).
+    # When set, replaces the default bind+batch-draw pipeline entirely.
+    # draw_error_count and batch telemetry are still auto-tracked by the outer callback.
+    draw_override_func: Optional[Callable] = None
+    draw_override_args: tuple = field(default_factory=tuple)
+
+    # Telemetry — auto-tracked; do not set manually
+    batch_creation_duration_ms: float = 0.0  # wall-clock ms of the last _update_batch() call
+    batch_creation_count: int = 0             # total number of batches created on this instance
+    draw_error_count: int = 0                 # total exceptions caught by callback_omnishader_draw
+
     # If 'builtin_shader_name' is None, the shader is custom and must must self-create inside its __post_init__ override
     builtin_shader_name: Optional[str] = None 
     shader_actual: Any = field(init=False, default=None) # Actual gpu.shader. Will be populated for both custom and builtin shaders
@@ -97,8 +108,8 @@ class Shader_Instance:
     # SHADER DRAW
 
     def _update_batch(self):
-        """Rebuilds the GPU batch from numpy data"""
-        
+        """Rebuilds the GPU batch from numpy data.  Tracks timing and creation count."""
+
         if self._points is None:
             return
 
@@ -106,17 +117,29 @@ class Shader_Instance:
         if self._colors is not None:
             content["color"] = self._colors
 
+        _t0 = time.perf_counter()
         self._batch = batch_for_shader(self.shader_actual, self.shader_type, content)
+        self.batch_creation_duration_ms = (time.perf_counter() - _t0) * 1000.0
+        self.batch_creation_count += 1
         self._needs_new_batch = False
 
     def draw(self):
-        
+        """
+        Draw this shader.  If draw_override_func is set it is called instead of the
+        default bind+batch pipeline.  Signature: func(shader_instance, *draw_override_args).
+        draw_error_count is incremented by callback_omnishader_draw on any exception,
+        so both paths are automatically tracked.
+        """
+
         if self._needs_new_batch:
             self._update_batch()
             self._needs_new_batch = False
-        
+
         if self._batch is None:
-            self.logger.error(f"shader {self.shader_uid} _batch is None")
+            raise Exception(f"Shader {self.shader_uid} batch is null")
+
+        if self.draw_override_func is not None:
+            self.draw_override_func(self, *self.draw_override_args)
             return
 
         self.shader_actual.bind()

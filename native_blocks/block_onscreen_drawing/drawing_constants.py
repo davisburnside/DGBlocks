@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
-from typing import Optional
+from typing import Callable, Optional
 import bpy
 
 # ==============================================================================================================================
@@ -119,6 +119,10 @@ class Shader_Def:
     builtin_shader_name: Optional[Builtin_Shader_Names] = None
     custom_shader_class: Optional[type] = None       # Shader_Instance subclass
     custom_shader_kwargs: dict = field(default_factory=dict)
+    # Optional draw override — forwarded to Shader_Instance at creation time.
+    # Signature: func(shader_instance, *args).  When set, replaces the default bind+draw pipeline.
+    draw_override_func: Optional[Callable] = None
+    draw_override_args: tuple = field(default_factory=tuple)
 
 
 @dataclass
