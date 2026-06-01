@@ -1,13 +1,15 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+import time
 from typing import Any, Optional
-import bpy  # type: ignore
+import bpy
 
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
 from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
+from ...addon_helpers.generic_tools import get_exception_last_n_lines
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -19,17 +21,9 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 # Intra-block imports
 # --------------------------------------------------------------
 from .common_constants import Block_Loggers, Block_RTC_Members
-from .drawing_constants import (
-    Draw_Space_Types,
-    Draw_Region_Type,
-    Draw_Phase_type,
-    Shader_Def,
-    Handler_Def,
-    _VALID_SPACE_REGION_PHASE_COMBOS,
-    _BUILTIN_SHADER_COMPATIBLE_TYPES,
-)
+from .drawing_constants import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Handler_Def
 from .feature_shader import Shader_Instance
-
+from .helpers import callback_omnishader_draw, validate_shader_definitions  # type: ignore
 
 # ==============================================================================================================================
 # RUNTIME INSTANCE
@@ -57,17 +51,6 @@ class Handler_Instance:
             self._handle = None
         self.shaders.clear()
 
-
-# ==============================================================================================================================
-# MODULE-LEVEL DRAW CALLBACK
-# One function reused for every draw_handler_add call.
-# The handler instance is passed via Blender's args tuple.
-# No context is used here.
-# ==============================================================================================================================
-
-def _draw_callback(handler_instance: Handler_Instance) -> None:
-    for shader in handler_instance.shaders:
-        shader.draw()
 
 
 # ==============================================================================================================================
@@ -131,7 +114,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         # ----------------------------------------------------------
         # 1. Validate — all checks before touching Blender state
         # ----------------------------------------------------------
-        cls._validate_shader_defs(shader_defs)
+        validate_shader_definitions(shader_defs)
 
         # ----------------------------------------------------------
         # 2. Tear down existing state
@@ -174,22 +157,37 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
 
             # Create Shader_Instance objects for this handler
             for sdef in hdef.shaders:
-                shader_instance = Shader_Instance(
-                    shader_uid=sdef.uid,
-                    shader_type=sdef.shader_type,
-                    builtin_shader_name=sdef.builtin_shader_name,
-                    shader_group_id=sdef.group_id,
-                )
+                if sdef.custom_shader_class is not None:
+                    # Custom shader — instantiate the subclass with any extra kwargs
+                    shader_instance = sdef.custom_shader_class(
+                        shader_uid=sdef.uid,
+                        shader_type=sdef.shader_type,
+                        builtin_shader_name=None,
+                        shader_group_id=sdef.group_id,
+                        **sdef.custom_shader_kwargs,
+                    )
+                    logger.debug(
+                        f"Created custom Shader_Instance uid='{sdef.uid}' "
+                        f"(class={sdef.custom_shader_class.__name__}, type={sdef.shader_type})"
+                    )
+                else:
+                    # Builtin shader
+                    shader_instance = Shader_Instance(
+                        shader_uid=sdef.uid,
+                        shader_type=sdef.shader_type,
+                        builtin_shader_name=sdef.builtin_shader_name,
+                        shader_group_id=sdef.group_id,
+                    )
+                    logger.debug(
+                        f"Created Shader_Instance uid='{sdef.uid}' "
+                        f"({sdef.shader_type}/{sdef.builtin_shader_name})"
+                    )
                 handler_instance.shaders.append(shader_instance)
                 rtc_shaders[sdef.uid] = shader_instance
-                logger.debug(
-                    f"Created Shader_Instance uid='{sdef.uid}' "
-                    f"({sdef.shader_type}/{sdef.builtin_shader_name})"
-                )
 
             # Register the Blender draw handler
             handler_instance._handle = hdef.space.value.draw_handler_add(
-                _draw_callback,
+                callback_omnishader_draw,
                 (handler_instance,),
                 hdef.region.value,
                 hdef.phase.value,
@@ -229,51 +227,3 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     def get_shader(cls, uid: str) -> Optional[Shader_Instance]:
         """Return the live Shader_Instance for a given uid, or None."""
         return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS).get(uid)
-
-    # ----------------------------------------------------------
-    # Internal validation helpers
-    # ----------------------------------------------------------
-
-    @classmethod
-    def _validate_shader_defs(cls, shader_defs: list) -> None:
-        """
-        Run all validation checks against a list of Shader_Def objects.
-        Raises ValueError with a descriptive message if any check fails.
-        All checks complete before any Blender state is mutated.
-        """
-        # --- duplicate uid check ---
-        seen_uids: set = set()
-        for sdef in shader_defs:
-            if sdef.uid in seen_uids:
-                raise ValueError(
-                    f"Duplicate shader uid '{sdef.uid}' found in set_state call. "
-                    f"Every Shader_Def must have a unique uid."
-                )
-            seen_uids.add(sdef.uid)
-
-        # --- (space, region, phase) allowlist check ---
-        for sdef in shader_defs:
-            combo = (sdef.space, sdef.region, sdef.phase)
-            if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
-                raise ValueError(
-                    f"Shader '{sdef.uid}': "
-                    f"({sdef.space.name}, {sdef.region}, {sdef.phase}) "
-                    f"is not a known-valid (space, region, phase) combination. "
-                    f"See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist."
-                )
-
-        # --- shader_type / builtin_shader_name compatibility check ---
-        for sdef in shader_defs:
-            allowed_types = _BUILTIN_SHADER_COMPATIBLE_TYPES.get(sdef.builtin_shader_name)
-            if allowed_types is None:
-                raise ValueError(
-                    f"Shader '{sdef.uid}': builtin shader name "
-                    f"'{sdef.builtin_shader_name}' is not in the compatibility map. "
-                    f"Known names: {list(_BUILTIN_SHADER_COMPATIBLE_TYPES.keys())}"
-                )
-            if sdef.shader_type not in allowed_types:
-                raise ValueError(
-                    f"Shader '{sdef.uid}': builtin shader '{sdef.builtin_shader_name}' "
-                    f"is not compatible with shader type '{sdef.shader_type}'. "
-                    f"Allowed types for this builtin: {sorted(str(t) for t in allowed_types)}"
-                )

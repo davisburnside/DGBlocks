@@ -1,6 +1,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
+from typing import Optional
 import bpy
 
 # ==============================================================================================================================
@@ -100,14 +101,24 @@ class Shader_Def:
     logical shader, including the space/region/phase it should be drawn in.
     Draw_Handler_Manager groups these by (space, region, phase) and registers one
     Blender draw handler per unique group.
+
+    Exactly one of builtin_shader_name or custom_shader_class must be set:
+      - builtin_shader_name  : use a Blender built-in shader (validated against
+                               _BUILTIN_SHADER_COMPATIBLE_TYPES).
+      - custom_shader_class  : a Shader_Instance subclass that creates its own
+                               gpu.shader in __post_init__.  custom_shader_kwargs
+                               are forwarded as extra keyword arguments to that class.
     """
     uid: str
     group_id: str
     shader_type: Shader_Types
-    builtin_shader_name: Builtin_Shader_Names
     space: Draw_Space_Types
     region: Draw_Region_Type
     phase: Draw_Phase_type
+    # Exactly one must be provided:
+    builtin_shader_name: Optional[Builtin_Shader_Names] = None
+    custom_shader_class: Optional[type] = None       # Shader_Instance subclass
+    custom_shader_kwargs: dict = field(default_factory=dict)
 
 
 @dataclass

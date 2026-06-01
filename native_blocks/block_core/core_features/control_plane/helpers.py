@@ -133,7 +133,7 @@ def _create_and_init_new_block_FWCs(block_declaration, logger):
             actual_class = actual_class,
         )
         cached_FWCs.append(FWC_instance)
-        new_FWC_instances.append(new_FWC_instances)
+        new_FWC_instances.append(FWC_instance)
 
         # Core-block FWCs have already been initialized. All others need init
         if block_declaration.block_id != core_block_id:
@@ -274,14 +274,13 @@ def _remove_block_bpy_classes(block_instance, logger):
 def _remove_block_FWC_instances(block_instance, logger):
 
     if block_instance.block_id != core_block_id:
-        for actual_class in reversed(block_instance.block_FWC_instances):
+        for FWC_instance in reversed(block_instance.block_FWC_instances):
             try:
-                feature_name = actual_class.__name__
-                actual_class.destroy_wrapper()
+                FWC_instance.actual_class.destroy_wrapper()
                 Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
                     member_key=cache_key_FWCs,
                     uniqueness_field="feature_name",
-                    uniqueness_field_value=feature_name,
+                    uniqueness_field_value=FWC_instance.feature_name,
                 )
             except Exception as e:
                 logger.error(e, exc_info = True)

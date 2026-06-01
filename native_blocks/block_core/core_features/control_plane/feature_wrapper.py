@@ -197,16 +197,12 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
 
     @classmethod
-    def destroy_instance(cls, event: Enum_Sync_Events, block_id: str):
+    def destroy_instance(cls, event: Enum_Sync_Events, block_instance: RTC_Block_Instance):
 
         # Note that the Block record itself is not removed from RTC's REGISTRY_ALL_BLOCKS cache. Instead, its 'is_block_enabled' property is set to false
         # It is the only "trace" that should remain of a removed block.
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        _, block_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_blocks, "block_id", block_id)
-        if block_instance is None:
-            logger.error("Block 'block_id' is not registered, nothing to remove")
-            return 
         
         logger.debug(f"Starting removal of block '{block_instance.block_id}'")
 

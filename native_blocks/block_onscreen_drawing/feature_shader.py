@@ -27,6 +27,11 @@ class Shader_Instance:
     shader_type: str # Enum of 'POINTS', 'LINES', 'TRIS'
     shader_uid: str
     shader_group_id: str
+
+    last_draw_attempt_timestamp: int = -1
+    is_enabled: bool = True
+    is_valid: bool = True
+    disabled_reason: str = None
     
     # If 'builtin_shader_name' is None, the shader is custom and must must self-create inside its __post_init__ override
     builtin_shader_name: Optional[str] = None 
@@ -108,6 +113,7 @@ class Shader_Instance:
         
         if self._needs_new_batch:
             self._update_batch()
+            self._needs_new_batch = False
         
         if self._batch is None:
             self.logger.error(f"shader {self.shader_uid} _batch is None")

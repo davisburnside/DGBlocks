@@ -1,6 +1,9 @@
+
 from dataclasses import dataclass, field
+from typing import Any
 import bpy
-import gpu 
+import gpu
+from gpu_extras.batch import batch_for_shader  # type: ignore
 
 # --------------------------------------------------------------
 # Inter-block imports
@@ -65,39 +68,53 @@ void main()
 """
 
 # =================================================================================
-# SHADER INIT
+# SHADER CLASS
 # =================================================================================
 
 @dataclass
 class Billboard_Shader(Shader_Instance):
+    """
+    Custom Shader_Instance subclass for camera-facing image billboards.
+
+    Usage (called in the ON operator after set_state):
+        shader.set_points([(x, y, z), ...])   — world-space centre positions
+        shader.set_colors([(r, g, b, a), ...]) — per-billboard tint
+        shader.set_sizes([size_float, ...])    — billboard world-space size
+
+    draw() is overridden to build quad geometry, set MVP uniforms from
+    bpy.context.region_data, and draw — no external callback needed.
+    """
 
     image_name: str = field(default="")
-        
+    _sizes: Any = field(init=False, default=None)  # list[float], one per billboard point
+
     def __post_init__(self):
 
         super().__post_init__()  # Runs Shader_Instance's __post_init__
 
-        # Validate Image & create texture from it
+        # Validate image & create GPU texture
         image_base = bpy.data.images.get(self.image_name)
         if image_base is None:
-            raise Exception(f"Image '{self.image_name}' missing from .blend file. Unable to create shader {self.shader_uid}")
-        icon_texture = gpu.texture.from_image(image_base)
-        self._texture = icon_texture
+            raise Exception(
+                f"Image '{self.image_name}' missing from .blend file. "
+                f"Unable to create shader '{self.shader_uid}'"
+            )
+        self._texture = gpu.texture.from_image(image_base)
 
-        # Define Shader inputs & outputs
+        # Define shader inputs / outputs
         vert_out = gpu.types.GPUStageInterfaceInfo("icon_interface")
         vert_out.smooth("VEC2", "uvCoord")
         vert_out.flat("VEC4", "instance_color")
 
         shader_info = gpu.types.GPUShaderCreateInfo()
-        shader_info.vertex_in(0, "VEC3", "pos")  # Center position
-        shader_info.vertex_in(1, "VEC2", "uv")   # UV coordinates for quad
-        shader_info.vertex_in(2, "VEC4", "color") # Per-instance color
-        shader_info.vertex_in(3, "FLOAT", "size") # Per-instance size
+        shader_info.vertex_in(0, "VEC3", "pos")    # centre position
+        shader_info.vertex_in(1, "VEC2", "uv")     # quad UV coordinates
+        shader_info.vertex_in(2, "VEC4", "color")  # per-instance tint
+        shader_info.vertex_in(3, "FLOAT", "size")  # per-instance world size
 
         shader_info.push_constant("MAT4", "ViewMatrix")
         shader_info.push_constant("MAT4", "ModelViewProjectionMatrix")
-        shader_info.push_constant("FLOAT", "offset_distance")  # NEW: offset parameter
+        shader_info.push_constant("FLOAT", "offset_distance")
 
         shader_info.sampler(0, "FLOAT_2D", "icon_texture")
 
@@ -107,4 +124,77 @@ class Billboard_Shader(Shader_Instance):
         shader_info.vertex_source(vertex_source)
         shader_info.fragment_source(fragment_source)
 
-        self.shader_actual  = gpu.shader.create_from_info(shader_info)
+        self.shader_actual = gpu.shader.create_from_info(shader_info)
+
+    # ----------------------------------------------------------
+
+    @classmethod
+    def _make_billboard_verts(cls, points_list, colors_list, sizes_list):
+        """Build quad vertices (2 tris per point) for billboard rendering."""
+        quad_uvs = [
+            (0.0, 0.0),  # Bottom-left
+            (1.0, 0.0),  # Bottom-right
+            (1.0, 1.0),  # Top-right
+            (0.0, 1.0),  # Top-left
+        ]
+        quad_indices = [
+            (0, 1, 2),  # First triangle
+            (0, 2, 3),  # Second triangle
+        ]
+
+        all_vertices = []
+        all_uvs = []
+        all_colors = []
+        all_sizes = []
+        all_indices = []
+
+        for i in range(len(points_list)):
+            idx_offset = i * 4
+            for _ in range(4):
+                all_vertices.append(points_list[i])
+                all_colors.append(colors_list[i])
+                all_sizes.append(sizes_list[i])
+            all_uvs.extend(quad_uvs)
+            for tri in quad_indices:
+                all_indices.append((
+                    idx_offset + tri[0],
+                    idx_offset + tri[1],
+                    idx_offset + tri[2],
+                ))
+
+        return all_vertices, all_uvs, all_colors, all_sizes, all_indices
+
+
+    def set_sizes(self, value: list) -> None:
+        """Set per-billboard world-space sizes (one float per point)."""
+        self._sizes = list(value)
+        self._needs_new_batch = True
+
+    # ----------------------------------------------------------
+
+    def _update_batch(self):
+        """Rebuilds the GPU batch from numpy data"""
+        
+        (all_vertices,
+        all_uvs,
+        all_colors,
+        all_sizes,
+        all_indices) = self._make_billboard_verts(self._points, self._colors, self._sizes)
+
+        self._batch = batch_for_shader(
+            self.shader_actual,
+            self.shader_type,
+            {"pos": all_vertices, "uv": all_uvs, "color": all_colors, "size": all_sizes},
+            indices=all_indices,
+        )
+
+    def draw(self) -> None:
+    
+        # Set Uniforms, which change with viewing angle 
+        self.shader_actual.uniform_sampler("icon_texture", self._texture)
+        self.set_uniform("ModelViewProjectionMatrix", bpy.context.region_data.perspective_matrix.copy())
+        self.set_uniform("ViewMatrix",                bpy.context.region_data.view_matrix.copy())
+        self.set_uniform("offset_distance",           0.01)
+
+        # Invoke default shader draw
+        super().draw()

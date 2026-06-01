@@ -7,6 +7,7 @@ import os
 from copy import deepcopy
 import logging
 from pathlib import Path
+import traceback
 from types import ModuleType
 from dataclasses import is_dataclass, replace, asdict
 from typing import Any, Callable, Collection, List, Optional
@@ -72,6 +73,20 @@ def print_section_separator(text, width=100, char="="):
     print(f"\n{char * width}")
     print(text.center(width))
     print(f"{char * width}\n")
+
+def get_exception_last_n_lines(n: int, exc: BaseException | None = None) -> str:
+    """
+    Returns the last N lines of a stacktrace as a single string.
+    If exc is None, uses the current exception (if any).
+    """
+    if exc is not None:
+        lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
+    else:
+        lines = traceback.format_exception(*sys.exc_info())
+
+    full_text = "".join(lines)
+    split_lines = full_text.splitlines()
+    return "\n".join(split_lines[-n:])
 
 # --------------------------------------------------------------
 # Block tools
