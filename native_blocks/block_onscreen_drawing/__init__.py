@@ -21,7 +21,7 @@ from ...addon_helpers.ui import ui_draw_block_panel_header
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_Loggers, Block_RTC_Members
+from .common_constants import Block_Loggers, Block_RTC_Members
 from .feature_draw_handler_manager import Wrapper_Draw_Handlers
 
 
@@ -53,12 +53,18 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
         layout = self.layout
         all_rtc_draw_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
-        for draw_handler_instance in all_rtc_draw_handlers.values():
-            name = draw_handler_instance.draw_phase_name
-            is_enabled = draw_handler_instance._generated_handle is not None
+
+        if not all_rtc_draw_handlers:
+            layout.label(text="No active draw handlers", icon="INFO")
+            return
+
+        for (space, region, phase), handler_instance in all_rtc_draw_handlers.items():
+            is_active = handler_instance._handle is not None
+            shader_count = len(handler_instance.shaders)
             row = layout.row(align=True)
-            row.label(text = name)
-            row.label(text = str(is_enabled))
+            row.label(text=f"{space.name} / {region} / {phase}")
+            row.label(text=f"{shader_count} shader(s)")
+            row.label(text="ON" if is_active else "OFF", icon="CHECKMARK" if is_active else "X")
 
 # ==============================================================================================================================
 # REQUIRED 

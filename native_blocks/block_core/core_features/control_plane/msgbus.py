@@ -6,6 +6,7 @@ from ...core_features.loggers.feature_wrapper import get_logger  # type: ignore
 # Blender's msgbus needs some (any) python object to hold a reference to
 _msgbus_owner_for_active_scene = object()
 _msgbus_owner_for_active_window_scene_viewlayer = object()
+_msgbus_owner_for_active_window_workspace = object()
 _msgbus_owner_for_scene_names = object()
 _msgbus_T1 = object()
 
@@ -30,15 +31,20 @@ def _msgbus_scene_name_changed(*args):
 def _msgbus_test1(*args):
     print(f"TEST1   '")
 
+def _msgbus_workspace_changed():
+    workspace = bpy.context.workspace
+    print(f"Workspace changed to: {workspace.name}")
+
 # list of tuples to define msgbus subscriptions
 # tuple[0] = msgbus sub "owner" object
 # tuple[1] = msgbus key: the data being listened to
 # tuple[2] = callback function when the data changes
 msgbus_subs = [
-    # (_msgbus_owner_for_active_scene, (bpy.types.Window, "scene"), _msgbus_window_scene_changed),
-    # (_msgbus_owner_for_active_window_scene_viewlayer, (bpy.types.Window, "view_layer"), _msgbus_window_scene_viewlayer_changed),
+    (_msgbus_owner_for_active_scene, (bpy.types.Window, "scene"), _msgbus_window_scene_changed),
+    (_msgbus_owner_for_active_window_scene_viewlayer, (bpy.types.Window, "view_layer"), _msgbus_window_scene_viewlayer_changed),
     # (_msgbus_owner_for_scene_names, (bpy.types.Scene, "name"), _msgbus_scene_name_changed),
     # (_msgbus_T1, (bpy.types.BlendData, "scenes"), _msgbus_test1)
+    (_msgbus_owner_for_active_window_workspace, (bpy.types.Window, "workspace"), _msgbus_workspace_changed),
 ]
 
 def clear_msgbuses(msgbus_subs: list[tuple]):

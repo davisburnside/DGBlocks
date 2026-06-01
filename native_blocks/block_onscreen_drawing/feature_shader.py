@@ -12,7 +12,7 @@ from gpu_extras.batch import batch_for_shader # type: ignore
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Shader_Types, Builtin_Shader_Names
+from .drawing_constants import Shader_Types, Builtin_Shader_Names
 
 #================================================================
 # SHADER INSTANCE

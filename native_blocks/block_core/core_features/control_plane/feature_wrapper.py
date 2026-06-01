@@ -21,7 +21,7 @@ from ..hooks.feature_wrapper import Wrapper_Hooks
 from .data_structures import RTC_Block_Instance
 from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_properties, _create_new_block_record, _create_new_block_standard_features, _remove_block_FWC_instances, _remove_block_bpy_classes, _remove_block_properties, shallow_validate_block_declaration, shallow_validate_block_module
 from .app_handlers import install_core_app_handler_callbacks, remove_core_app_handler_callbacks
-from .msgbus import clear_msgbuses, msgbus_subs
+from .msgbus import add_msgbuses, clear_msgbuses, msgbus_subs
 
 # Aliases
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
@@ -104,9 +104,9 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 5: Subscribe msgbus scene-change listener on all open windows
-        # clear_msgbuses(msgbus_subs)
-        # add_msgbuses(msgbus_subs)
-        # logger.info("msgbus scene-change listener registered")
+        clear_msgbuses(msgbus_subs)
+        add_msgbuses(msgbus_subs)
+        logger.info("msgbus scene-change listener registered")
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 6: Run post-register initialization actions for all blocks with "hook_post_startup" function in their __init__.py

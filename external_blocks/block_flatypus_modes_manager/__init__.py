@@ -16,7 +16,7 @@ from ...addon_helpers.ui import ui_draw_block_panel_header
 # --------------------------------------------------------------
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper  import Wrapper_Runtime_Cache
 
-from ...native_blocks.block_onscreen_drawing.constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
+from ...native_blocks.block_onscreen_drawing.common_constants import Block_RTC_Members as Onscreen_Draw_Block_RTC_Members
 from ...native_blocks.block_onscreen_drawing.feature_draw_handler_manager import Wrapper_Draw_Handlers
 
 # --------------------------------------------------------------
@@ -215,6 +215,7 @@ class DGBLOCKS_OT_Toggle_Assembly_Mode(bpy.types.Operator):
             should_enable = draw_handler_instance._generated_handle is None
             if should_enable:
                 Wrapper_Draw_Handlers.enable_draw_handler(draw_phase_name, draw_callback = _my_draw_callback)
+                
                 for shader_enum in Assembly_Mode_Shader_Definitions:
                     Wrapper_Draw_Handlers.add_shader(draw_phase_name, shader_enum, "ASSY")
             else:
