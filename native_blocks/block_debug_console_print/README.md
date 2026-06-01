@@ -22,7 +22,10 @@ without drowning in noise.
 
 | PropertyGroup | Scene path | Purpose |
 |---|---|---|
-| `DGBLOCKS_PG_Debug_Props_Profile` | `bpy.types.Scene.dgblocks_debug_console_print_props` | Persistent user settings: clear-on-print, min-verbosity, JSON indent, dict-key filters, numeric filters, structural truncation, table sort-order |
+| `DGBLOCKS_PG_Debug_Props_Profile` | `bpy.types.Scene.dgblocks_debug_console_print_props` | Persistent user settings: clear-on-print, min-verbosity, JSON indent, memory address/size, max rows, search depth, dict-key filters, numeric/string data filters, active filter section, table sort-order |
+| `DGBLOCKS_PG_Numeric_Filter` | `...props.debug_console_print_numeric_filters` (CollectionProperty) | One numeric leaf comparison row (`operation`, `value`). Rows are AND-combined |
+| `DGBLOCKS_PG_String_Filter` | `...props.debug_console_print_string_filters` (CollectionProperty) | One string leaf comparison row (`operation`, `text`). Rows are OR-combined |
+
 
 ### Runtime Cache
 
@@ -73,6 +76,9 @@ def hook_debug_uilayout_draw_console_print_settings(ui_container: bpy.types.UILa
 | Class | bl_idname | Description |
 |---|---|---|
 | `DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics` | `dgblocks.debug_console_print_block_diagnostics` | Collects data from all subscriber blocks, applies filters, prints to console |
+| `DGBLOCKS_OT_Debug_Console_Print_Numeric_Filter_Add` / `_Remove` | `dgblocks.debug_console_print_numeric_filter_add` / `_remove` | Add/remove a numeric data-filter row |
+| `DGBLOCKS_OT_Debug_Console_Print_String_Filter_Add` / `_Remove` | `dgblocks.debug_console_print_string_filter_add` / `_remove` | Add/remove a string data-filter row |
+
 
 **Operator inputs:**
 - `source_block_id: str` — the specific block to query (passed to `run_hooked_funcs`)
@@ -83,10 +89,22 @@ def hook_debug_uilayout_draw_console_print_settings(ui_container: bpy.types.UILa
 `DGBLOCKS_PT_Debugging_Panel` appears in the 3D Viewport side panel under the addon's tab.
 It contains:
 
-1. **Filter settings** (collapsible panels):
-   - General: clear console toggle, min-verbosity, JSON indent size, memory-address display, data-type display
-   - Dict-key filtering: comma-separated wildcard strings for inclusion/exclusion, applied to leaf, branch, or all nodes
-   - Data filtering: max rows per container, max search depth, numerical value filters (`>`, `>=`, `==`, `!=`, `<=`, `<`)
+1. **Settings** — one collapsible panel whose body opens with a single radio-button range
+   (`debug_console_print_active_filter_section`) selecting which of three sections is shown:
+   - **General:** clear console toggle, min-verbosity, JSON indent size, max rows per container,
+     max search depth, data-type display, memory-address display, memory-size (KB) display.
+   - **Dict Keys Filter:** an enable toggle (icon-reflected) plus comma-separated wildcard include/exclude
+     strings. A branch is retained if any descendant key matches the include set within the search
+     depth (ancestor retention); a key matched by the exclude set drops its whole subtree.
+   - **Data:** numeric leaf filters (multiple add/remove rows, AND-combined, include/exclude mode)
+     and string leaf filters (multiple add/remove rows, OR-combined, include/exclude mode). Numeric
+     filters treat `mathutils.Vector` and 1-D numpy arrays as magnitude; matrices / >1-D arrays are
+     discarded. Each category has its own enable toggle and icon.
+
+   Filtered containers print each surviving member with its original index (`[4] "val"`), and
+   depth-truncated containers annotate how many direct members a shallow pass would drop, e.g.
+   `mirrored_key_field_names: list(2 items, 1 filtered)`.
+
 
 2. **Per-subscriber-block debug settings** — populated dynamically via `hook_debug_uilayout_draw_console_print_settings`
 
