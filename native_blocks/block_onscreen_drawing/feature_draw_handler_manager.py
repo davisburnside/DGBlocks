@@ -2,6 +2,7 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 import time
+import types
 from typing import Any, Optional
 import bpy
 
@@ -128,6 +129,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
 
             # Create Shader_Instance objects for this handler
             for sdef in hdef.shaders:
+
                 if sdef.custom_shader_class is not None:
                     # Custom shader — instantiate the subclass with any extra kwargs
                     shader_instance = sdef.custom_shader_class(
@@ -137,6 +139,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
                         shader_group_id=sdef.group_id,
                         **sdef.custom_shader_kwargs,
                     )
+
                     logger.debug(
                         f"Created custom Shader_Instance uid='{sdef.uid}' "
                         f"(class={sdef.custom_shader_class.__name__}, type={sdef.shader_type})"
@@ -149,6 +152,14 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
                         builtin_shader_name=sdef.builtin_shader_name,
                         shader_group_id=sdef.group_id,
                     )
+
+                    # monkeypatch optional before/after callbacks into shader instance
+                    if sdef.builtin_shader_before_draw is not None:
+                        shader_instance._builtin_shader_before_draw = types.MethodType(sdef.builtin_shader_before_draw, shader_instance)  
+                    if sdef.builtin_shader_after_draw is not None:
+                        shader_instance._builtin_shader_after_draw = types.MethodType(sdef.builtin_shader_after_draw, shader_instance) 
+
+
                 shader_instance._shader_init()
                 logger.debug(
                     f"Created Shader_Instance uid='{sdef.uid}' "

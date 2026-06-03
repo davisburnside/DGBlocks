@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
 import logging
-from typing import Any, Optional, Dict, List, final
+from typing import Any, Callable, Optional, Dict, List, final
 import numpy as np
 import bpy # type: ignore
 import gpu # type: ignore
@@ -76,6 +76,8 @@ class Shader_Definition:
     
 
     builtin_shader_name: Optional[Builtin_Shader_Names] = None
+    builtin_shader_before_draw: Callable = None
+    builtin_shader_after_draw: Callable = None
 
     custom_shader_class: Optional[type] = None # Shader_Instance subclass
     custom_shader_kwargs: dict = field(default_factory=dict)
@@ -144,8 +146,16 @@ class Shader_Instance:
             self.shader_actual.uniform_sampler(name, value)
 
     #==========================================
-    # Can be overwritten in 2 ways:
-    # 1: For builtin & custom shaders, 
+    # Optional, for builtin shaders only
+
+    def _builtin_shader_before_draw(self):
+        pass
+
+    def _builtin_shader_after_draw(self):
+        pass
+
+    #==========================================
+    # Can be overwritten by child classes
 
     def _shader_init(self):
         
@@ -180,8 +190,3 @@ class Shader_Instance:
         self.shader_actual.bind()
         self._batch.draw(self.shader_actual)
 
-    def _shader_before_draw(self):
-        pass
-
-    def _shader_after_draw(self):
-        pass

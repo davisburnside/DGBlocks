@@ -67,6 +67,42 @@ void main()
 }
 """
 
+def _make_billboard_verts(points_list, colors_list, sizes_list):
+    """Build quad vertices (2 tris per point) for billboard rendering."""
+    quad_uvs = [
+        (0.0, 0.0),  # Bottom-left
+        (1.0, 0.0),  # Bottom-right
+        (1.0, 1.0),  # Top-right
+        (0.0, 1.0),  # Top-left
+    ]
+    quad_indices = [
+        (0, 1, 2),  # First triangle
+        (0, 2, 3),  # Second triangle
+    ]
+
+    all_vertices = []
+    all_uvs = []
+    all_colors = []
+    all_sizes = []
+    all_indices = []
+
+    for i in range(len(points_list)):
+        idx_offset = i * 4
+        for _ in range(4):
+            all_vertices.append(points_list[i])
+            all_colors.append(colors_list[i])
+            all_sizes.append(sizes_list[i])
+        all_uvs.extend(quad_uvs)
+        for tri in quad_indices:
+            all_indices.append((
+                idx_offset + tri[0],
+                idx_offset + tri[1],
+                idx_offset + tri[2],
+            ))
+
+    return all_vertices, all_uvs, all_colors, all_sizes, all_indices
+
+
 # =================================================================================
 # SHADER CLASS
 # =================================================================================
@@ -87,6 +123,21 @@ class Billboard_Shader(Shader_Instance):
 
     image_name: str = field(default="")
     _sizes: Any = field(init=False, default=None)  # list[float], one per billboard point
+
+    # ----------------------------------------------------------
+    # Public func
+
+    def set_billboard_sizes(self, value: list) -> None:
+        """Set per-billboard world-space sizes (one float per point)."""
+        self._sizes = list(value)
+        self._needs_new_batch = True
+
+    # ----------------------------------------------------------
+    # Private func
+
+
+    # ----------------------------------------------------------
+    # Overriding parent class funcs
 
     def _shader_init(self):
 
@@ -124,52 +175,6 @@ class Billboard_Shader(Shader_Instance):
 
         self.shader_actual = gpu.shader.create_from_info(shader_info)
 
-    # ----------------------------------------------------------
-
-    @classmethod
-    def _make_billboard_verts(cls, points_list, colors_list, sizes_list):
-        """Build quad vertices (2 tris per point) for billboard rendering."""
-        quad_uvs = [
-            (0.0, 0.0),  # Bottom-left
-            (1.0, 0.0),  # Bottom-right
-            (1.0, 1.0),  # Top-right
-            (0.0, 1.0),  # Top-left
-        ]
-        quad_indices = [
-            (0, 1, 2),  # First triangle
-            (0, 2, 3),  # Second triangle
-        ]
-
-        all_vertices = []
-        all_uvs = []
-        all_colors = []
-        all_sizes = []
-        all_indices = []
-
-        for i in range(len(points_list)):
-            idx_offset = i * 4
-            for _ in range(4):
-                all_vertices.append(points_list[i])
-                all_colors.append(colors_list[i])
-                all_sizes.append(sizes_list[i])
-            all_uvs.extend(quad_uvs)
-            for tri in quad_indices:
-                all_indices.append((
-                    idx_offset + tri[0],
-                    idx_offset + tri[1],
-                    idx_offset + tri[2],
-                ))
-
-        return all_vertices, all_uvs, all_colors, all_sizes, all_indices
-
-
-    def set_billboard_sizes(self, value: list) -> None:
-        """Set per-billboard world-space sizes (one float per point)."""
-        self._sizes = list(value)
-        self._needs_new_batch = True
-
-    # ----------------------------------------------------------
-
     def _shader_update_batch(self):
         """Rebuilds the GPU batch from numpy data"""
         
@@ -177,7 +182,7 @@ class Billboard_Shader(Shader_Instance):
         all_uvs,
         all_colors,
         all_sizes,
-        all_indices) = self._make_billboard_verts(self._points, self._colors, self._sizes)
+        all_indices) = _make_billboard_verts(self._points, self._colors, self._sizes)
 
         self._batch = batch_for_shader(
             self.shader_actual,

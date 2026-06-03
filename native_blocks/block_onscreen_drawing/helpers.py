@@ -34,9 +34,9 @@ def callback_omnishader_draw(handler_instance) -> None:
         try:
             if shader.is_enabled:
                 shader.last_draw_attempt_timestamp = time.time()
-                # shader._before_shader_draw()
+                shader._builtin_shader_before_draw()
                 shader._shader_draw()
-                # shader._after_shader_draw()
+                shader._builtin_shader_after_draw()
         except Exception as e:
             shader.is_valid = False
             shader.disabled_reason = get_exception_last_n_lines(2, e)

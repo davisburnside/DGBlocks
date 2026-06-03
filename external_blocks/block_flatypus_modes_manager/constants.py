@@ -1,4 +1,5 @@
 
+import gpu
 
 from ...addon_helpers.data_structures import Logger_Declaration, RTC_Member_Declaration, String_Comparable_Mixin
 
@@ -24,6 +25,12 @@ class Block_RTC_Members(String_Comparable_Mixin):
 # Passed as-is to Wrapper_Draw_Handlers.set_state().
 # Both shaders share (VIEW_3D, WINDOW, POST_VIEW) → one Blender draw handler registered for the pair.
 # ==============================================================================================================================
+
+def _simple2d_before_draw(self):
+
+    # print("override draw", self)
+    self.set_uniform("color", (1,0,0,1))
+    gpu.state.line_width_set(5)
 
 FLATYPUS_SHADER_DEFS = [
     Shader_Definition(
@@ -53,5 +60,6 @@ FLATYPUS_SHADER_DEFS = [
             region=Draw_Region_Type.WINDOW,
             phase=Draw_Phase_type.POST_PIXEL,
             builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR,
+            builtin_shader_before_draw = _simple2d_before_draw
     ),
 ]
