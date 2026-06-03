@@ -12,7 +12,7 @@ from ...native_blocks.block_core.core_features.loggers.feature_wrapper import ge
 # --------------------------------------------------------------
 # Intra-block imports
 from .common_constants import Block_Loggers
-from .drawing_constants import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
+from .BL_gpu_data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
 
 # ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
@@ -27,12 +27,16 @@ def callback_omnishader_draw(handler_instance) -> None:
     logger = get_logger(Block_Loggers.SHADER_BATCH_EVENTS)
 
     # Try each draw. Flag shader instance upon expection
+    t_count = len(handler_instance.shaders)
     failed_shaders = []
+    logger.debug(f"Drawing {t_count} Shaders of Drawhandler {handler_instance.space} : {handler_instance.region} : {handler_instance.phase}")
     for shader in handler_instance.shaders:
         try:
             if shader.is_enabled:
                 shader.last_draw_attempt_timestamp = time.time()
-                shader.draw()
+                # shader._before_shader_draw()
+                shader._shader_draw()
+                # shader._after_shader_draw()
         except Exception as e:
             shader.is_valid = False
             shader.disabled_reason = get_exception_last_n_lines(2, e)
@@ -40,20 +44,20 @@ def callback_omnishader_draw(handler_instance) -> None:
 
     # Log failures
     f_count = len(failed_shaders)
-    t_count = len(handler_instance.shaders)
+    
     if f_count > 0:
         logger.error(f"{f_count} of {t_count} shaders failed during draw(). ")
 
-        max_uid_length = max([len(s.uid) for s in failed_shaders])
+        max_uid_length = max([len(s.shader_uid) for s in failed_shaders])
         for shader in failed_shaders:
-            logger.error(f"{shader.uid.ljust(max_uid_length)} : {shader.disabled_reason}")
+            logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.disabled_reason}")
 
 # ----------------------------------------------------------
 # Internal validation 
 
 def validate_shader_definitions(shader_defs: list) -> None:
     """
-    Run all validation checks against a list of Shader_Def objects.
+    Run all validation checks against a list of Shader_Definition objects.
     Raises ValueError with a descriptive message if any check fails.
     All checks complete before any Blender state is mutated.
     """
@@ -63,7 +67,7 @@ def validate_shader_definitions(shader_defs: list) -> None:
         if sdef.uid in seen_uids:
             raise ValueError(
                 f"Duplicate shader uid '{sdef.uid}' found in set_state call. "
-                f"Every Shader_Def must have a unique uid."
+                f"Every Shader_Definition must have a unique uid."
             )
         seen_uids.add(sdef.uid)
 

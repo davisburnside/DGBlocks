@@ -21,37 +21,8 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 # Intra-block imports
 # --------------------------------------------------------------
 from .common_constants import Block_Loggers, Block_RTC_Members
-from .drawing_constants import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Handler_Def
-from .feature_shader import Shader_Instance
+from .block_data_structures import Shader_Instance, Drawhandler_Definition, Drawhandler_Instance
 from .helpers import callback_omnishader_draw, validate_shader_definitions  # type: ignore
-
-# ==============================================================================================================================
-# RUNTIME INSTANCE
-# ==============================================================================================================================
-
-@dataclass
-class Handler_Instance:
-    """
-    Owns a single live Blender draw handler and the Shader_Instance objects
-    that belong to it.  Responsible for its own full teardown.
-    """
-    space: Draw_Space_Types
-    region: Draw_Region_Type
-    phase: Draw_Phase_type
-    shaders: list = field(default_factory=list)  # list[Shader_Instance]
-    _handle: Any = field(init=False, default=None)
-
-    def teardown(self) -> None:
-        """Remove the Blender draw handler and discard all shader references."""
-        if self._handle is not None:
-            try:
-                self.space.value.draw_handler_remove(self._handle, self.region.value)
-            except Exception:
-                pass  # handler may already be gone (e.g. context teardown)
-            self._handle = None
-        self.shaders.clear()
-
-
 
 # ==============================================================================================================================
 # WRAPPER CLASS
@@ -106,7 +77,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         full state is applied or nothing changes.
 
         Args:
-            shader_defs: list[Shader_Def] — one entry per logical shader.
+            shader_defs: list[Shader_Definition] — one entry per logical shader.
         """
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug(f"set_state called with {len(shader_defs)} shader def(s)")
@@ -122,15 +93,15 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         cls.clear()
 
         # ----------------------------------------------------------
-        # 3. Group shader_defs by (space, region, phase) → Handler_Def list
+        # 3. Group shader_defs by (space, region, phase) → Drawhandler_Definition list
         # ----------------------------------------------------------
-        groups: dict = defaultdict(list)  # (space, region, phase) → list[Shader_Def]
+        groups: dict = defaultdict(list)  # (space, region, phase) → list[Shader_Definition]
         for sdef in shader_defs:
             key = (sdef.space, sdef.region, sdef.phase)
             groups[key].append(sdef)
 
         handler_defs = [
-            Handler_Def(space=key[0], region=key[1], phase=key[2], shaders=sdefs)
+            Drawhandler_Definition(space=key[0], region=key[1], phase=key[2], shaders=sdefs)
             for key, sdefs in groups.items()
         ]
         logger.debug(
@@ -142,14 +113,14 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
         )
 
         # ----------------------------------------------------------
-        # 4. Build Handler_Instance objects, register Blender handlers,
+        # 4. Build Drawhandler_Instance objects, register Blender handlers,
         #    create Shader_Instance objects, store in RTC
         # ----------------------------------------------------------
         rtc_draw_phases: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES)
         rtc_shaders: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
 
         for hdef in handler_defs:
-            handler_instance = Handler_Instance(
+            handler_instance = Drawhandler_Instance(
                 space=hdef.space,
                 region=hdef.region,
                 phase=hdef.phase,
@@ -178,10 +149,11 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
                         builtin_shader_name=sdef.builtin_shader_name,
                         shader_group_id=sdef.group_id,
                     )
-                    logger.debug(
-                        f"Created Shader_Instance uid='{sdef.uid}' "
-                        f"({sdef.shader_type}/{sdef.builtin_shader_name})"
-                    )
+                shader_instance._shader_init()
+                logger.debug(
+                    f"Created Shader_Instance uid='{sdef.uid}' "
+                    f"({sdef.shader_type}/{sdef.builtin_shader_name})"
+                )
                 handler_instance.shaders.append(shader_instance)
                 rtc_shaders[sdef.uid] = shader_instance
 

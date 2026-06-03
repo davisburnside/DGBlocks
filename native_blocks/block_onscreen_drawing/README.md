@@ -24,7 +24,7 @@ This block owns two RTC members, both populated/cleared by `Wrapper_Draw_Handler
 
 | RTC Key | Type | Purpose |
 |---|---|---|
-| `DRAW_PHASES` | `dict[(Draw_Space_Types, Draw_Region_Type, Draw_Phase_type), Handler_Instance]` | Live draw handler instances, keyed by their Blender registration tuple |
+| `DRAW_PHASES` | `dict[(Draw_Space_Types, Draw_Region_Type, Draw_Phase_type), Drawhandler_Instance]` | Live draw handler instances, keyed by their Blender registration tuple |
 | `SHADERS` | `dict[str, Shader_Instance]` | All shader instances keyed by unique `shader_uid` |
 
 ### Blender Data
@@ -39,15 +39,15 @@ None.
 
 | Hook member | Fires when | Extra kwargs |
 |---|---|---|
-| `hook_draw_event` | Each frame Blender invokes the registered draw handlers | `draw_handler_instance: Handler_Instance` |
+| `hook_draw_event` | Each frame Blender invokes the registered draw handlers | `draw_handler_instance: Drawhandler_Instance` |
 
 Subscriber blocks implement `hook_draw_event(draw_handler_instance)` as a top-level function
-in `__init__.py`. They receive the `Handler_Instance` dataclass and can inspect or extend
+in `__init__.py`. They receive the `Drawhandler_Instance` dataclass and can inspect or extend
 behavior during the draw callback.
 
 ## Public API — `Wrapper_Draw_Handlers`
 
-### `set_state(shader_defs: list[Shader_Def]) -> None`
+### `set_state(shader_defs: list[Shader_Definition]) -> None`
 
 Declares the complete desired set of shaders. All validation runs before any Blender state is
 mutated — either the full state is applied atomically or nothing changes.
@@ -60,8 +60,8 @@ mutated — either the full state is applied atomically or nothing changes.
 
 The method internally:
 - Tears down any existing state via `clear()`
-- Groups `Shader_Def` objects by `(space, region, phase)`
-- Creates one `Handler_Instance` per group
+- Groups `Shader_Definition` objects by `(space, region, phase)`
+- Creates one `Drawhandler_Instance` per group
 - Instantiates `Shader_Instance` objects (builtin or custom subclass)
 - Registers a single Blender `draw_handler_add` per group, bound to `callback_omnishader_draw`
 - Stores everything in `DRAW_PHASES` and `SHADERS` RTC members
@@ -69,7 +69,7 @@ The method internally:
 **Example:**
 ```python
 from native_blocks.block_onscreen_drawing.drawing_constants import (
-    Shader_Def, Draw_Space_Types, Draw_Region_Type, Draw_Phase_type,
+    Shader_Definition, Draw_Space_Types, Draw_Region_Type, Draw_Phase_type,
     Shader_Types, Builtin_Shader_Names,
 )
 from native_blocks.block_onscreen_drawing.feature_draw_handler_manager import (
@@ -77,7 +77,7 @@ from native_blocks.block_onscreen_drawing.feature_draw_handler_manager import (
 )
 
 Wrapper_Draw_Handlers.set_state([
-    Shader_Def(
+    Shader_Definition(
         uid="my-lines",
         group_id="my-feature",
         shader_type=Shader_Types.LINES,
@@ -86,7 +86,7 @@ Wrapper_Draw_Handlers.set_state([
         phase=Draw_Phase_type.POST_VIEW,
         builtin_shader_name=Builtin_Shader_Names.POLYLINE_UNIFORM_COLOR,
     ),
-    Shader_Def(
+    Shader_Definition(
         uid="my-points",
         group_id="my-feature",
         shader_type=Shader_Types.POINTS,
@@ -144,9 +144,9 @@ A `@dataclass` representing a single GPU shader pipeline. Not a subclass of
 | `set_uniform(name, value)` | No | Set a shader uniform (auto-maps float/bool/int/sampler) |
 | `draw()` | — | Bind shader and draw the batch (called by draw callback) |
 
-**Custom shader subclasses** set `custom_shader_class` on `Shader_Def`. The class must
+**Custom shader subclasses** set `custom_shader_class` on `Shader_Definition`. The class must
 inherit `Shader_Instance` and create its own `gpu.shader` in `__post_init__`. Extra kwargs
-are forwarded from `Shader_Def.custom_shader_kwargs`.
+are forwarded from `Shader_Definition.custom_shader_kwargs`.
 
 ## Enums and Dataclasses
 
@@ -159,8 +159,8 @@ All defined in `drawing_constants.py`:
 | `Draw_Phase_type` | Draw phase (`PRE_VIEW`, `POST_VIEW`, `POST_PIXEL`, `BACKDROP`) |
 | `Builtin_Shader_Names` | Known Blender built-in shader names |
 | `Shader_Types` | Batch type (`POINTS`, `LINES`, `TRIS`) |
-| `Shader_Def` | Declarative descriptor for a single shader |
-| `Handler_Def` | Internal grouping struct (space, region, phase + shader defs) |
+| `Shader_Definition` | Declarative descriptor for a single shader |
+| `Drawhandler_Definition` | Internal grouping struct (space, region, phase + shader defs) |
 
 ### Valid (space, region, phase) combinations
 
@@ -176,7 +176,7 @@ any combination not in this list before touching Blender state.
 ## Panel
 
 `DGBLOCKS_PT_Debug_Drawing_Panel` appears in the 3D Viewport side panel under the addon's
-tab. For each active `Handler_Instance` it displays:
+tab. For each active `Drawhandler_Instance` it displays:
 
 - Space name, region, and phase
 - Number of shaders
@@ -196,7 +196,7 @@ block_onscreen_drawing/
 ├── __init__.py                          # Block declaration, DGBLOCKS_PT_Debug_Drawing_Panel
 ├── README.md                            # This file
 ├── common_constants.py                  # Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-├── drawing_constants.py                 # Space/Region/Phase enums, Shader_Def/Handler_Def, validation allowlists
+├── drawing_constants.py                 # Space/Region/Phase enums, Shader_Definition/Drawhandler_Definition, validation allowlists
 ├── feature_draw_handler_manager.py      # Wrapper_Draw_Handlers (set_state, clear, get_shader)
 ├── feature_shader.py                    # Shader_Instance dataclass
 └── helpers.py                           # callback_omnishader_draw, validate_shader_definitions

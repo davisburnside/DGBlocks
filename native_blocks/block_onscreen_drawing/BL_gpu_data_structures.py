@@ -1,8 +1,14 @@
 
+
 from dataclasses import dataclass, field
 from enum import Enum, StrEnum, auto
-from typing import Optional
-import bpy
+import logging
+from typing import Any, Optional, Dict, List, final
+import numpy as np
+import bpy # type: ignore
+import gpu # type: ignore
+from mathutils import Matrix, Vector # type: ignore
+from gpu_extras.batch import batch_for_shader # type: ignore
 
 # ==============================================================================================================================
 # DRAW_HANDLER_CONSTANTS
@@ -90,49 +96,6 @@ class Shader_Types(StrEnum):
     LINES = auto()
     TRIS = auto()
 
-# ==============================================================================================================================
-# DECLARATIVE CONFIG DATACLASSES
-# ==============================================================================================================================
-
-@dataclass
-class Shader_Def:
-    """
-    Flat descriptor for a single shader.  The caller supplies one Shader_Def per
-    logical shader, including the space/region/phase it should be drawn in.
-    Draw_Handler_Manager groups these by (space, region, phase) and registers one
-    Blender draw handler per unique group.
-
-    Exactly one of builtin_shader_name or custom_shader_class must be set:
-      - builtin_shader_name  : use a Blender built-in shader (validated against
-                               _BUILTIN_SHADER_COMPATIBLE_TYPES).
-      - custom_shader_class  : a Shader_Instance subclass that creates its own
-                               gpu.shader in __post_init__.  custom_shader_kwargs
-                               are forwarded as extra keyword arguments to that class.
-    """
-    uid: str
-    group_id: str
-    shader_type: Shader_Types
-    space: Draw_Space_Types
-    region: Draw_Region_Type
-    phase: Draw_Phase_type
-    # Exactly one must be provided:
-    builtin_shader_name: Optional[Builtin_Shader_Names] = None
-    custom_shader_class: Optional[type] = None       # Shader_Instance subclass
-    custom_shader_kwargs: dict = field(default_factory=dict)
-
-
-@dataclass
-class Handler_Def:
-    """
-    Internal grouping structure derived from a set of Shader_Defs that share
-    the same (space, region, phase) tuple.  Not constructed by callers — built
-    by Draw_Handler_Manager.set_state() during grouping.
-    """
-    space: Draw_Space_Types
-    region: Draw_Region_Type
-    phase: Draw_Phase_type
-    shaders: list = field(default_factory=list)  # list[Shader_Def]
-
 
 # ==============================================================================================================================
 # VALIDATION DATA
@@ -173,7 +136,7 @@ _VALID_SPACE_REGION_PHASE_COMBOS: frozenset = frozenset({
 })
 
 # Maps each builtin shader name to the set of Shader_Types it is compatible with.
-# Used to validate Shader_Def entries in set_state() before any Blender state is mutated.
+# Used to validate Shader_Definition entries in set_state() before any Blender state is mutated.
 _BUILTIN_SHADER_COMPATIBLE_TYPES: dict = {
     Builtin_Shader_Names.SMOOTH_COLOR:           {Shader_Types.POINTS, Shader_Types.LINES, Shader_Types.TRIS},
     Builtin_Shader_Names.UNIFORM_COLOR:          {Shader_Types.POINTS, Shader_Types.LINES, Shader_Types.TRIS},

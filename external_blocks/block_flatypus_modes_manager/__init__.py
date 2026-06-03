@@ -33,6 +33,15 @@ def op_assembly_mode_on():
 
     Wrapper_Draw_Handlers.set_state(FLATYPUS_SHADER_DEFS)
 
+    simple2d = Wrapper_Draw_Handlers.get_shader("SIMPLE_2D")
+    if simple2d is not None:
+        simple2d.set_points([
+            (-0.5, -0.5),
+            ( 50, 100.5),
+        ])
+        simple2d.set_uniform("color", (1,1,1,1))
+
+
 
     # --- Simple TRIS: a coloured triangle near the origin ---
     tris = Wrapper_Draw_Handlers.get_shader("SIMPLE_TRIS")
@@ -60,7 +69,7 @@ def op_assembly_mode_on():
         sizes = [0.5 for _ in points]
         billboard_shader.set_points(points)
         billboard_shader.set_colors(colors)
-        billboard_shader.set_sizes(sizes)
+        billboard_shader.set_billboard_sizes(sizes)
 
 
 def op_assembly_mode_off():

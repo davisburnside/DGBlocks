@@ -8,7 +8,7 @@ from gpu_extras.batch import batch_for_shader  # type: ignore
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ....native_blocks.block_onscreen_drawing.feature_shader import Shader_Instance
+from ....native_blocks.block_onscreen_drawing.block_data_structures import Shader_Instance
 
 # =================================================================================
 # SHADER CONSTANTS
@@ -79,7 +79,7 @@ class Billboard_Shader(Shader_Instance):
     Usage (called in the ON operator after set_state):
         shader.set_points([(x, y, z), ...])   — world-space centre positions
         shader.set_colors([(r, g, b, a), ...]) — per-billboard tint
-        shader.set_sizes([size_float, ...])    — billboard world-space size
+        shader.set_billboard_sizes([size_float, ...])    — billboard world-space size
 
     draw() is overridden to build quad geometry, set MVP uniforms from
     bpy.context.region_data, and draw — no external callback needed.
@@ -88,9 +88,7 @@ class Billboard_Shader(Shader_Instance):
     image_name: str = field(default="")
     _sizes: Any = field(init=False, default=None)  # list[float], one per billboard point
 
-    def __post_init__(self):
-
-        super().__post_init__()  # Runs Shader_Instance's __post_init__
+    def _shader_init(self):
 
         # Validate image & create GPU texture
         image_base = bpy.data.images.get(self.image_name)
@@ -165,14 +163,14 @@ class Billboard_Shader(Shader_Instance):
         return all_vertices, all_uvs, all_colors, all_sizes, all_indices
 
 
-    def set_sizes(self, value: list) -> None:
+    def set_billboard_sizes(self, value: list) -> None:
         """Set per-billboard world-space sizes (one float per point)."""
         self._sizes = list(value)
         self._needs_new_batch = True
 
     # ----------------------------------------------------------
 
-    def _update_batch(self):
+    def _shader_update_batch(self):
         """Rebuilds the GPU batch from numpy data"""
         
         (all_vertices,
@@ -188,7 +186,7 @@ class Billboard_Shader(Shader_Instance):
             indices=all_indices,
         )
 
-    def draw(self) -> None:
+    def _shader_draw(self):
     
         # Set Uniforms, which change with viewing angle 
         self.shader_actual.uniform_sampler("icon_texture", self._texture)
@@ -197,4 +195,4 @@ class Billboard_Shader(Shader_Instance):
         self.set_uniform("offset_distance",           0.01)
 
         # Invoke default shader draw
-        super().draw()
+        super()._shader_draw()
