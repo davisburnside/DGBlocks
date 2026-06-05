@@ -5,6 +5,7 @@ from ...addon_helpers.data_structures import Logger_Declaration, RTC_Member_Decl
 
 from ...native_blocks.block_onscreen_drawing.block_data_structures import Shader_Definition
 from ...native_blocks.block_onscreen_drawing.BL_gpu_data_structures import Shader_Types, Builtin_Shader_Names, Draw_Space_Types, Draw_Region_Type, Draw_Phase_type
+from ...native_blocks.block_onscreen_drawing.helpers import set_draw_geometry_occluded
 
 from .custom_shaders.billboard_image_shader import Billboard_Shader
 
@@ -31,6 +32,10 @@ def _simple2d_before_draw(self):
     # print("override draw", self)
     self.set_uniform("color", (1,0,0,1))
     gpu.state.line_width_set(5)
+
+def set_occulded(self):
+
+    set_draw_geometry_occluded()
 
 FLATYPUS_SHADER_DEFS = [
     Shader_Definition(

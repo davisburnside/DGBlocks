@@ -74,12 +74,6 @@ def register():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting main pre-bpy registration for Addon '{addon_name}'")
 
-    # Identify valid blocks to register. Invalid blocks are skipped, with an error logged in the console
-    # Causes of invalid blocks: TODO webpage link
-    # valid_block_packages, invalid_blocks_errors = validate_block_list_before_registration(_BLOCK_PACKAGES)
-    # for block_id, errors_list in invalid_blocks_errors.items():
-    #     logger.error(f"Errors registering '{block_id}': {str(errors_list)}")
-
     # Call registration logic of each block, in order. Core-block should always be first in this list
     # Most init tasks for core-block features are already completed by this point, but 
     # Other features, from other blocks, may have their own init tasks. These are automatically triggered inside 'register_block'
@@ -102,7 +96,6 @@ def unregister():
     for block_instance in reversed(cached_blocks):
         try:
             Wrapper_Control_Plane.destroy_instance(event, block_instance)
-            # block.unregister_block(event)
         except:
             logger.error(f"Exception when unregistering block '{block_instance.block_id}': ", exc_info = True)
     

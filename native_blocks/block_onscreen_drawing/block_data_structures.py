@@ -93,8 +93,7 @@ class Shader_Instance:
 
     last_draw_attempt_timestamp: int = -1
     is_enabled: bool = True
-    is_valid: bool = True
-    disabled_reason: str = None
+    shader_error_str: str = None
     
     # If 'builtin_shader_name' is None, the shader is custom and must must self-create inside its __post_init__ override
     builtin_shader_name: Optional[str] = None 
@@ -108,7 +107,8 @@ class Shader_Instance:
     _indices: np.ndarray = field(init=False, default=None) # Only used for TRIS-type shaders
     _highest_index: int = -1 # used when dynamically updating a batch with new tris
     _needs_new_batch: bool = True
-
+    _is_builtin_shader: bool = False
+    
     #==========================================
     # CALLED BEFORE SHADER DRAW - Causes expensive batch update.
     # Should only be called if indices, points, or colors have changed since last draw
@@ -162,6 +162,7 @@ class Shader_Instance:
         if self.builtin_shader_name is not None:
             
             # Create a custom Shader. If the builtin name is None, the custom shader must be created manually
+            self._is_builtin_shader = True
             self.shader_actual = gpu.shader.from_builtin(self.builtin_shader_name)
 
     def _shader_update_batch(self):

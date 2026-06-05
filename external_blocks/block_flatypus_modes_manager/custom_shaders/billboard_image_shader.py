@@ -3,12 +3,13 @@ from dataclasses import dataclass, field
 from typing import Any
 import bpy
 import gpu
-from gpu_extras.batch import batch_for_shader  # type: ignore
+from gpu_extras.batch import batch_for_shader
 
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
 from ....native_blocks.block_onscreen_drawing.block_data_structures import Shader_Instance
+from ....native_blocks.block_onscreen_drawing.helpers import set_draw_geometry_occluded  # type: ignore
 
 # =================================================================================
 # SHADER CONSTANTS
@@ -198,6 +199,11 @@ class Billboard_Shader(Shader_Instance):
         self.set_uniform("ModelViewProjectionMatrix", bpy.context.region_data.perspective_matrix.copy())
         self.set_uniform("ViewMatrix",                bpy.context.region_data.view_matrix.copy())
         self.set_uniform("offset_distance",           0.01)
+
+        # set_draw_geometry_occluded()
+        gpu.state.blend_set('ALPHA')
+        gpu.state.depth_test_set('LESS_EQUAL')
+        # gpu.state.depth_mask_set(True)
 
         # Invoke default shader draw
         super()._shader_draw()

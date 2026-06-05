@@ -131,8 +131,7 @@ A `@dataclass` representing a single GPU shader pipeline. Not a subclass of
 | `shader_type` | `str` | `'POINTS'`, `'LINES'`, or `'TRIS'` |
 | `builtin_shader_name` | `str \| None` | Builtin Blender shader name, or `None` for custom |
 | `is_enabled` | `bool` | Toggle draw on/off per-instance (default `True`) |
-| `is_valid` | `bool` | Set to `False` if drawing raises an exception |
-| `disabled_reason` | `str \| None` | Last exception message when `is_valid` is `False` |
+| `shader_error_str` | `str \| None` | Last exception message. Set to None upon successful draw
 
 ### Methods
 

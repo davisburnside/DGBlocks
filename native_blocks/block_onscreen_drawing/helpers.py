@@ -1,5 +1,6 @@
 
 import time
+import gpu 
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -15,7 +16,42 @@ from .common_constants import Block_Loggers
 from .BL_gpu_data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
 
 # ----------------------------------------------------------
+# Public convenience funcs
+
+def set_draw_alpha():
+    gpu.state.blend_set('ALPHA')
+
+
+def set_draw_geometry_occluded():
+    gpu.state.depth_test_set('LESS_EQUAL')
+    gpu.state.depth_mask_set(True)
+
+
+def set_draw_geometry_unoccluded():
+    gpu.state.depth_test_set('NONE')
+    gpu.state.depth_mask_set(False)
+
+# ----------------------------------------------------------
+# Internal Helpers
+
+def _capture_gpu_state() -> dict:
+    return {
+        "blend":        gpu.state.blend_get(),
+        "depth_test":   gpu.state.depth_test_get(),
+        "depth_mask":   gpu.state.depth_mask_get(),
+        "line_width":   gpu.state.line_width_get(),
+    }
+
+
+def _restore_gpu_state(state: dict):
+    gpu.state.blend_set(state["blend"])
+    gpu.state.depth_test_set(state["depth_test"])
+    gpu.state.depth_mask_set(state["depth_mask"])
+    gpu.state.line_width_set(state["line_width"])
+
+# ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
+
 def callback_omnishader_draw(handler_instance) -> None:
     """
     # MODULE-LEVEL DRAW CALLBACK
@@ -26,6 +62,8 @@ def callback_omnishader_draw(handler_instance) -> None:
 
     logger = get_logger(Block_Loggers.SHADER_BATCH_EVENTS)
 
+    prev_gpu_state = _capture_gpu_state()
+
     # Try each draw. Flag shader instance upon expection
     t_count = len(handler_instance.shaders)
     failed_shaders = []
@@ -34,23 +72,31 @@ def callback_omnishader_draw(handler_instance) -> None:
         try:
             if shader.is_enabled:
                 shader.last_draw_attempt_timestamp = time.time()
-                shader._builtin_shader_before_draw()
-                shader._shader_draw()
-                shader._builtin_shader_after_draw()
+
+                # Builtin shaders include optional before/after callbacks, because the '_shader_draw' func is not overrideable in this case
+                if shader._is_builtin_shader:
+                    shader._builtin_shader_before_draw()
+                    shader._shader_draw()
+                    shader._builtin_shader_after_draw()
+
+                # Custom shaders are expected to handle all logic in an overridden '_shader_draw' func
+                else:
+                    shader._shader_draw()
+
         except Exception as e:
-            shader.is_valid = False
-            shader.disabled_reason = get_exception_last_n_lines(2, e)
+            shader.shader_error_str = get_exception_last_n_lines(2, e)
             failed_shaders.append(shader)
+
+    # restore gpou state
+    _restore_gpu_state(prev_gpu_state)
 
     # Log failures
     f_count = len(failed_shaders)
-    
     if f_count > 0:
         logger.error(f"{f_count} of {t_count} shaders failed during draw(). ")
-
         max_uid_length = max([len(s.shader_uid) for s in failed_shaders])
         for shader in failed_shaders:
-            logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.disabled_reason}")
+            logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.shader_error_str}")
 
 # ----------------------------------------------------------
 # Internal validation 
