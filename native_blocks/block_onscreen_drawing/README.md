@@ -4,198 +4,241 @@
 
 ## Purpose
 
-Manages GPU-accelerated onscreen drawing in Blender viewports. Provides a declarative API
-(`set_state` / `clear`) that other blocks call to define and tear down batches of shaders.
-Internally groups shader definitions by `(space, region, phase)`, registers one Blender draw
-handler per group, and creates `Shader_Instance` objects that own individual `gpu.shader`
-pipelines. A debug panel in the 3D View sidebar shows live handler/shader counts and status.
+Manages GPU-accelerated onscreen drawing in Blender viewports. Provides a pull-based
+architecture: downstream blocks declare their shaders via `hook_get_shader_definitions`, and
+`Wrapper_Shader_Manager` owns the full lifecycle — grouping shaders by draw location,
+registering one Blender draw handler per `(space, region, phase)` group, creating
+`Shader_Instance` objects, and persisting per-shader `is_enabled` state in a Blender
+`CollectionProperty` UIList so preferences survive undo/redo.
 
 ## Dependencies
 
 | Block | Reason |
 |---|---|
-| `block-core` | Runtime cache, loggers |
+| `block-core` | Runtime cache, loggers, hooks |
+
+## Architecture Summary
+
+Drawing is controlled by the `enable_drawing` scene property. Setting it `True` triggers a full
+rebuild:
+
+1. `_cb_enable_drawing_changed` fires → calls `Wrapper_Shader_Manager.rebuild_all_shaders()`
+2. `hook_get_shader_definitions` is broadcast — each subscribed block appends its
+   `Shader_Definition` list to the shared `definition_accumulator`
+3. Definitions are validated, grouped by `(space, region, phase)`, and turned into live
+   `Shader_Instance` objects with one Blender draw handler per group
+4. `_apply_bl_is_enabled_from_mirror()` reads BL `shader_mirror` and restores each shader's
+   `is_enabled` preference
+5. `_sync_shaders_to_bl_mirror()` upserts BL rows to reflect the new live shader set
+6. `hook_before_first_draw` is broadcast — each subscribed block pushes initial geometry via
+   `Wrapper_Shader_Manager.get_shader(uid)`
+
+Setting `enable_drawing` `False` calls `clear_all_shaders()`, which tears down all draw handlers.  The BL
+`shader_mirror` rows are **not** cleared — `is_enabled` preferences survive the toggle.
+
+Undo/redo is handled by `hook_core_event_undo` / `hook_core_event_redo` subscribers in
+`__init__.py`, which re-evaluate `enable_drawing` and call `rebuild_all_shaders()` or `clear_all_shaders()`
+as appropriate.
 
 ## Data Architecture
 
-### Runtime Cache
+### Blender Data
 
-This block owns two RTC members, both populated/cleared by `Wrapper_Draw_Handlers`:
+| Property path | Type | Purpose |
+|---|---|---|
+| `scene.dgblocks_onscreen_drawing_props.enable_drawing` | `BoolProperty` | Master on/off toggle; drives rebuild/clear |
+| `scene.dgblocks_onscreen_drawing_props.shader_mirror` | `CollectionProperty[DGBLOCKS_PG_Shader_Mirror_Row]` | Per-shader BL persistence |
+| `scene.dgblocks_onscreen_drawing_props.shader_mirror_index` | `IntProperty` | Active UIList selection index |
+
+**`DGBLOCKS_PG_Shader_Mirror_Row` fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `uid` | `StringProperty` | Key — matches `Shader_Instance.shader_uid` |
+| `is_enabled` | `BoolProperty` | User-editable toggle; `update` callback syncs to RTC immediately |
+| `draw_space` | `StringProperty` | Display only (`Draw_Space_Types.name`) |
+| `draw_region` | `StringProperty` | Display only |
+| `draw_phase` | `StringProperty` | Display only |
+
+### Runtime Cache
 
 | RTC Key | Type | Purpose |
 |---|---|---|
-| `DRAW_PHASES` | `dict[(Draw_Space_Types, Draw_Region_Type, Draw_Phase_type), Drawhandler_Instance]` | Live draw handler instances, keyed by their Blender registration tuple |
-| `SHADERS` | `dict[str, Shader_Instance]` | All shader instances keyed by unique `shader_uid` |
-
-### Blender Data
-
-None. All state is runtime-only.
-
-### Data Mirrors
-
-None.
+| `SHADERS` | `dict[str, Shader_Instance]` | All live shader instances, keyed by `shader_uid` |
+| `DRAW_PHASES` | `dict[tuple, Drawhandler_Instance]` | Live draw handler instances, keyed by `(space, region, phase)` |
 
 ## Hook Sources
 
-| Hook member | Fires when | Extra kwargs |
-|---|---|---|
-| `hook_draw_event` | Each frame Blender invokes the registered draw handlers | `draw_handler_instance: Drawhandler_Instance` |
+| Member | Direction | Kwargs | Purpose |
+|---|---|---|---|
+| `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `definition_accumulator: list` | Collect `Shader_Definition` objects; subscribers call `definition_accumulator.extend(...)` |
+| `hook_before_first_draw` | block_onscreen_drawing → subscribers | _(none)_ | Push initial geometry via `get_shader(uid)` after all instances are live |
 
-Subscriber blocks implement `hook_draw_event(draw_handler_instance)` as a top-level function
-in `__init__.py`. They receive the `Drawhandler_Instance` dataclass and can inspect or extend
-behavior during the draw callback.
+## Hook Subscriptions (core hooks)
 
-## Public API — `Wrapper_Draw_Handlers`
+| Hook | Action |
+|---|---|
+| `hook_core_event_undo` | Re-evaluates `enable_drawing`; calls `rebuild_all_shaders()` or `clear_all_shaders()` |
+| `hook_core_event_redo` | Same as undo |
 
-### `set_state(shader_defs: list[Shader_Definition]) -> None`
+## Public API — `Wrapper_Shader_Manager`
 
-Declares the complete desired set of shaders. All validation runs before any Blender state is
-mutated — either the full state is applied atomically or nothing changes.
+### `rebuild_all_shaders() -> None`
 
-**Validation checks:**
-1. Duplicate `uid` detection
-2. `(space, region, phase)` allowlist enforcement (see `_VALID_SPACE_REGION_PHASE_COMBOS`)
-3. Exactly one of `builtin_shader_name` or `custom_shader_class` must be set per def
-4. Builtin shader name compatibility with the declared `shader_type`
+Full rebuild cycle. Called automatically by `_cb_enable_drawing_changed` when `enable_drawing`
+becomes `True`, and by undo/redo hooks. Downstream blocks do **not** call this directly —
+they participate via hooks.
 
-The method internally:
-- Tears down any existing state via `clear()`
-- Groups `Shader_Definition` objects by `(space, region, phase)`
-- Creates one `Drawhandler_Instance` per group
-- Instantiates `Shader_Instance` objects (builtin or custom subclass)
-- Registers a single Blender `draw_handler_add` per group, bound to `callback_omnishader_draw`
-- Stores everything in `DRAW_PHASES` and `SHADERS` RTC members
+### `clear_all_shaders() -> None`
 
-**Example:**
+Tears down all live Blender draw handlers and discards all `Shader_Instance` objects.
+Does **not** touch the BL `shader_mirror` — `is_enabled` preferences are preserved.
+
+### `get_shader(uid: str) -> Shader_Instance | None`
+
+Returns the live `Shader_Instance` for a given `uid`, or `None`. Intended for use inside
+`hook_before_first_draw` subscribers to push initial geometry.
+
 ```python
-from native_blocks.block_onscreen_drawing.drawing_constants import (
-    Shader_Definition, Draw_Space_Types, Draw_Region_Type, Draw_Phase_type,
-    Shader_Types, Builtin_Shader_Names,
-)
-from native_blocks.block_onscreen_drawing.feature_draw_handler_manager import (
-    Wrapper_Draw_Handlers,
-)
+def hook_before_first_draw():
+    shader = Wrapper_Shader_Manager.get_shader("MY_SHADER")
+    if shader:
+        shader.set_points([(0, 0, 0), (1, 0, 0)])
+        shader.set_uniform("color", (1.0, 0.0, 0.0, 1.0))
+```
 
-Wrapper_Draw_Handlers.set_state([
+## Public API — `Shader_Definition`
+
+Declarative descriptor. One per logical shader. Supplied by downstream blocks inside
+`hook_get_shader_definitions`.
+
+```python
+Shader_Definition(
+    uid="MY_LINES",                              # unique across all blocks
+    shader_type=Shader_Types.LINES,
+    space=Draw_Space_Types.VIEW_3D,
+    region=Draw_Region_Type.WINDOW,
+    phase=Draw_Phase_type.POST_VIEW,
+    builtin_shader_name=Builtin_Shader_Names.POLYLINE_UNIFORM_COLOR,
+)
+```
+
+For custom shaders, set `custom_shader_class` to a `Shader_Instance` subclass and pass
+constructor kwargs via `custom_shader_kwargs`:
+
+```python
+Shader_Definition(
+    uid="MY_BILLBOARD",
+    shader_type=Shader_Types.TRIS,
+    space=Draw_Space_Types.VIEW_3D,
+    region=Draw_Region_Type.WINDOW,
+    phase=Draw_Phase_type.POST_VIEW,
+    custom_shader_class=My_Billboard_Shader,
+    custom_shader_kwargs={"image_name": "my_image"},
+)
+```
+
+**Note:** `group_id` has been removed. Shaders are automatically batched into one draw handler
+per unique `(space, region, phase)` combination — no explicit grouping needed.
+
+## Public API — `Shader_Instance`
+
+A `@dataclass` representing a single GPU shader pipeline. Lifecycle fully managed by
+`Wrapper_Shader_Manager`.
+
+### Key Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `shader_uid` | `str` | Unique identifier |
+| `shader_type` | `str` | `'POINTS'`, `'LINES'`, or `'TRIS'` |
+| `is_enabled` | `bool` | Toggle draw on/off; synced from BL mirror on undo/redo |
+| `shader_error_str` | `str \| None` | Last draw exception message; `None` = healthy |
+| `draw_space` | `Draw_Space_Types` | Draw location space (set at creation) |
+| `draw_region` | `Draw_Region_Type` | Draw location region (set at creation) |
+| `draw_phase` | `Draw_Phase_type` | Draw location phase (set at creation) |
+| `_is_builtin_shader` | `bool` (property) | Computed: `builtin_shader_name is not None` |
+
+### Key Methods
+
+| Method | Triggers batch rebuild? | Purpose |
+|---|---|---|
+| `set_indices(value)` | Yes | Set index array (TRIS) |
+| `set_points(value)` | Yes | Set vertex positions |
+| `set_colors(value)` | Yes | Set per-vertex colors (SMOOTH_COLOR shaders) |
+| `set_uniform(name, value)` | No | Set a shader uniform (auto-maps float/bool/int/sampler) |
+
+### Custom shader subclasses
+
+Inherit `Shader_Instance` and override `_shader_init()` to create the GPU shader, and
+`_shader_draw()` to set frame-varying uniforms before calling `super()._shader_draw()`.
+Builtin shaders call `_builtin_shader_before_draw()` / `_builtin_shader_after_draw()` around
+the draw; these can be monkeypatched via `Shader_Definition.builtin_shader_before_draw`.
+
+## Downstream Block Integration Example
+
+```python
+# my_block/__init__.py
+
+from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
+from .constants import MY_SHADER_DEFS
+
+def hook_get_shader_definitions(definition_accumulator: list):
+    definition_accumulator.extend(MY_SHADER_DEFS)
+
+def hook_before_first_draw():
+    shader = Wrapper_Shader_Manager.get_shader("MY_LINES")
+    if shader:
+        shader.set_points([(0, 0, 0), (1, 1, 0)])
+        shader.set_uniform("color", (1.0, 1.0, 0.0, 1.0))
+```
+
+```python
+# my_block/constants.py
+
+SHADER_DEFS = [
     Shader_Definition(
-        uid="my-lines",
-        group_id="my-feature",
+        uid="MY_LINES",
         shader_type=Shader_Types.LINES,
         space=Draw_Space_Types.VIEW_3D,
         region=Draw_Region_Type.WINDOW,
         phase=Draw_Phase_type.POST_VIEW,
         builtin_shader_name=Builtin_Shader_Names.POLYLINE_UNIFORM_COLOR,
     ),
-    Shader_Definition(
-        uid="my-points",
-        group_id="my-feature",
-        shader_type=Shader_Types.POINTS,
-        space=Draw_Space_Types.VIEW_3D,
-        region=Draw_Region_Type.WINDOW,
-        phase=Draw_Phase_type.POST_VIEW,
-        builtin_shader_name=Builtin_Shader_Names.POINT_UNIFORM_COLOR,
-    ),
-])
+]
 ```
 
-### `clear() -> None`
+The `enable_drawing` toggle in the panel (owned by `block_onscreen_drawing`) drives everything.
 
-Tears down all live Blender draw handlers and discards all shader instances. Called
-automatically by `destroy_wrapper()` and at the start of `set_state()` before applying
-new state.
+## Validation
 
-### `get_shader(uid: str) -> Shader_Instance | None`
+`validate_shader_definitions()` in `helpers.py` runs all checks before any Blender state is
+mutated. Checks:
 
-Returns the live `Shader_Instance` for a given `uid`, or `None` if not found. Callers
-typically use this to call `set_points()`, `set_colors()`, or `set_uniform()` before
-each frame.
-
-```python
-shader = Wrapper_Draw_Handlers.get_shader("my-lines")
-if shader:
-    shader.set_points([(0,0,0), (1,0,0), (0,1,0)])
-    shader.set_uniform("color", (1.0, 0.0, 0.0, 1.0))
-```
-
-## Public API — `Shader_Instance`
-
-A `@dataclass` representing a single GPU shader pipeline. Not a subclass of
-`Abstract_Feature_Wrapper` — its lifecycle is fully managed by `Wrapper_Draw_Handlers`.
-
-### Fields
-
-| Field | Type | Description |
-|---|---|---|
-| `shader_uid` | `str` | Unique identifier |
-| `shader_group_id` | `str` | Logical grouping key |
-| `shader_type` | `str` | `'POINTS'`, `'LINES'`, or `'TRIS'` |
-| `builtin_shader_name` | `str \| None` | Builtin Blender shader name, or `None` for custom |
-| `is_enabled` | `bool` | Toggle draw on/off per-instance (default `True`) |
-| `shader_error_str` | `str \| None` | Last exception message. Set to None upon successful draw
-
-### Methods
-
-| Method | Triggers batch rebuild? | Purpose |
-|---|---|---|
-| `set_indices(value)` | Yes | Set index array (for `TRIS`) |
-| `set_points(value)` | Yes | Set vertex positions |
-| `set_colors(value)` | Yes | Set per-vertex colors (`SMOOTH_COLOR` shaders only) |
-| `set_uniform(name, value)` | No | Set a shader uniform (auto-maps float/bool/int/sampler) |
-| `draw()` | — | Bind shader and draw the batch (called by draw callback) |
-
-**Custom shader subclasses** set `custom_shader_class` on `Shader_Definition`. The class must
-inherit `Shader_Instance` and create its own `gpu.shader` in `__post_init__`. Extra kwargs
-are forwarded from `Shader_Definition.custom_shader_kwargs`.
-
-## Enums and Dataclasses
-
-All defined in `drawing_constants.py`:
-
-| Type | Purpose |
-|---|---|
-| `Draw_Space_Types` | Maps to Blender space types (`SpaceView3D`, `SpaceNodeEditor`, etc.) |
-| `Draw_Region_Type` | Region within a space (`WINDOW`, `HEADER`, `HUD`, etc.) |
-| `Draw_Phase_type` | Draw phase (`PRE_VIEW`, `POST_VIEW`, `POST_PIXEL`, `BACKDROP`) |
-| `Builtin_Shader_Names` | Known Blender built-in shader names |
-| `Shader_Types` | Batch type (`POINTS`, `LINES`, `TRIS`) |
-| `Shader_Definition` | Declarative descriptor for a single shader |
-| `Drawhandler_Definition` | Internal grouping struct (space, region, phase + shader defs) |
-
-### Valid (space, region, phase) combinations
-
-The allowlist `_VALID_SPACE_REGION_PHASE_COMBOS` in `drawing_constants.py` documents every
-known-valid tuple across all supported space types. `set_state()` raises `ValueError` for
-any combination not in this list before touching Blender state.
-
-### Builtin shader compatibility
-
-`_BUILTIN_SHADER_COMPATIBLE_TYPES` maps each `Builtin_Shader_Names` member to the set of
-`Shader_Types` it supports. `set_state()` validates this pairing upfront.
-
-## Panel
-
-`DGBLOCKS_PT_Debug_Drawing_Panel` appears in the 3D Viewport side panel under the addon's
-tab. For each active `Drawhandler_Instance` it displays:
-
-- Space name, region, and phase
-- Number of shaders
-- ON/OFF status (whether a live Blender handle exists)
+1. Duplicate `uid` detection across all contributing blocks
+2. `(space, region, phase)` allowlist enforcement (see `BL_gpu_data_structures._VALID_SPACE_REGION_PHASE_COMBOS`)
+3. Exactly one of `builtin_shader_name` / `custom_shader_class` per definition
+4. Builtin shader name compatibility with the declared `shader_type`
 
 ## Loggers
 
 | Logger | Level | Usage |
 |---|---|---|
-| `DRAWHANDLER_LIFECYCLE` | `DEBUG` | Handler registration, teardown, and set_state/clear events |
+| `DRAWHANDLER_LIFECYCLE` | `DEBUG` | Rebuild/clear events, handler registration, shader creation |
 | `SHADER_BATCH_EVENTS` | `DEBUG` | Per-frame draw failures with per-shader error details |
 
 ## Files
 
 ```
 block_onscreen_drawing/
-├── __init__.py                          # Block declaration, DGBLOCKS_PT_Debug_Drawing_Panel
-├── README.md                            # This file
-├── common_constants.py                  # Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-├── drawing_constants.py                 # Space/Region/Phase enums, Shader_Definition/Drawhandler_Definition, validation allowlists
-├── feature_draw_handler_manager.py      # Wrapper_Draw_Handlers (set_state, clear, get_shader)
-├── feature_shader.py                    # Shader_Instance dataclass
-└── helpers.py                           # callback_omnishader_draw, validate_shader_definitions
+├── __init__.py                       # Block declaration, BL props, UIList, panel,
+│                                     # hook subscribers (undo/redo), register_block_props
+├── README.md                         # This file
+├── common_constants.py               # Block_Hook_Sources, Block_Loggers, Block_RTC_Members
+├── BL_gpu_data_structures.py         # Space/Region/Phase enums, validation allowlists
+├── block_data_structures.py          # Shader_Definition, Shader_Instance, Drawhandler_Instance
+├── feature_shader_manager.py         # Wrapper_Shader_Manager (rebuild_all_shaders, clear, get_shader)
+├── feature_draw_handler_manager.py   # DEPRECATED — re-exports Wrapper_Shader_Manager as alias
+└── helpers.py                        # callback_omnishader_draw, validate_shader_definitions,
+                                      # GPU state helpers
+```

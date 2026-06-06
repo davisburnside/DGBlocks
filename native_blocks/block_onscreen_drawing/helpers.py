@@ -112,7 +112,7 @@ def validate_shader_definitions(shader_defs: list) -> None:
     for sdef in shader_defs:
         if sdef.uid in seen_uids:
             raise ValueError(
-                f"Duplicate shader uid '{sdef.uid}' found in set_state call. "
+                f"Duplicate shader uid '{sdef.uid}' in definition_accumulator. "
                 f"Every Shader_Definition must have a unique uid."
             )
         seen_uids.add(sdef.uid)
