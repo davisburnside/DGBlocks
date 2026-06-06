@@ -36,9 +36,28 @@ rebuild:
 Setting `enable_drawing` `False` calls `clear_all_shaders()`, which tears down all draw handlers.  The BL
 `shader_mirror` rows are **not** cleared — `is_enabled` preferences survive the toggle.
 
+### Undo / Redo — smart structural comparison
+
 Undo/redo is handled by `hook_core_event_undo` / `hook_core_event_redo` subscribers in
-`__init__.py`, which re-evaluate `enable_drawing` and call `rebuild_all_shaders()` or `clear_all_shaders()`
-as appropriate.
+`__init__.py`, which delegate to
+`Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(event)` — the standard
+`Abstract_BL_RTC_List_Syncronizer` sync method.
+
+`update_RTC_with_mirrored_BL_data` avoids unnecessary GPU work by comparing the current RTC
+against what downstream blocks declare **before** deciding what to do:
+
+1. If `enable_drawing` is `False` → `clear_all_shaders()` and return.
+2. Fire `hook_get_shader_definitions` to get the fresh intended shader set (hooks remain the
+   authoritative polling mechanism — the onscreen-draw block never hard-imports downstream
+   shader definitions).
+3. Compare fresh definitions against current RTC `SHADERS`:
+   - **Same UIDs, same order, same `(space, region, phase)` per UID** → structure is
+     unchanged; only call `_apply_bl_is_enabled_from_mirror()` to restore `is_enabled` values
+     Blender may have reverted. No draw handlers or GPU resources are recreated.
+   - **Any difference** → full `rebuild_all_shaders()` (clear + recreate everything).
+
+The most common undo/redo step (editing non-drawing data while drawing is active) takes the
+fast path and never touches GPU objects.
 
 ## Data Architecture
 
@@ -78,8 +97,8 @@ as appropriate.
 
 | Hook | Action |
 |---|---|
-| `hook_core_event_undo` | Re-evaluates `enable_drawing`; calls `rebuild_all_shaders()` or `clear_all_shaders()` |
-| `hook_core_event_redo` | Same as undo |
+| `hook_core_event_undo` | Calls `update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_UNDO)` — smart structural comparison; full rebuild only if shader set changed |
+| `hook_core_event_redo` | Calls `update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_REDO)` — same logic |
 
 ## Public API — `Wrapper_Shader_Manager`
 
@@ -234,7 +253,7 @@ block_onscreen_drawing/
 ├── __init__.py                       # Block declaration, BL props, UIList, panel,
 │                                     # hook subscribers (undo/redo), register_block_props
 ├── README.md                         # This file
-├── common_constants.py               # Block_Hook_Sources, Block_Loggers, Block_RTC_Members
+├── common_constants.py               # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors
 ├── BL_gpu_data_structures.py         # Space/Region/Phase enums, validation allowlists
 ├── block_data_structures.py          # Shader_Definition, Shader_Instance, Drawhandler_Instance
 ├── feature_shader_manager.py         # Wrapper_Shader_Manager (rebuild_all_shaders, clear, get_shader)

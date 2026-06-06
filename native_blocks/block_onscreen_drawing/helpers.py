@@ -1,6 +1,7 @@
 
 import time
-import gpu 
+import gpu # type: ignore
+import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -59,6 +60,13 @@ def callback_omnishader_draw(handler_instance) -> None:
     # The handler instance is passed via Blender's args tuple.
     # No context is used here.
     """
+
+    if (    bpy.context is None 
+            or bpy.context.area is None
+            or bpy.context.region is None
+            or bpy.context.area.type != handler_instance.space.name 
+            or bpy.context.region.type != handler_instance.region.name):
+        return
 
     logger = get_logger(Block_Loggers.SHADER_BATCH_EVENTS)
 

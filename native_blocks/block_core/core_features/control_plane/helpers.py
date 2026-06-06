@@ -123,10 +123,6 @@ def _create_and_init_new_block_FWCs(block_declaration, logger):
         cached_FWCs.append(FWC_instance)
         new_FWC_instances.append(FWC_instance)
 
-        # Core-block FWCs have already been initialized. All others need init
-        if block_declaration.block_id != core_block_id:
-            FWC_instance.actual_class.init_wrapper()
-
     Wrapper_Runtime_Cache.set_cache(cache_key_FWCs, cached_FWCs)
     return new_FWC_instances
 

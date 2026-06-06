@@ -130,7 +130,7 @@ so enum members can be passed directly to `get_cache()` / `set_cache()` without 
 ```python
 class Abstract_Feature_Wrapper(ABC):
     @classmethod @abstractmethod
-    def init_wrapper(cls) -> bool: ...    # called during block registration — no extra args
+    def init_wrapper(cls) -> bool: ...    # called during post-bpy registration phase
 
     @classmethod @abstractmethod
     def destroy_wrapper(cls): ...         # called during block unregistration — no extra args

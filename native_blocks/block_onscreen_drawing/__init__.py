@@ -4,7 +4,7 @@ import bpy # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
-from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
@@ -15,7 +15,7 @@ from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_constants import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
+from .common_constants import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .feature_shader_manager import Wrapper_Shader_Manager
 
 # ==============================================================================================================================
@@ -101,25 +101,23 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
 
 def hook_core_event_undo():
     """
-    After undo: re-read enable_drawing from the (now reverted) BL state.
-    If True, rebuild all shaders so the new BL mirror is_enabled values are applied.
-    If False, ensure draw handlers are cleared.
+    After undo: delegate to update_RTC_with_mirrored_BL_data, which checks whether the
+    shader structure has actually changed before deciding to rebuild or only restore
+    is_enabled values.  Avoids tearing down and recreating GPU resources when the undo
+    step did not affect the drawing configuration.
     """
     try:
-        scene = bpy.context.scene
-        if scene is None:
-            return
-        if scene.dgblocks_onscreen_drawing_props.enable_drawing:
-            Wrapper_Shader_Manager.rebuild_all_shaders()
-        else:
-            Wrapper_Shader_Manager.clear_all_shaders()
-    except AttributeError:
+        Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
+    except Exception:
         pass
 
 
 def hook_core_event_redo():
-    """After redo: identical logic to undo — re-evaluate enable_drawing."""
-    hook_core_event_undo()
+    """After redo: same smart sync as undo."""
+    try:
+        Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
+    except Exception:
+        pass
 
 
 # ==============================================================================================================================
@@ -208,5 +206,6 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_feature_wrapper_classes=[Wrapper_Shader_Manager],
     block_hook_sources=Block_Hook_Sources,
     block_RTC_members=Block_RTC_Members,
+    block_data_mirrors=Block_Data_Mirrors,
     block_loggers=Block_Loggers,
 )

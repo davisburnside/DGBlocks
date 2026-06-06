@@ -46,13 +46,13 @@ FLATYPUS_SHADER_DEFS = [
         phase=Draw_Phase_type.POST_VIEW,
         builtin_shader_name=Builtin_Shader_Names.SMOOTH_COLOR,
     ),
-    Shader_Definition(
-        uid="SIMPLE_2D",
-        shader_type=Shader_Types.LINES,
-        space=Draw_Space_Types.VIEW_3D,
-        region=Draw_Region_Type.WINDOW,
-        phase=Draw_Phase_type.POST_PIXEL,
-        builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR,
-        builtin_shader_before_draw=_simple2d_before_draw,
-    ),
+    # Shader_Definition(
+    #     uid="SIMPLE_2D",
+    #     shader_type=Shader_Types.LINES,
+    #     space=Draw_Space_Types.VIEW_3D,
+    #     region=Draw_Region_Type.WINDOW,
+    #     phase=Draw_Phase_type.POST_PIXEL,
+    #     builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR,
+    #     builtin_shader_before_draw=_simple2d_before_draw,
+    # ),
 ]

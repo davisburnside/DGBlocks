@@ -7,7 +7,7 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
-from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
+from ...addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Feature_Wrapper, Enum_Sync_Events
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
@@ -26,7 +26,7 @@ from .helpers import callback_omnishader_draw, validate_shader_definitions
 # WRAPPER CLASS
 # ==============================================================================================================================
 
-class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
+class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer):
     """
     Manages all onscreen-drawing state for the addon.
 
@@ -34,13 +34,20 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
     Draw handlers are internal plumbing — created and destroyed as needed
     to deliver the shaders declared by downstream blocks.
 
+    Inherits Abstract_BL_RTC_List_Syncronizer to implement the standard sync contract:
+        update_RTC_with_mirrored_BL_data(event) — smart undo/redo path: fires
+            hook_get_shader_definitions, compares the fresh definition list against the
+            current RTC, and either performs a full rebuild (structure changed) or only
+            restores is_enabled from the BL mirror (structure unchanged).
+        update_BL_with_mirrored_RTC_data(event) — delegates to _sync_shaders_to_bl_mirror.
+
     Public API:
         rebuild_all_shaders()  — fires hook_get_shader_definitions to collect Shader_Definition
                                   objects from all registered downstream blocks, tears down
                                   existing state, creates Shader_Instances and draw handlers,
                                   restores is_enabled from the BL mirror, then fires
                                   hook_before_first_draw so downstream blocks can push geometry.
-        clear_all_shaders()                — tear down all live handlers and shaders.
+        clear_all_shaders()    — tear down all live handlers and shaders.
         get_shader(uid)        — return a live Shader_Instance by uid, or None.
 
     All shader state is stored in Block_RTC_Members.SHADERS.
@@ -55,9 +62,17 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
     def init_wrapper(cls) -> bool:
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager init — initialising empty RTC state")
+
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, {})
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, {})
+
+        drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
+        drawing_props.enable_drawing = False
+        drawing_props.shader_mirror.clear()
+        drawing_props.shader_mirror_index = 0
+
         return True
+
 
     @classmethod
     def destroy_wrapper(cls) -> None:
@@ -86,7 +101,9 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
           7. Fire hook_before_first_draw — downstream blocks push initial geometry here.
         """
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
-        logger.debug("rebuild_all_shaders: starting")
+        # logger.debug("rebuild_all_shaders: starting")
+        logger.debug(f"Active handler count: {len(Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES))}")
+
 
         cls.clear_all_shaders()
 
@@ -191,6 +208,8 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
         )
 
         logger.debug("rebuild_all_shaders: complete")
+        logger.debug(f"Active handler count: {len(Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES))}")
+
 
     @classmethod
     def clear_all_shaders(cls) -> None:
@@ -210,14 +229,116 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, {})
         logger.debug("clear complete")
 
+
     @classmethod
     def get_shader(cls, uid: str) -> Optional[Shader_Instance]:
         """Return the live Shader_Instance for a given uid, or None if not found."""
         return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS).get(uid)
 
     # ----------------------------------------------------------
+    # Abstract_BL_RTC_List_Syncronizer implementation
+    # ----------------------------------------------------------
+
+    @classmethod
+    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events, FWC_instance, data_mirror_instance) -> None:
+        """
+        Smart undo/redo restore path (BL is the source of truth after an undo/redo).
+
+        1. Fire hook_get_shader_definitions to collect the current intended shader set
+           from all downstream blocks (hooks are the authoritative declaration source;
+           this block never hard-imports downstream shader definitions).
+        2. Compare the fresh definition list against the current RTC SHADERS dict:
+             - Same UIDs in the same order?
+             - Same (space, region, phase) per UID?
+        3a. Structural match → only call _apply_bl_is_enabled_from_mirror() to restore
+            per-shader is_enabled values that Blender may have reverted. No GPU objects
+            are touched. This is the common case for most undo/redo steps.
+        3b. Structural mismatch → full rebuild_all_shaders() (clears and recreates
+            all draw handlers and Shader_Instances from scratch).
+
+        enable_drawing is checked first; if False the RTC is cleared and nothing is rebuilt.
+        """
+        logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
+        logger.debug(f"update_RTC_with_mirrored_BL_data: event={event}")
+
+        try:
+            scene = bpy.context.scene
+            if scene is None:
+                return
+            props = scene.dgblocks_onscreen_drawing_props
+        except AttributeError:
+            return
+
+        if not props.enable_drawing:
+            cls.clear_all_shaders()
+            return
+
+        # Collect what downstream blocks currently declare
+        definition_accumulator = []
+        Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name=Block_Hook_Sources.hook_get_shader_definitions,
+            should_halt_on_exception=False,
+            definition_accumulator=definition_accumulator,
+        )
+
+        if cls._shaders_structurally_match_definitions(definition_accumulator):
+            logger.debug(
+                "update_RTC_with_mirrored_BL_data: RTC structure matches BL — "
+                "restoring is_enabled only (no shader rebuild)"
+            )
+            cls._apply_bl_is_enabled_from_mirror()
+        else:
+            logger.debug(
+                "update_RTC_with_mirrored_BL_data: RTC structure differs from BL — "
+                "performing full rebuild"
+            )
+            cls.rebuild_all_shaders()
+
+
+    @classmethod
+    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events, FWC_instance, data_mirror_instance) -> None:
+        """
+        Push current RTC SHADERS state into the BL shader_mirror CollectionProperty.
+        Delegates to _sync_shaders_to_bl_mirror, which handles add/remove/update of rows
+        while preserving the user-owned is_enabled values on existing rows.
+        """
+        logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
+        logger.debug(f"update_BL_with_mirrored_RTC_data: event={event}")
+        cls._sync_shaders_to_bl_mirror()
+
+    # ----------------------------------------------------------
     # Private helpers
     # ----------------------------------------------------------
+
+    @classmethod
+    def _shaders_structurally_match_definitions(cls, definitions: list) -> bool:
+        """
+        Return True if the current RTC SHADERS dict is structurally identical to the
+        supplied list of Shader_Definitions — same UIDs in the same order, with the same
+        (space, region, phase) per UID.
+
+        Returns False if the RTC is empty when definitions are non-empty, or vice-versa,
+        or if any UID, order, or location field differs.
+        """
+        rtc_shaders: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
+
+        if len(rtc_shaders) != len(definitions):
+            return False
+
+        rtc_items = list(rtc_shaders.items())  # preserves insertion order (Python 3.7+)
+        for i, sdef in enumerate(definitions):
+            rtc_uid, rtc_shader = rtc_items[i]
+            if rtc_uid != sdef.uid:
+                return False
+            if rtc_shader.draw_space  != sdef.space:
+                return False
+            if rtc_shader.draw_region != sdef.region:
+                return False
+            if rtc_shader.draw_phase  != sdef.phase:
+                return False
+
+        return True
+
 
     @classmethod
     def _apply_bl_is_enabled_from_mirror(cls) -> None:
@@ -240,6 +361,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper):
             shader = rtc_shaders.get(row.uid)
             if shader is not None:
                 shader.is_enabled = row.is_enabled
+
 
     @classmethod
     def _sync_shaders_to_bl_mirror(cls) -> None:
