@@ -1,40 +1,19 @@
-# ==============================================================================================================================
-# IMPORTS
-# ==============================================================================================================================
 
-import bpy
-from .....addon_helpers.ui import ui_draw_shared_debug_list, set_shared_uilist_config
-from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Runtime_Cache_Members
-from ...core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache  # type: ignore
 
-# ==============================================================================================================================
-# UI
-# ==============================================================================================================================
+from .....addon_helpers.ui import ui_draw_shared_debug_list
+from ...core_helpers.constants import Core_Runtime_Cache_Members
+from ...core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
-def _uilayout_draw_blocks_uilist_selection_detail(context, container, item):
-    if not item.is_valid:
-        box = container.box()
-        box.alert = True
-        box.label(text=f"Error: {item.error_message}", icon='ERROR')
-    elif not item.is_block_enabled:
-        box = container.box()
-        box.alert = True
-        box.label(text="Block is disabled.", icon='INFO')
+def _uilayout_draw_blocks_uilist_selection_detail(context, container, item, idx):
+
+    box = container.box()
+    block_instance = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)[idx]
+    if item.is_valid:
+        box.label(text = f"Block '{block_instance.block_id}' is active and valid", icon='CHECKMARK')
     else:
-        box = container.box()
-        box.label(text="Block is active and valid.", icon='CHECKMARK')
-
-set_shared_uilist_config(
-    list_id="BLOCKS_LIST",
-    col_names=("Valid", "Block ID", "Enabled"),
-    col_widths=(1, 3, 1),
-    columns_def=[
-        {"type": "ICON", "field": "is_valid", "icon_true": "CHECKMARK", "icon_false": "ERROR"},
-        {"type": "LABEL", "field": "block_id"},
-        {"type": "ICON", "field": "is_block_enabled", "icon_true": "CHECKMARK", "icon_false": "X"}
-    ],
-    details_func=_uilayout_draw_blocks_uilist_selection_detail
-)
+        box.alert = True
+        box.label(text = f"Error: {item.error_message}", icon='ERROR')
+    box.label(text = f"Location: {block_instance.block_package_name}")
 
 def _uilayout_draw_block_manager_settings(context, container):
 

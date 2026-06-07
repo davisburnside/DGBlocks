@@ -9,15 +9,13 @@ import inspect
 import time
 
 
-
-
-
 # --------------------------------------------------------------
 # Addon-level imports
 # --------------------------------------------------------------
 from .....addon_helpers.data_tools import get_actual_id
 from .....addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper, Enum_Sync_Events
 from .....addon_helpers.generic_tools import find_blocks_owning_func_with_name
+from .....addon_helpers.ui import set_shared_uilist_config
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -27,6 +25,7 @@ from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rt
 from ..runtime_cache.data_sync_tools import compare_unique_tuple_lists
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
+from .ui import _uilayout_draw_hooks_uilist_selection_detail
 
 # --------------------------------------------------------------
 # Aliases
@@ -85,7 +84,18 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
     @classmethod
     def init_wrapper(cls):
-        "no-op"
+        
+        set_shared_uilist_config(
+            list_id="HOOKS_LIST",
+            col_names=("Function Name", "Source Block", "Is Enabled?"),
+            col_widths=(2, 2, 1),
+            columns_def=[
+                {"type": "LABEL", "field": "hook_func_name"},
+                {"type": "LABEL", "field": "src_block_id"},
+                {"type": "PROP", "field": "is_hook_enabled", "icon_only": True, "icon_true": "CHECKBOX_HLT", "icon_false": "CHECKBOX_DEHLT"}
+            ],
+            details_func=_uilayout_draw_hooks_uilist_selection_detail
+        )
 
     @classmethod
     def destroy_wrapper(cls):

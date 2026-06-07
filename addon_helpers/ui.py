@@ -1,5 +1,7 @@
 from enum import Enum
-import bpy # type: ignore
+import bpy
+from ..native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..native_blocks.block_core.core_helpers.constants import Core_Runtime_Cache_Members
 from ..addon_config.static_settings import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
 
 # --------------------------------------------------------------
@@ -61,49 +63,6 @@ def uilayout_section_separator(container, lines_count:int = 2, extra_space:float
         container.separator(factor = extra_space)
 
 # --------------------------------------------------------------
-# Shared UIList Configurations
-# --------------------------------------------------------------
-
-SHARED_UILIST_CONFIGS = {}
-
-def get_shared_uilist_config(list_id):
-    return SHARED_UILIST_CONFIGS.get(list_id)
-
-def set_shared_uilist_config(list_id, col_names, col_widths, columns_def, details_func=None):
-    SHARED_UILIST_CONFIGS[list_id] = {
-        "col_names": col_names,
-        "col_widths": col_widths,
-        "columns_def": columns_def,
-        "details_func": details_func
-    }
-
-def ui_draw_shared_debug_list(context, container, list_id, collection_owner, collection_prop, active_idx_prop, rows=5):
-    config = SHARED_UILIST_CONFIGS.get(list_id)
-    if not config:
-        container.label(text=f"No config for {list_id}")
-        return
-
-    # Draw header
-    ui_draw_list_headers(container, config["col_names"], config["col_widths"])
-
-    # Draw UIList
-    row = container.row()
-    row.template_list(
-        "DGBLOCKS_UL_Shared_Debug_List",
-        list_id,
-        collection_owner, collection_prop,
-        collection_owner, active_idx_prop,
-        rows=rows, maxrows=rows, columns=rows
-    )
-
-    # Draw details if selected and details_func exists
-    idx = getattr(collection_owner, active_idx_prop)
-    collection = getattr(collection_owner, collection_prop)
-    if config.get("details_func") and 0 <= idx < len(collection):
-        item = collection[idx]
-        config["details_func"](context, container, item)
-
-# --------------------------------------------------------------
 # "Interactive draw" functions: Returns UILayout objects to be used in further draws
 # --------------------------------------------------------------
 
@@ -126,3 +85,93 @@ def create_ui_box_with_header(context:bpy.context, container:bpy.types.UILayout,
     if separator_factor > 0.0:
         self_container.separator(type="LINE", factor = separator_factor)
     return self_container
+
+
+# --------------------------------------------------------------
+# Shared UIList class: contains an optional details section
+# --------------------------------------------------------------
+
+
+def get_shared_uilist_config(list_id):
+    configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
+    return configs.get(list_id)
+
+
+def set_shared_uilist_config(list_id, col_names, col_widths, columns_def, details_func=None):
+    configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
+    configs[list_id] = {
+        "col_names": col_names,
+        "col_widths": col_widths,
+        "columns_def": columns_def,
+        "details_func": details_func
+    }
+
+
+def ui_draw_shared_debug_list(context, container, list_id, collection_owner, collection_prop, active_idx_prop, rows=5):
+    config = get_shared_uilist_config(list_id)
+    if not config:
+        container.label(text=f"No config for {list_id}")
+        return
+
+    # Draw header
+    ui_draw_list_headers(container, config["col_names"], config["col_widths"])
+
+    # Draw UIList
+    row = container.row()
+    row.template_list(
+        "DGBLOCKS_UL_Shared_Debug_List",
+        list_id,
+        collection_owner, collection_prop,
+        collection_owner, active_idx_prop,
+        rows=rows, maxrows=rows, columns=len(config["col_names"])
+    )
+
+    # Draw details if selected and details_func exists
+    idx: int = getattr(collection_owner, active_idx_prop)
+    collection: bpy.types.CollectionProperty = getattr(collection_owner, collection_prop)
+    if config.get("details_func") and 0 <= idx < len(collection):
+        item = collection[idx]
+        config["details_func"](context, container, item, idx)
+
+
+class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
+    """Generic UIList for debug panels"""
+
+    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
+        config = get_shared_uilist_config(self.list_id)
+        if not config:
+            container.label(text=f"Missing config for {self.list_id}")
+            return
+
+        row = container.row(align=True)
+        col_widths = config["col_widths"]
+        columns_def = config["columns_def"]
+
+        for i, col_def in enumerate(columns_def):
+            sub = row.row()
+            if i < len(col_widths):
+                sub.ui_units_x = col_widths[i]
+
+            col_type = col_def.get("type", "LABEL")
+            field = col_def.get("field", "")
+
+            if col_type == "LABEL":
+                text = getattr(item, field, "")
+                if isinstance(text, bool):
+                    text = str(text)
+                sub.label(text=text)
+
+            elif col_type == "PROP":
+                icon_only = col_def.get("icon_only", False)
+                if icon_only:
+                    val = getattr(item, field, False)
+                    icon_str = col_def.get("icon_true", "CHECKBOX_HLT") if val else col_def.get("icon_false", "CHECKBOX_DEHLT")
+                    sub.prop(item, field, text="", icon=icon_str)
+                else:
+                    sub.prop(item, field, text="")
+
+            elif col_type == "ICON":
+                val = getattr(item, field, False)
+                icon_str = col_def.get("icon_true", "CHECKMARK") if val else col_def.get("icon_false", "X")
+                sub.label(text="", icon=icon_str)
+

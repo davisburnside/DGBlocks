@@ -4,7 +4,8 @@
 
 from datetime import datetime
 import bpy  # type: ignore
-from .....addon_helpers.ui import ui_draw_shared_debug_list, set_shared_uilist_config
+
+from .....addon_helpers.ui import ui_draw_shared_debug_list
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -21,7 +22,7 @@ cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCR
 # UI
 # ==============================================================================================================================
 
-def _uilayout_draw_hooks_uilist_selection_detail(context, container, item):
+def _uilayout_draw_hooks_uilist_selection_detail(context, container, item, idx):
     func_name = item.hook_func_name
     cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
 
@@ -34,18 +35,6 @@ def _uilayout_draw_hooks_uilist_selection_detail(context, container, item):
     box.label(text=f"Subscriptions ({len(subs)}):")
     for sub in subs:
         box.label(text=f"• {sub.subscriber_block_id}", icon='PLUGIN')
-
-set_shared_uilist_config(
-    list_id="HOOKS_LIST",
-    col_names=("Function Name", "Source Block", "Is Enabled?"),
-    col_widths=(2, 2, 1),
-    columns_def=[
-        {"type": "LABEL", "field": "hook_func_name"},
-        {"type": "LABEL", "field": "src_block_id"},
-        {"type": "PROP", "field": "is_hook_enabled", "icon_only": True, "icon_true": "CHECKBOX_HLT", "icon_false": "CHECKBOX_DEHLT"}
-    ],
-    details_func=_uilayout_draw_hooks_uilist_selection_detail
-)
 
 def _uilayout_draw_hooks_settings(context, container):
 

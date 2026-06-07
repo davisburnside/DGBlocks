@@ -1,17 +1,13 @@
 
-from dataclasses import dataclass, field
 import traceback
-from typing import Callable, Type
 from types import ModuleType
-from enum import Enum
-
 import bpy # type: ignore
-from bpy.app.handlers import persistent# type: ignore
 
 # Addon-level imports
 from .....addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Global_Addon_State, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 from .....addon_helpers.data_tools import reset_propertygroup
-from .....addon_helpers.generic_tools import force_redraw_ui, get_folder_parts, print_section_separator
+from .....addon_helpers.generic_tools import force_redraw_ui, get_folder_parts
+from .....addon_helpers.ui import set_shared_uilist_config
 
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
@@ -22,6 +18,7 @@ from .data_structures import RTC_Block_Instance
 from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_properties, _create_new_block_record, _create_new_block_standard_features, _remove_block_FWC_instances, _remove_block_bpy_classes, _remove_block_properties, shallow_validate_block_declaration, shallow_validate_block_module
 from .app_handlers import install_core_app_handler_callbacks, remove_core_app_handler_callbacks
 from .msgbus import add_msgbuses, clear_msgbuses, msgbus_subs
+from .ui import _uilayout_draw_blocks_uilist_selection_detail
 
 # Aliases
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
@@ -52,6 +49,18 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         Wrapper_Runtime_Cache.set_cache(cache_key_metadata, initial_state)
 
         install_core_app_handler_callbacks(logger)
+
+        # Setup UIList for Debug Panel
+        set_shared_uilist_config(
+            list_id="BLOCKS_LIST",
+            col_names=("Valid", "Block ID"),
+            col_widths=(1, 4),
+            columns_def=[
+                {"type": "ICON", "field": "is_valid", "icon_true": "CHECKMARK", "icon_false": "ERROR"},
+                {"type": "LABEL", "field": "block_id"},
+            ],
+            details_func=_uilayout_draw_blocks_uilist_selection_detail
+        )
 
 
     @classmethod

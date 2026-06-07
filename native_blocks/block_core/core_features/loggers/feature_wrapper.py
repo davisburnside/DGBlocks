@@ -4,9 +4,10 @@ from typing import Callable
 import types
 import logging
 
+
 # Addon-level imports
 from .....addon_helpers.data_structures import Enum_Sync_Events, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
-from .....addon_helpers.generic_tools import is_bpy_ready
+from .....addon_helpers.ui import set_shared_uilist_config
 from .....addon_config.static_settings import base_linebreak_length
 
 # Intra-block imports
@@ -76,6 +77,18 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
                 src_block_id=_BLOCK_ID,
                 level_name=new_logger_enum.value.default_level,
             )
+
+        set_shared_uilist_config(
+            list_id="LOGGERS_LIST",
+            col_names=("Source Block", "Logger Name", "Log Level"),
+            col_widths=(3, 5, 3),
+            columns_def=[
+                {"type": "LABEL", "field": "src_block_id"},
+                {"type": "LABEL", "field": "logger_name"},
+                {"type": "PROP", "field": "level_name", "icon_only": False}
+            ],
+            details_func=None
+        )
 
     @classmethod
     def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
