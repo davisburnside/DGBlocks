@@ -17,6 +17,8 @@ from ...addon_helpers.ui import ui_draw_block_panel_header
 # Intra-block imports
 from .common_constants import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .feature_shader_manager import Wrapper_Shader_Manager
+from .block_data_structures import Shader_Definition
+from .BL_gpu_data_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
 
 # ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
@@ -57,6 +59,15 @@ def _cb_enable_drawing_changed(self, context):
         Wrapper_Shader_Manager.clear_all_shaders()
 
 
+def _cb_enable_viewport_debugging_changed(self, context):
+    """
+    Fired when the viewport debugging toggle changes.
+    Rebuilds shaders so the debug borders are registered or removed.
+    """
+    if self.enable_drawing:
+        Wrapper_Shader_Manager.rebuild_all_shaders()
+
+
 # ==============================================================================================================================
 # BL PROPERTY GROUPS
 # ==============================================================================================================================
@@ -89,6 +100,12 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
         default=False,
         update=_cb_enable_drawing_changed,
     )
+    enable_viewport_debugging: bpy.props.BoolProperty(  # type: ignore
+        name="3D Viewport Debugging",
+        default=False,
+        update=_cb_enable_viewport_debugging_changed,
+        description="Draws a rectangle along the boundary of each visible tab/menu/panel in the 3D viewport",
+    )
     shader_mirror:       bpy.props.CollectionProperty(type=DGBLOCKS_PG_Shader_Mirror_Row)  # type: ignore
     shader_mirror_index: bpy.props.IntProperty()  # type: ignore
 
@@ -117,6 +134,58 @@ def hook_core_event_redo():
     try:
         Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
     except Exception:
+        pass
+
+
+def _debug_region_before_draw(shader_instance):
+    region = bpy.context.region
+    if region is None:
+        return
+    
+    w, h = region.width, region.height
+    last_dim = getattr(shader_instance, "_last_debug_dim", None)
+    
+    # Update points if dimensions have changed
+    if last_dim != (w, h):
+        points = [
+            (1, 1), (w - 2, 1),
+            (w - 2, 1), (w - 2, h - 2),
+            (w - 2, h - 2), (1, h - 2),
+            (1, h - 2), (1, 1)
+        ]
+        shader_instance.set_points(points)
+        shader_instance._last_debug_dim = (w, h)
+        
+    shader_instance.set_uniform("color", (1.0, 0.0, 1.0, 1.0))  # Magenta
+
+
+def hook_get_shader_definitions(definition_accumulator: list):
+    """
+    Adds debug bounding boxes for each region if enable_viewport_debugging is checked.
+    """
+    try:
+        props = bpy.context.scene.dgblocks_onscreen_drawing_props
+        if props.enable_viewport_debugging:
+            regions = [
+                Draw_Region_Type.WINDOW,
+                Draw_Region_Type.HEADER,
+                Draw_Region_Type.UI,
+                Draw_Region_Type.TOOLS,
+                Draw_Region_Type.HUD,
+            ]
+            for region in regions:
+                definition_accumulator.append(
+                    Shader_Definition(
+                        uid=f"DEBUG_REGION_BORDER_{region.value}",
+                        shader_type=Shader_Types.LINES,
+                        space=Draw_Space_Types.VIEW_3D,
+                        region=region,
+                        phase=Draw_Phase_type.POST_PIXEL,
+                        builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR,
+                        builtin_shader_before_draw=_debug_region_before_draw,
+                    )
+                )
+    except AttributeError:
         pass
 
 
@@ -161,6 +230,10 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
         # Master enable / disable toggle
         layout.prop(props, "enable_drawing", toggle=True)
+        
+        row = layout.row()
+        row.enabled = props.enable_drawing
+        row.prop(props, "enable_viewport_debugging", toggle=True)
 
         if not props.shader_mirror:
             layout.label(text="No active shaders", icon="INFO")
