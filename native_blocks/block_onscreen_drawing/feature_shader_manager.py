@@ -20,7 +20,8 @@ from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 # --------------------------------------------------------------
 from .common_constants import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .block_data_structures import Shader_Instance, Drawhandler_Instance
-from .helpers import callback_omnishader_draw, validate_shader_definitions
+from .helpers import _universal_draw_callback
+from .BL_gpu_data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
 
 # ==============================================================================================================================
 # WRAPPER CLASS
@@ -66,10 +67,10 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, {})
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, {})
 
-        drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
-        drawing_props.enable_drawing = False
-        drawing_props.shader_mirror.clear()
-        drawing_props.shader_mirror_index = 0
+        # drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
+        # drawing_props.enable_drawing = False
+        # drawing_props.shader_mirror.clear()
+        # drawing_props.shader_mirror_index = 0
 
         return True
 
@@ -82,6 +83,8 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
     # ----------------------------------------------------------
     # Public API
+    # ----------------------------------------------------------
+
     # ----------------------------------------------------------
 
     @classmethod
@@ -120,7 +123,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             return
 
         # --- Validate all definitions before touching Blender state ---
-        validate_shader_definitions(definition_accumulator)
+        cls.validate_shader_definitions(definition_accumulator)
 
         # --- Group definitions by (space, region, phase) ---
         groups: dict = defaultdict(list)
@@ -184,7 +187,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
             # Register one Blender draw handler for this (space, region, phase) group
             handler_instance._handle = space.value.draw_handler_add(
-                callback_omnishader_draw,
+                _universal_draw_callback,
                 (handler_instance,),
                 region.value,
                 phase.value,
@@ -275,7 +278,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
         # Collect what downstream blocks currently declare
         definition_accumulator = []
-        Wrapper_Hooks.run_hooked_funcs(
+        aaa = Wrapper_Hooks.run_hooked_funcs(
             hook_func_name=Block_Hook_Sources.hook_get_shader_definitions,
             should_halt_on_exception=False,
             definition_accumulator=definition_accumulator,
@@ -309,6 +312,68 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     # ----------------------------------------------------------
     # Private helpers
     # ----------------------------------------------------------
+
+    @classmethod
+    def validate_shader_definitions(cls, shader_defs: list) -> None:
+        """
+        Run all validation checks against a list of Shader_Definition objects.
+        Raises ValueError with a descriptive message if any check fails.
+        All checks complete before any Blender state is mutated.
+        """
+        # --- duplicate uid check ---
+        seen_uids: set = set()
+        for sdef in shader_defs:
+            if sdef.uid in seen_uids:
+                raise ValueError(
+                    f"Duplicate shader uid '{sdef.uid}' in definition_accumulator. "
+                    f"Every Shader_Definition must have a unique uid."
+                )
+            seen_uids.add(sdef.uid)
+
+        # --- (space, region, phase) allowlist check ---
+        for sdef in shader_defs:
+            combo = (sdef.space, sdef.region, sdef.phase)
+            if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
+                raise ValueError(
+                    f"Shader '{sdef.uid}': "
+                    f"({sdef.space.name}, {sdef.region}, {sdef.phase}) "
+                    f"is not a known-valid (space, region, phase) combination. "
+                    f"See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist."
+                )
+
+        # --- builtin vs custom mutual-exclusion check ---
+        for sdef in shader_defs:
+            has_builtin = sdef.builtin_shader_name is not None
+            has_custom  = sdef.custom_shader_class is not None
+            if has_builtin and has_custom:
+                raise ValueError(
+                    f"Shader '{sdef.uid}': both builtin_shader_name and custom_shader_class "
+                    f"are set. Exactly one must be provided."
+                )
+            if not has_builtin and not has_custom:
+                raise ValueError(
+                    f"Shader '{sdef.uid}': neither builtin_shader_name nor custom_shader_class "
+                    f"is set. Exactly one must be provided."
+                )
+
+        # --- shader_type / builtin_shader_name compatibility check (builtin shaders only) ---
+        for sdef in shader_defs:
+            if sdef.builtin_shader_name is None:
+                continue  # custom shader — no builtin compatibility to check
+            allowed_types = _BUILTIN_SHADER_COMPATIBLE_TYPES.get(sdef.builtin_shader_name)
+            if allowed_types is None:
+                raise ValueError(
+                    f"Shader '{sdef.uid}': builtin shader name "
+                    f"'{sdef.builtin_shader_name}' is not in the compatibility map. "
+                    f"Known names: {list(_BUILTIN_SHADER_COMPATIBLE_TYPES.keys())}"
+                )
+            if sdef.shader_type not in allowed_types:
+                raise ValueError(
+                    f"Shader '{sdef.uid}': builtin shader '{sdef.builtin_shader_name}' "
+                    f"is not compatible with shader type '{sdef.shader_type}'. "
+                    f"Allowed types for this builtin: {sorted(str(t) for t in allowed_types)}"
+                )
+
 
     @classmethod
     def _shaders_structurally_match_definitions(cls, definitions: list) -> bool:

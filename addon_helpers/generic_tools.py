@@ -8,6 +8,7 @@ from copy import deepcopy
 import logging
 from pathlib import Path
 import traceback
+import time
 from types import ModuleType
 from dataclasses import is_dataclass, replace, asdict
 from typing import Any, Callable, Collection, List, Optional
@@ -202,6 +203,12 @@ def validate_FWC_data_mirrors_after_init():
 # --------------------------------------------------------------
 # Other
 # --------------------------------------------------------------
+
+def get_ts_millis() -> int:
+    return time.time_ns() // 1_000_000
+
+def get_ts_nanos() -> int:
+    return time.time_ns()
 
 def get_names_of_parent_classes(python_obj: any):
     

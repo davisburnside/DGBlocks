@@ -258,6 +258,6 @@ block_onscreen_drawing/
 ├── block_data_structures.py          # Shader_Definition, Shader_Instance, Drawhandler_Instance
 ├── feature_shader_manager.py         # Wrapper_Shader_Manager (rebuild_all_shaders, clear, get_shader)
 ├── feature_draw_handler_manager.py   # DEPRECATED — re-exports Wrapper_Shader_Manager as alias
-└── helpers.py                        # callback_omnishader_draw, validate_shader_definitions,
+└── helpers.py                        # _universal_draw_callback, validate_shader_definitions,
                                       # GPU state helpers
 ```

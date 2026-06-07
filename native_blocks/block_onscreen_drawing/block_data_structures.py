@@ -81,7 +81,7 @@ class Shader_Instance:
     # Status
     last_draw_attempt_timestamp: int = -1
     is_enabled: bool = True
-    shader_error_str: str = None   # set by callback_omnishader_draw on exception; None = no error
+    shader_error_str: str = None   # set by _universal_draw_callback on exception; None = no error
 
     # If builtin_shader_name is None, the shader is custom and must self-create in _shader_init
     builtin_shader_name: Optional[str] = None
