@@ -243,7 +243,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     # ----------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events, FWC_instance, data_mirror_instance) -> None:
+    def update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
         """
         Smart undo/redo restore path (BL is the source of truth after an undo/redo).
 
@@ -299,7 +299,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events, FWC_instance, data_mirror_instance) -> None:
+    def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
         """
         Push current RTC SHADERS state into the BL shader_mirror CollectionProperty.
         Delegates to _sync_shaders_to_bl_mirror, which handles add/remove/update of rows

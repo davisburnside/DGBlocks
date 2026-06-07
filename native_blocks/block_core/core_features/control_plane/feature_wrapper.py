@@ -193,7 +193,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             failed_block_declaration = Block_Declaration(block_module = block_module, block_id = block_id, block_dependencies = [])
             _create_new_block_record(failed_block_declaration, [], error_str, logger)
             event = Enum_Sync_Events.ADDON_INIT
-            cls.destroy_instance(event, block_id = block_id)
+            # cls.destroy_instance(event, block_id = block_id)
 
 
     @classmethod
@@ -213,6 +213,31 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         _remove_block_properties(block_instance, logger)
 
         logger.info(f"Finished removal of block '{block_instance.block_id}'")
+
+    # --------------------------------------------------------------
+    # Implemented from Abstract_BL_RTC_List_Syncronizer
+    # --------------------------------------------------------------
+
+    @classmethod
+    def update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
+        # 1-directional: BL never overwrites RTC data for blocks
+        pass
+
+    @classmethod
+    def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
+        core_props = bpy.context.scene.dgblocks_core_props
+        cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
+        if cached_blocks is None:
+            return
+            
+        core_props.managed_blocks.clear()
+        
+        for rtc_block in cached_blocks:
+            bl_block = core_props.managed_blocks.add()
+            bl_block.block_id = rtc_block.block_id
+            bl_block.is_valid = rtc_block.is_valid
+            bl_block.error_message = rtc_block.error_message if rtc_block.error_message else ""
+            bl_block.is_block_enabled = rtc_block.is_block_enabled
 
     # ------------------------------------------------------------------
     # Funcs specific to this class

@@ -61,6 +61,49 @@ def uilayout_section_separator(container, lines_count:int = 2, extra_space:float
         container.separator(factor = extra_space)
 
 # --------------------------------------------------------------
+# Shared UIList Configurations
+# --------------------------------------------------------------
+
+SHARED_UILIST_CONFIGS = {}
+
+def get_shared_uilist_config(list_id):
+    return SHARED_UILIST_CONFIGS.get(list_id)
+
+def set_shared_uilist_config(list_id, col_names, col_widths, columns_def, details_func=None):
+    SHARED_UILIST_CONFIGS[list_id] = {
+        "col_names": col_names,
+        "col_widths": col_widths,
+        "columns_def": columns_def,
+        "details_func": details_func
+    }
+
+def ui_draw_shared_debug_list(context, container, list_id, collection_owner, collection_prop, active_idx_prop, rows=5):
+    config = SHARED_UILIST_CONFIGS.get(list_id)
+    if not config:
+        container.label(text=f"No config for {list_id}")
+        return
+
+    # Draw header
+    ui_draw_list_headers(container, config["col_names"], config["col_widths"])
+
+    # Draw UIList
+    row = container.row()
+    row.template_list(
+        "DGBLOCKS_UL_Shared_Debug_List",
+        list_id,
+        collection_owner, collection_prop,
+        collection_owner, active_idx_prop,
+        rows=rows, maxrows=rows, columns=rows
+    )
+
+    # Draw details if selected and details_func exists
+    idx = getattr(collection_owner, active_idx_prop)
+    collection = getattr(collection_owner, collection_prop)
+    if config.get("details_func") and 0 <= idx < len(collection):
+        item = collection[idx]
+        config["details_func"](context, container, item)
+
+# --------------------------------------------------------------
 # "Interactive draw" functions: Returns UILayout objects to be used in further draws
 # --------------------------------------------------------------
 

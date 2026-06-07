@@ -2,7 +2,48 @@
 import bpy
 
 from ....addon_config.static_settings import Documentation_URLs, addon_title
-from ....addon_helpers.ui import ui_draw_block_panel_header
+from ....addon_helpers.ui import ui_draw_block_panel_header, get_shared_uilist_config
+
+class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
+    """Generic UIList for debug panels"""
+    
+    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
+        config = get_shared_uilist_config(self.list_id)
+        if not config:
+            container.label(text=f"Missing config for {self.list_id}")
+            return
+            
+        row = container.row(align=True)
+        col_widths = config["col_widths"]
+        columns_def = config["columns_def"]
+        
+        for i, col_def in enumerate(columns_def):
+            sub = row.row()
+            if i < len(col_widths):
+                sub.ui_units_x = col_widths[i]
+                
+            col_type = col_def.get("type", "LABEL")
+            field = col_def.get("field", "")
+            
+            if col_type == "LABEL":
+                text = getattr(item, field, "")
+                if isinstance(text, bool):
+                    text = str(text)
+                sub.label(text=text)
+                
+            elif col_type == "PROP":
+                icon_only = col_def.get("icon_only", False)
+                if icon_only:
+                    val = getattr(item, field, False)
+                    icon_str = col_def.get("icon_true", "CHECKBOX_HLT") if val else col_def.get("icon_false", "CHECKBOX_DEHLT")
+                    sub.prop(item, field, text="", icon=icon_str)
+                else:
+                    sub.prop(item, field, text="")
+                    
+            elif col_type == "ICON":
+                val = getattr(item, field, False)
+                icon_str = col_def.get("icon_true", "CHECKMARK") if val else col_def.get("icon_false", "X")
+                sub.label(text="", icon=icon_str)
 
 from ..core_helpers.debugging import Debugging_Print_Options
 from ..core_features.hooks.ui import _uilayout_draw_hooks_settings

@@ -6,6 +6,12 @@ import bpy
 
 from .....addon_helpers.data_structures import RTC_FWC_Instance
 
+class DGBLOCKS_PG_Block_Record(bpy.types.PropertyGroup):
+    block_id: bpy.props.StringProperty(name="Block ID") # type: ignore
+    is_valid: bpy.props.BoolProperty(name="Is Valid") # type: ignore
+    error_message: bpy.props.StringProperty(name="Error Message") # type: ignore
+    is_block_enabled: bpy.props.BoolProperty(name="Is Enabled") # type: ignore
+
 @dataclass
 class RTC_Block_Instance:
     # Record — instance state only, no manager logic
@@ -19,3 +25,4 @@ class RTC_Block_Instance:
     block_RTC_member_names: list[str] = field(default_factory=list)
     is_valid: bool = field(default = True)
     error_message: Optional[str] = field(default = None)
+    is_block_enabled: bool = field(default = True)

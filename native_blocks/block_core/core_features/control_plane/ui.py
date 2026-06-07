@@ -3,7 +3,7 @@
 # ==============================================================================================================================
 
 import bpy
-from .....addon_helpers.ui import ui_draw_list_headers, ui_draw_static_list
+from .....addon_helpers.ui import ui_draw_shared_debug_list, set_shared_uilist_config
 from ...core_helpers.constants import _BLOCK_ID as core_block_id, Core_Runtime_Cache_Members
 from ...core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache  # type: ignore
 
@@ -11,79 +11,41 @@ from ...core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 # UI
 # ==============================================================================================================================
 
-col_names = ("Valid", "Name", "folder")
-col_widths = (1, 1, 3)
+def _uilayout_draw_blocks_uilist_selection_detail(context, container, item):
+    if not item.is_valid:
+        box = container.box()
+        box.alert = True
+        box.label(text=f"Error: {item.error_message}", icon='ERROR')
+    elif not item.is_block_enabled:
+        box = container.box()
+        box.alert = True
+        box.label(text="Block is disabled.", icon='INFO')
+    else:
+        box = container.box()
+        box.label(text="Block is active and valid.", icon='CHECKMARK')
 
-
-def _uilayout_draw_block_uilist_selection_detail(context, container):
-
-    # Show disabled reason for selected alert row
-    core_props = context.scene.dgblocks_core_props
-    is_anything_selected = 0 <= core_props.managed_blocks_selected_idx < len(core_props.managed_blocks)
-    if core_props.managed_blocks and is_anything_selected:
-        active_block = core_props.managed_blocks[core_props.managed_blocks_selected_idx]
-        is_alert = active_block.should_block_be_enabled and not active_block.is_block_enabled
-        if is_alert and active_block.block_disabled_reason:
-            box = container.box()
-            box.alert = True
-            box.label(text=f"Reason: {active_block.block_disabled_reason}", icon='INFO')
-
+set_shared_uilist_config(
+    list_id="BLOCKS_LIST",
+    col_names=("Valid", "Block ID", "Enabled"),
+    col_widths=(1, 3, 1),
+    columns_def=[
+        {"type": "ICON", "field": "is_valid", "icon_true": "CHECKMARK", "icon_false": "ERROR"},
+        {"type": "LABEL", "field": "block_id"},
+        {"type": "ICON", "field": "is_block_enabled", "icon_true": "CHECKMARK", "icon_false": "X"}
+    ],
+    details_func=_uilayout_draw_blocks_uilist_selection_detail
+)
 
 def _uilayout_draw_block_manager_settings(context, container):
 
     box = container.box()
     core_props = context.scene.dgblocks_core_props
-    cached_blocks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
 
     panel_header, panel_body = box.panel(idname="_dummy_dgblocks_core_scene_block_mgmt", default_closed=True)
-    panel_header.label(text=f"All Blocks ({len(cached_blocks)})")
+    panel_header.label(text=f"All Blocks ({len(core_props.managed_blocks)})")
     if panel_body is not None:
-
-        # Draw column headers - should match draw_item layout exactly
-        ui_draw_list_headers(panel_body, col_names, col_widths)
-
-        data_list = [[str(i.is_valid), i.block_id, i.block_package_name] for i in cached_blocks]
-        ui_draw_static_list(panel_body, data_list, col_widths)
-
-        # # Draw the UIList
-        # row = panel_body.row()
-        # row_count = len(core_props.managed_blocks)
-        # row.template_list(
-        #     "DGBLOCKS_UL_Blocks",
-        #     "",
-        #     core_props, "managed_blocks",           # Collection property
-        #     core_props, "managed_blocks_selected_idx",  # Active index property
-        #     rows=row_count,
-        #     maxrows=row_count,
-        #     columns=row_count,
-        # )
-
-        # # Show disabled reason for selected alert row
-        # _uilayout_draw_block_uilist_selection_detail(context, container)
-
-
-class DGBLOCKS_UL_Blocks(bpy.types.UIList):
-    """UIList to display RTC blocks with enable toggle and alert states."""
-
-    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
-
-        is_alert = item.should_block_be_enabled and not item.is_block_enabled
-        if is_alert:
-            container.alert = True
-        row = container.row()
-        row.enabled = item.block_id != core_block_id  # Prevent core block from being disabled
-
-        # Block name
-        sub = row.row()
-        sub.ui_units_x = col_widths[0]
-        sub.label(text=item.block_id)
-
-        # Should enable toggle
-        sub = row.row()
-        sub.ui_units_x = col_widths[1]
-        sub.prop(item, "should_block_be_enabled", text="", icon='CHECKBOX_HLT' if item.should_block_be_enabled else 'CHECKBOX_DEHLT')
-
-        # Is enabled status
-        sub = row.row()
-        sub.ui_units_x = col_widths[2]
-        sub.label(text="", icon='CHECKMARK' if item.is_block_enabled else 'X')
+        ui_draw_shared_debug_list(
+            context, panel_body, "BLOCKS_LIST", 
+            core_props, "managed_blocks", "managed_blocks_selected_idx", 
+            rows=max(1, len(core_props.managed_blocks))
+        )

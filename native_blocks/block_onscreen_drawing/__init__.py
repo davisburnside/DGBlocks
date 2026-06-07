@@ -195,7 +195,7 @@ def unregister_block_props():
 
 _BLOCK_DECLARATION = Block_Declaration(
     block_module=sys.modules[__name__],
-    block_id="block-onscreen-draw",
+    block_id="block-corea",
     block_dependencies=["block-core"],
     block_bpy_classes=[
         DGBLOCKS_PG_Shader_Mirror_Row,
