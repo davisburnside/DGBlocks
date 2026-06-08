@@ -334,12 +334,15 @@ def default_data_mirror_RTC_list_update_logic(
     # Get ordered actions list to perform on target, to make in-sync with source
     actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
     
+
+    filtered_actions = [a for a in actions if a.__class__ not in actions_denied]
+
     # Optional deep logging
     core_props = bpy.context.scene.dgblocks_core_props
     if core_props.debug_log_all_RTC_BL_sync_actions:
-        _print_actions(data_source, data_target, actions, logger)
+        _print_actions(data_source, data_target, filtered_actions, logger)
     
-    apply_dataclasses_to_match_collectionprop(FWC_instance, data_source, data_target, key_fields, data_fields, actions)
+    apply_dataclasses_to_match_collectionprop(FWC_instance, data_source, data_target, key_fields, data_fields, filtered_actions)
 
 def default_data_mirror_BL_colprop_update_logic(
         FWC_instance,
@@ -370,13 +373,14 @@ def default_data_mirror_BL_colprop_update_logic(
 
     # Get ordered actions list to perform on target, to make in-sync with source
     actions = plan_collectionprop_to_match_dataclasses(data_source, data_target, key_fields, data_fields)
-    
+    filtered_actions = [a for a in actions if a.__class__ not in actions_denied]
+
     # Optional deep logging
     core_props = bpy.context.scene.dgblocks_core_props
     if core_props.debug_log_all_RTC_BL_sync_actions:
-        _print_actions(data_source, data_target, actions, logger)
+        _print_actions(data_source, data_target, filtered_actions, logger)
     
-    apply_collectionprop_to_match_dataclasses(data_source, data_target, key_fields, data_fields, actions)
+    apply_collectionprop_to_match_dataclasses(data_source, data_target, key_fields, data_fields, filtered_actions)
 
 # --------------------------------------------------------------
 # Other

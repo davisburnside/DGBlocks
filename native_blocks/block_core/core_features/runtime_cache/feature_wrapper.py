@@ -10,11 +10,12 @@ from typing import Any, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from .....addon_helpers.data_structures import Enum_Sync_Actions, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_Feature_Wrapper
+from .....addon_helpers.data_structures import Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Intra-block imports
 from ...core_helpers.constants import Core_Runtime_Cache_Members
+from . import data_sync_tools
 from .data_sync_tools import default_data_mirror_BL_colprop_update_logic, default_data_mirror_RTC_list_update_logic
 
 # --------------------------------------------------------------
@@ -287,7 +288,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         cache_key: Enum = None,
         FWC_instance: RTC_FWC_Instance = None,
         data_mirror_instance: RTC_FWC_Data_Mirror_Instance = None,
-        actions_denied:set[Enum_Sync_Actions] = set(),
+        actions_denied = set(),
         logger = None,
     ) -> None:
         
@@ -377,7 +378,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
 
         actions_denied = set()
         if event == Enum_Sync_Events.ADDON_INIT and not BL_is_truth_source:
-            actions_denied = {Enum_Sync_Actions.EDIT}
+            actions_denied = {data_sync_tools.Edit}
 
         # Get FWC and mirror caches
         cached_data_mirrors = Wrapper_Runtime_Cache.get_cache(cache_key_data_mirrors)
