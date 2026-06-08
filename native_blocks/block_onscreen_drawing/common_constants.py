@@ -26,8 +26,5 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
         FWC_name                 = "Wrapper_Shader_Manager",
         mirrored_key_field_names = ["uid"],
         mirrored_data_field_names= ["is_enabled"],
-        # Custom sync path: Wrapper_Shader_Manager must implement both
-        # update_RTC_with_mirrored_BL_data and update_BL_with_mirrored_RTC_data.
-        # The framework calls them during all sync events (undo/redo/init).
         default_data_path_in_scene = None,
     )
