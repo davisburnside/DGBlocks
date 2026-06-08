@@ -30,7 +30,7 @@ def _simple2d_before_draw(self):
 
 FLATYPUS_SHADER_DEFS = [
     # Shader_Definition(
-    #     uid="BILLBOARD",
+    #     shader_uid="BILLBOARD",
     #     shader_type=Shader_Types.TRIS,
     #     space=Draw_Space_Types.VIEW_3D,
     #     region=Draw_Region_Type.WINDOW,
@@ -39,7 +39,7 @@ FLATYPUS_SHADER_DEFS = [
     #     custom_shader_kwargs={"image_name": "img"},
     # ),
     Shader_Definition(
-        uid="SIMPLE_TRIS",
+        shader_uid="SIMPLE_TRIS",
         shader_type=Shader_Types.TRIS,
         space=Draw_Space_Types.VIEW_3D,
         region=Draw_Region_Type.WINDOW,
@@ -47,7 +47,7 @@ FLATYPUS_SHADER_DEFS = [
         builtin_shader_name=Builtin_Shader_Names.SMOOTH_COLOR,
     ),
     Shader_Definition(
-        uid="SIMPLE_2D",
+        shader_uid="SIMPLE_2D",
         shader_type=Shader_Types.LINES,
         space=Draw_Space_Types.VIEW_3D,
         region=Draw_Region_Type.WINDOW,

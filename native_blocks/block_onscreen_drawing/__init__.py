@@ -29,16 +29,10 @@ def _cb_is_enabled_changed(self, context):
     Fired when the user toggles is_enabled on a shader_mirror row via the UIList.
     Immediately propagates the change to the matching live RTC Shader_Instance.
 
-    Blender records an undo step for the BoolProperty change automatically.
-    On undo, Blender reverts the BL value and re-fires this callback, keeping
-    the RTC in sync without any extra logic.
-
-    Skipped when the syncing flag is set (prevents feedback loops during
-    _sync_shaders_to_bl_mirror).
     """
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Block_RTC_Members.SHADERS):
         return
-    shader = Wrapper_Shader_Manager.get_shader(self.uid)
+    shader = Wrapper_Shader_Manager.get_shader(self.shader_uid)
     if shader is not None:
         shader.is_enabled = self.is_enabled
 
@@ -79,7 +73,7 @@ class DGBLOCKS_PG_Shader_Mirror_Row(bpy.types.PropertyGroup):
     draw-location display fields (space / region / phase).
     Populated and maintained by Wrapper_Shader_Manager._sync_shaders_to_bl_mirror().
     """
-    uid:         bpy.props.StringProperty()  # type: ignore
+    shader_uid:         bpy.props.StringProperty()  # type: ignore
     draw_space:  bpy.props.StringProperty()  # type: ignore
     draw_region: bpy.props.StringProperty()  # type: ignore
     draw_phase:  bpy.props.StringProperty()  # type: ignore
@@ -159,34 +153,36 @@ def _debug_region_before_draw(shader_instance):
     shader_instance.set_uniform("color", (1.0, 0.0, 1.0, 1.0))  # Magenta
 
 
-def hook_get_shader_definitions(definition_accumulator: list):
+def hook_get_shader_definitions():
     """
     Adds debug bounding boxes for each region if enable_viewport_debugging is checked.
     """
-    try:
-        props = bpy.context.scene.dgblocks_onscreen_drawing_props
-        if props.enable_viewport_debugging:
-            regions = [
-                Draw_Region_Type.WINDOW,
-                Draw_Region_Type.HEADER,
-                Draw_Region_Type.UI,
-                Draw_Region_Type.TOOLS,
-                Draw_Region_Type.HUD,
-            ]
-            for region in regions:
-                definition_accumulator.append(
-                    Shader_Definition(
-                        uid=f"DEBUG_REGION_BORDER_{region.value}",
-                        shader_type=Shader_Types.LINES,
-                        space=Draw_Space_Types.VIEW_3D,
-                        region=region,
-                        phase=Draw_Phase_type.POST_PIXEL,
-                        builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR,
-                        builtin_shader_before_draw=_debug_region_before_draw,
-                    )
+
+    returned_shader_definitions = []
+    props = bpy.context.scene.dgblocks_onscreen_drawing_props
+
+    if props.enable_viewport_debugging:
+        regions = [
+            Draw_Region_Type.WINDOW,
+            Draw_Region_Type.HEADER,
+            Draw_Region_Type.UI,
+            Draw_Region_Type.TOOLS,
+            Draw_Region_Type.HUD,
+        ]
+        for region in regions:
+            returned_shader_definitions.append(
+                Shader_Definition(
+                    shader_uid=f"DEBUG_REGION_BORDER_{region.value}",
+                    shader_type=Shader_Types.LINES,
+                    space=Draw_Space_Types.VIEW_3D,
+                    region=region,
+                    phase=Draw_Phase_type.POST_PIXEL,
+                    builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR,
+                    builtin_shader_before_draw=_debug_region_before_draw,
                 )
-    except AttributeError:
-        pass
+            )
+    return returned_shader_definitions
+
 
 
 # ==============================================================================================================================
@@ -201,7 +197,7 @@ class DGBLOCKS_UL_Shader_List(bpy.types.UIList):
         # Visibility toggle icon — clicking sets is_enabled via the BoolProperty
         eye_icon = "HIDE_OFF" if item.is_enabled else "HIDE_ON"
         row.prop(item, "is_enabled", text="", icon=eye_icon, emboss=False)
-        row.label(text=item.uid)
+        row.label(text=item.shader_uid)
         row.label(text=f"{item.draw_space} / {item.draw_region} / {item.draw_phase}")
 
 

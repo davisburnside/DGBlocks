@@ -265,17 +265,40 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             raise Exception(f"Error: Mirrored cache '{cache_key}' is already flagged as syncing")
 
     @classmethod
+    def get_FWC_and_data_mirror(cls, cache_key):
+        true_cache_key = get_actual_rtc_key(cache_key, fail_gracefully = False)
+        _, data_mirror_instance, _ = cls.get_unique_instance_from_registry_list(cache_key_data_mirrors, "RTC_key", true_cache_key)
+        FWC_name = data_mirror_instance.FWC_name
+        _, FWC_instance, _ = cls.get_unique_instance_from_registry_list(cache_key_FWCs, "feature_name", FWC_name)
+
+        if data_mirror_instance is None or FWC_instance is None:
+            raise Exception(f"FWC or Data Mirror does not exist: {str(FWC_instance)}, {str(data_mirror_instance)}")
+        
+        return FWC_instance, data_mirror_instance
+    
+    def resync_single_data():
+        pass
+
+    @classmethod
     def resync_single_data_mirror(
         cls, 
         event: Enum_Sync_Events, 
-        FWC_instance: RTC_FWC_Instance,
-        data_mirror_instance: RTC_FWC_Data_Mirror_Instance,
         BL_is_truth_source:bool,
-        actions_denied:set[Enum_Sync_Actions],
+        cache_key: Enum = None,
+        FWC_instance: RTC_FWC_Instance = None,
+        data_mirror_instance: RTC_FWC_Data_Mirror_Instance = None,
+        actions_denied:set[Enum_Sync_Actions] = set(),
         logger = None,
     ) -> None:
-
+        
+        # Handle conditional args & ensure vars exist
+        if FWC_instance is None or data_mirror_instance is None:
+            if cache_key is None:
+                raise Exception("This function requires as input either a 'cache_key', or a FWC & Data-Mirror")
+            FWC_instance, data_mirror_instance = cls.get_FWC_and_data_mirror(cache_key)
         cache_key = data_mirror_instance.RTC_key
+
+        # cache_key = data_mirror_instance.RTC_key
         source_type = "Blender" if BL_is_truth_source else "RTC"
         target_type = "RTC" if BL_is_truth_source else "Blender"
         use_default_sync_logic = data_mirror_instance.default_data_path_in_scene is not None
@@ -368,13 +391,15 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
                 logger.error(f"FWC '{data_mirror_instance.FWC_name}' not found")
                 continue
             FWC_instance = cached_FWCs[idx_of_FWC_instance]
+
             cls.resync_single_data_mirror(
                 event, 
-                FWC_instance,
-                data_mirror_instance,
                 BL_is_truth_source,
-                actions_denied,
-                logger,
+                cache_key = None,
+                FWC_instance = FWC_instance,
+                data_mirror_instance = data_mirror_instance,
+                actions_denied = actions_denied,
+                logger = logger,
             )
 
 # ==============================================================================================================================

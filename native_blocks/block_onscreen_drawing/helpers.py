@@ -1,7 +1,7 @@
 
 import time
 import gpu # type: ignore
-import bpy # type: ignore
+import bpy
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -10,10 +10,11 @@ from ...addon_helpers.generic_tools import get_exception_last_n_lines
 # --------------------------------------------------------------
 # Inter-block imports
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
+from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_constants import Block_Loggers
+from .common_constants import Block_Loggers, Block_RTC_Members
 
 # ----------------------------------------------------------
 # Public convenience funcs
@@ -49,6 +50,17 @@ def _restore_gpu_state(state: dict):
     gpu.state.depth_mask_set(state["depth_mask"])
     gpu.state.line_width_set(state["line_width"])
 
+def _teardown_draw_handler(draw_handler_instance):
+
+    """Remove the Blender draw handler and discard all shader references."""
+    if draw_handler_instance._handle is not None:
+        try:
+            draw_handler_instance.space.value.draw_handler_remove(draw_handler_instance._handle, draw_handler_instance.region.value)
+        except Exception:
+            pass  # handler may already be gone (e.g. context teardown)
+        draw_handler_instance._handle = None
+    draw_handler_instance.shader_names.clear()
+
 # ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
 
@@ -72,11 +84,21 @@ def _universal_draw_callback(handler_instance) -> None:
     prev_gpu_state = _capture_gpu_state()
 
     # Try each draw. Flag shader instance upon expection
-    t_count = len(handler_instance.shaders)
+    cached_shaders = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
+    cached_shader_uids = [s.shader_uid for s in cached_shaders]
+    shader_count = len(handler_instance.shader_names)
     failed_shaders = []
-    logger.debug(f"Drawing {t_count} Shaders of Drawhandler {handler_instance.space} : {handler_instance.region} : {handler_instance.phase}")
-    for shader in handler_instance.shaders:
+    logger.debug(f"Drawing {shader_count} Shaders of Drawhandler {handler_instance.space} : {handler_instance.region} : {handler_instance.phase}")
+    for shader_uid in handler_instance.shader_names:
         try:
+            
+            # Fetch shader instance from cache
+            cache_idx = cached_shader_uids.index(shader_uid)
+            if cache_idx == -1: 
+                raise Exception(f"Shader {shader_uid} not found")
+            shader = cached_shaders[cache_idx]
+
+            # Draw the shader
             if shader.is_enabled:
                 shader.last_draw_attempt_timestamp = time.time()
 
@@ -100,7 +122,7 @@ def _universal_draw_callback(handler_instance) -> None:
     # Log failures
     f_count = len(failed_shaders)
     if f_count > 0:
-        logger.error(f"{f_count} of {t_count} shaders failed during draw(). ")
+        logger.error(f"{f_count} of {shader_count} shaders failed during _shader_draw(). ")
         max_uid_length = max([len(s.shader_uid) for s in failed_shaders])
         for shader in failed_shaders:
             logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.shader_error_str}")

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any, Callable, Dict, Optional
 from enum import Enum
-import bpy  # type: ignore
+import bpy
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -17,7 +17,8 @@ from .....addon_helpers.generic_tools import is_bpy_ready
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from ...core_helpers.constants import Core_Runtime_Cache_Members
+from ...core_features.loggers.feature_wrapper import get_logger  # type: ignore
+from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
 # --------------------------------------------------------------
@@ -34,8 +35,15 @@ def _callback_update_hook_sub_enabled(self, context):
     # Skip further action if a sync is already in progress
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_hook_subscribers):
         return
-    # Lazy import to avoid circular dependency: data_structures <- feature_wrapper <- data_structures
-    # Wrapper_Hooks.update_RTC_with_mirrored_BL_data(event=Enum_Sync_Events.PROPERTY_UPDATE)
+
+    # Sync 'is_hook_enabled' property to RTC
+    logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
+    Wrapper_Runtime_Cache.resync_single_data_mirror(
+        event = Enum_Sync_Events.PROPERTY_UPDATE, 
+        BL_is_truth_source = True,
+        cache_key = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES,
+        logger = logger,
+    )
 
 
 class DGBLOCKS_PG_Hook_Reference(bpy.types.PropertyGroup):

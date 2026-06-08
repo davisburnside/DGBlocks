@@ -25,12 +25,9 @@ from .constants import Block_Loggers, FLATYPUS_SHADER_DEFS
 # Top-level functions — auto-discovered by Wrapper_Hooks at registration time.
 # ==============================================================================================================================
 
-def hook_get_shader_definitions(definition_accumulator: list):
-    """
-    Supply this block's Shader_Definition objects to the drawing system.
-    Called by Wrapper_Shader_Manager.rebuild_all_shaders() via the hook system.
-    """
-    definition_accumulator.extend(FLATYPUS_SHADER_DEFS)
+def hook_get_shader_definitions():
+
+    return FLATYPUS_SHADER_DEFS
 
 
 def hook_before_first_draw():

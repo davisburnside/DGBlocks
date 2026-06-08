@@ -22,7 +22,6 @@ from .....addon_helpers.ui import set_shared_uilist_config
 # --------------------------------------------------------------
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
-from ..runtime_cache.data_sync_tools import compare_unique_tuple_lists
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
 from .ui import _uilayout_draw_hooks_uilist_selection_detail

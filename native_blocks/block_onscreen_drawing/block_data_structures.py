@@ -17,24 +17,14 @@ from .BL_gpu_data_structures import Builtin_Shader_Names, Draw_Phase_type, Draw_
 @dataclass
 class Drawhandler_Instance:
     """
-    Owns a single live Blender draw handler and the Shader_Instance objects
-    that belong to it.  Responsible for its own full teardown.
+    Owns a single live Blender draw handler, and the names of shaders that it draws. 
+    Unlike most '_Instance' classes, this one has no associated '_Definition' class. It is created ad-hoc
     """
     space: Draw_Space_Types
     region: Draw_Region_Type
     phase: Draw_Phase_type
-    shaders: list = field(default_factory=list)  # list[Shader_Instance]
+    shader_names: list = field(default_factory=list)  # list[Shader_Instance]
     _handle: Any = field(init=False, default=None)
-
-    def teardown(self) -> None:
-        """Remove the Blender draw handler and discard all shader references."""
-        if self._handle is not None:
-            try:
-                self.space.value.draw_handler_remove(self._handle, self.region.value)
-            except Exception:
-                pass  # handler may already be gone (e.g. context teardown)
-            self._handle = None
-        self.shaders.clear()
 
 
 @dataclass
@@ -52,7 +42,7 @@ class Shader_Definition:
                                gpu.shader in _shader_init.  custom_shader_kwargs
                                are forwarded as extra keyword arguments to that class.
     """
-    uid: str
+    shader_uid: str
     shader_type: Shader_Types
     space: Draw_Space_Types
     region: Draw_Region_Type

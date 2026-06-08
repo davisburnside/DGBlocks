@@ -33,8 +33,8 @@ from ..external_blocks import block_flatypus_modes_manager
 _BLOCK_PACKAGES = [
     block_core,
     block_debug_console_print,
-    block_onscreen_drawing,
-    block_flatypus_modes_manager,
+    # block_onscreen_drawing,
+    # block_flatypus_modes_manager,
     # block_pip_library_manager,
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,
