@@ -9,7 +9,7 @@ from ...addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, A
 
 # Inter-block imports
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..block_core.core_features.runtime_cache.data_sync_tools import default_data_mirror_BL_colprop_update_logic, plan_dataclasses_to_match_collectionprop # type: ignore
+from ..block_core.core_features.runtime_cache.data_sync_tools import default_data_mirror_BL_colprop_update_logic, default_data_mirror_RTC_list_update_logic, plan_dataclasses_to_match_collectionprop # type: ignore
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
@@ -18,6 +18,9 @@ from .common_constants import Block_Hook_Sources, Block_Loggers, Block_RTC_Membe
 from .block_data_structures import Shader_Instance, Drawhandler_Instance
 from .helpers import _teardown_draw_handler, _universal_draw_callback
 from .BL_gpu_data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
+
+# Aliases
+cache_key_shaders = Block_RTC_Members.SHADERS
 
 # ==============================================================================================================================
 # WRAPPER CLASS
@@ -33,7 +36,10 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     def init_wrapper(cls) -> bool:
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager init")
-        cls.clear_all_shaders()
+
+        # The initial pass only exists in the RTC, BL data is not overwritten yet
+        event = Enum_Sync_Events.ADDON_INIT
+        cls.rebuild_all_shaders(event, sync_BL = False)
         return True
 
 
@@ -50,7 +56,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     # ----------------------------------------------------------
 
     @classmethod
-    def rebuild_all_shaders(cls) -> None:
+    def rebuild_all_shaders(cls, event: Enum_Sync_Events, sync_BL = True) -> None:
         """
         Full rebuild cycle:
           1. Clear existing draw handlers and shader instances.
@@ -147,6 +153,10 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, rtc_draw_phases)
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, rtc_shaders)
+        
+        if sync_BL:
+            FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
+            cls.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
 
         # --- Restore user's is_enabled preferences from BL mirror ---
         # cls._apply_bl_is_enabled_from_mirror()
@@ -198,7 +208,8 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     @classmethod
     def get_shader(cls, uid: str) -> Optional[Shader_Instance]:
         """Return the live Shader_Instance for a given uid, or None if not found."""
-        return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS).get(uid)
+        _, shader, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(Block_RTC_Members.SHADERS, "shader_uid", uid)
+        return shader
 
     # ----------------------------------------------------------
     # Abstract_BL_RTC_List_Syncronizer implementation
@@ -208,10 +219,10 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     def update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
 
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
-        logger.debug(f"update_RTC_with_mirrored_BL_data: event={event}")
-
         drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
-        if not bpy.context.scene.dgblocks_onscreen_drawing_props.enable_drawing:
+        if event == Enum_Sync_Events.ADDON_INIT:
+            return
+        if not drawing_props.enable_drawing:
             cls.clear_all_shaders()
             return
         
@@ -219,10 +230,13 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         data_fields = data_mirror_instance.mirrored_data_field_names
         data_target = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
         data_source = drawing_props.shader_mirror
+        print([s.shader_uid for s in data_source])
         actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
+        logger.debug(f"BL: {len(data_source)} items | RTC: {len(data_target)} items")
 
+        # sync_BL = event != Enum_Sync_Events.ADDON_INIT
         if len(actions) > 0:
-            cls.rebuild_all_shaders()
+            cls.rebuild_all_shaders(event, sync_BL = False)
 
         
         # # Collect what downstream blocks currently declare
@@ -248,22 +262,49 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
-        """
-        Push current RTC SHADERS state into the BL shader_mirror CollectionProperty.
-        Delegates to _sync_shaders_to_bl_mirror, which handles add/remove/update of rows
-        while preserving the user-owned is_enabled values on existing rows.
-        """
         
-        
-        return
-        # logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
-        # logger.debug(f"update_BL_with_mirrored_RTC_data: event={event}")
-        
-        # # No action needed during init
-        # if event == Enum_Sync_Events.ADDON_INIT:
-        #     return
-        
-        # cls._sync_shaders_to_bl_mirror()
+        # This function assumes that rebuild_all_shaders() has been already executed after the RTC update event
+        logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
+        drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
+        cached_shaders = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
+
+        key_fields = data_mirror_instance.mirrored_key_field_names
+        data_fields = data_mirror_instance.mirrored_data_field_names
+        data_target = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
+        data_source = drawing_props.shader_mirror
+        actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
+        if len(actions) > 0:
+            Wrapper_Runtime_Cache.assert_cache_is_not_syncing(Block_RTC_Members.SHADERS)
+            Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, True)
+            try:
+
+                # Clear & Repopulate CollectionProperty
+                drawing_props.shader_mirror.clear()
+                for shader_instance in cached_shaders:
+                    space_name = shader_instance.draw_space.name
+                    region_str = str(shader_instance.draw_region)
+                    phase_str = str(shader_instance.draw_phase)
+                    BL_shader = drawing_props.shader_mirror.add()
+                    BL_shader.shader_uid = shader_instance.shader_uid
+                    BL_shader.is_enabled = shader_instance.is_enabled
+                    BL_shader.draw_space = space_name
+                    BL_shader.draw_region = region_str
+                    BL_shader.draw_phase = phase_str
+
+            finally:
+                Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, False)
+
+
+        # Perform the standard list->CollectionProperty mirror actions
+        # BL_data_path = "dgblocks_onscreen_drawing_props.shader_mirror"
+        # default_data_mirror_RTC_list_update_logic(
+        #     FWC_instance,
+        #     BL_data_path,
+        #     data_mirror_instance,
+        #     cached_RTC_list = cached_shaders,
+        #     actions_denied = set(),
+        #     logger = logger,
+        # )
 
     # ----------------------------------------------------------
     # Private helpers

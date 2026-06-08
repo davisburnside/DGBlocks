@@ -113,8 +113,8 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 5: Subscribe msgbus scene-change listener on all open windows
-        clear_msgbuses(msgbus_subs)
-        add_msgbuses(msgbus_subs)
+        # clear_msgbuses(msgbus_subs)
+        # add_msgbuses(msgbus_subs)
         logger.info("msgbus scene-change listener registered")
 
         # ----------------------------------------------------------------------------------------------------------------------------

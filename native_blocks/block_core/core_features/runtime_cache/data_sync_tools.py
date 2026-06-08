@@ -304,16 +304,17 @@ def apply_dataclasses_to_match_collectionprop(
 
 def default_data_mirror_RTC_list_update_logic(
         FWC_instance,
+        BL_data_path,
         data_mirror_instance,
-        cached_RTC_list,
-        actions_denied,
-        logger = None):
+        cached_RTC_list: list,
+        actions_denied: set,
+        logger = None,
+    ):
     """
     Synchronizes RTC with its Blender data mirror, BL as source of truth
     """
     
     RTC_key = data_mirror_instance.RTC_key
-    BL_data_path = data_mirror_instance.default_data_path_in_scene
     key_fields = data_mirror_instance.mirrored_key_field_names
     data_fields = data_mirror_instance.mirrored_data_field_names
 
@@ -325,6 +326,10 @@ def default_data_mirror_RTC_list_update_logic(
         raise Exception("CollectionProperty does not exist in Blender: 'scene.{BL_data_path}'")
     data_source = BL_colprop
     data_target = cached_RTC_list
+
+    if logger:
+        logger.debug(f"(Default mirror sync) Updating RTC ({len(data_target)} items) with BL ({len(data_source)} items) truth-source for cache '{data_mirror_instance.RTC_key}'")
+
 
     # Get ordered actions list to perform on target, to make in-sync with source
     actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
@@ -359,6 +364,9 @@ def default_data_mirror_BL_colprop_update_logic(
         raise Exception("CollectionProperty does not exist in Blender: 'scene.{BL_data_path}'")
     data_source = cached_RTC_list
     data_target = BL_colprop
+
+    if logger:
+        logger.debug(f"(Default mirror sync) Updating BL ({len(data_target)} items) with RTC ({len(data_source)} items) truth-source for cache '{data_mirror_instance.RTC_key}'")
 
     # Get ordered actions list to perform on target, to make in-sync with source
     actions = plan_collectionprop_to_match_dataclasses(data_source, data_target, key_fields, data_fields)

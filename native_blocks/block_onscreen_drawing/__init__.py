@@ -1,6 +1,7 @@
 
 import sys
-import bpy # type: ignore
+import bpy
+
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -11,6 +12,8 @@ from ...addon_config.static_settings import Documentation_URLs, addon_title
 # Inter-block imports
 from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..block_core.core_features.loggers.feature_wrapper import get_logger
+from ..block_core.core_helpers.constants import Core_Block_Loggers # type: ignore
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
@@ -19,6 +22,8 @@ from .common_constants import Block_Data_Mirrors, Block_Hook_Sources, Block_Logg
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .block_data_structures import Shader_Definition
 from .BL_gpu_data_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
+
+cache_key_shaders = Block_RTC_Members.SHADERS
 
 # ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
@@ -32,23 +37,35 @@ def _cb_is_enabled_changed(self, context):
     """
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Block_RTC_Members.SHADERS):
         return
-    shader = Wrapper_Shader_Manager.get_shader(self.shader_uid)
-    if shader is not None:
-        shader.is_enabled = self.is_enabled
+    # shader = Wrapper_Shader_Manager.get_shader(self.shader_uid)
+    # if shader is not None:
+    #     shader.is_enabled = self.is_enabled
+
+    logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
+    # Wrapper_Runtime_Cache.resync_single_data_mirror(
+    #     event = Enum_Sync_Events.PROPERTY_UPDATE, 
+    #     BL_is_truth_source = True,
+    #     cache_key = Block_RTC_Members.SHADERS,
+    #     logger = logger,
+    # )
+
+    event = Enum_Sync_Events.PROPERTY_UPDATE
+    FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
+    Wrapper_Shader_Manager.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
+
+
 
 
 def _cb_enable_drawing_changed(self, context):
     """
     Fired when the enable_drawing scene property changes.
-
-    True  → full rebuild: collect definitions, create instances, fire first-draw hook.
-    False → clear all draw handlers and shader instances.
-
-    The BL shader_mirror is not cleared when drawing is disabled so that
-    is_enabled preferences survive the toggle cycle.
     """
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Block_RTC_Members.SHADERS):
+        return
+
+    event = Enum_Sync_Events.PROPERTY_UPDATE
     if self.enable_drawing:
-        Wrapper_Shader_Manager.rebuild_all_shaders()
+        Wrapper_Shader_Manager.rebuild_all_shaders(event)
     else:
         Wrapper_Shader_Manager.clear_all_shaders()
 
@@ -59,7 +76,8 @@ def _cb_enable_viewport_debugging_changed(self, context):
     Rebuilds shaders so the debug borders are registered or removed.
     """
     if self.enable_drawing:
-        Wrapper_Shader_Manager.rebuild_all_shaders()
+        event = Enum_Sync_Events.PROPERTY_UPDATE
+        Wrapper_Shader_Manager.rebuild_all_shaders(event)
 
 
 # ==============================================================================================================================

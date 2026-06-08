@@ -306,14 +306,14 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
 
         # Data-mirror has custom sync functions inside the FWC
         if use_default_sync_logic:
-            if logger:
-                logger.debug(f"(Default mirror sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
 
             # Update RTC with BL data
             if BL_is_truth_source:
                 if data_mirror_instance.RTC_member_type == "list":
+                    BL_data_path = data_mirror_instance.default_data_path_in_scene
                     default_data_mirror_RTC_list_update_logic(
                         FWC_instance,
+                        BL_data_path,
                         data_mirror_instance,
                         cached_RTC_list,
                         actions_denied,
