@@ -76,7 +76,6 @@ class Enum_Sync_Events(StrEnum):
     PROPERTY_UPDATE = auto()
     PROPERTY_UPDATE_UNDO = auto()
     PROPERTY_UPDATE_REDO = auto()
-    FORCE_RESTORE_RTC = auto()
 
 # ==============================================================================================================================
 # FEATURE WRAPPER ABSTRACT CLASSES

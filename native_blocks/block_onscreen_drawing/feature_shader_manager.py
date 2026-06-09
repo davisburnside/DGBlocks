@@ -9,6 +9,7 @@ from ...addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, A
 
 # Inter-block imports
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..block_core.core_features.runtime_cache import data_sync_tools
 from ..block_core.core_features.runtime_cache.data_sync_tools import default_data_mirror_BL_colprop_update_logic, default_data_mirror_RTC_list_update_logic, plan_dataclasses_to_match_collectionprop # type: ignore
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
@@ -232,12 +233,18 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         data_source = drawing_props.shader_mirror
         print([s.shader_uid for s in data_source])
         actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
-        logger.debug(f"BL: {len(data_source)} items | RTC: {len(data_target)} items")
+        filtered_actions = [a for a in actions if a.__class__ in {data_sync_tools.Create, data_sync_tools.Remove}]
+        logger.debug(f"BL: {len(data_source)} items | RTC: {len(data_target)} items. | {len(filtered_actions)} Actions")
 
         # sync_BL = event != Enum_Sync_Events.ADDON_INIT
-        if len(actions) > 0:
-            cls.rebuild_all_shaders(event, sync_BL = False)
+        if len(filtered_actions) > 0:
+            sync_BL = event in {Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO, Enum_Sync_Events.PROPERTY_UPDATE}
+            cls.rebuild_all_shaders(event, sync_BL)
 
+        edit_actions = [a for a in actions if a.__class__ in {data_sync_tools.Edit}]
+        for action in edit_actions:
+            shader_instance = data_target[action.source_idx]
+            shader_instance.is_enabled = not shader_instance.is_enabled
         
         # # Collect what downstream blocks currently declare
         # shaders_from_blocks = Wrapper_Hooks.run_hooked_funcs(

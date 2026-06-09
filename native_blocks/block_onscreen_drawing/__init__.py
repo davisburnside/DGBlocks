@@ -51,7 +51,7 @@ def _cb_is_enabled_changed(self, context):
 
     event = Enum_Sync_Events.PROPERTY_UPDATE
     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
-    Wrapper_Shader_Manager.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
+    Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
 
 
 
@@ -128,25 +128,25 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
 # Auto-discovered by Wrapper_Hooks at block registration time.
 # ==============================================================================================================================
 
-def hook_core_event_undo():
-    """
-    After undo: delegate to update_RTC_with_mirrored_BL_data, which checks whether the
-    shader structure has actually changed before deciding to rebuild or only restore
-    is_enabled values.  Avoids tearing down and recreating GPU resources when the undo
-    step did not affect the drawing configuration.
-    """
-    try:
-        Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
-    except Exception:
-        pass
+# def hook_core_event_undo():
+#     """
+#     After undo: delegate to update_RTC_with_mirrored_BL_data, which checks whether the
+#     shader structure has actually changed before deciding to rebuild or only restore
+#     is_enabled values.  Avoids tearing down and recreating GPU resources when the undo
+#     step did not affect the drawing configuration.
+#     """
+#     try:
+#         Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
+#     except Exception:
+#         pass
 
 
-def hook_core_event_redo():
-    """After redo: same smart sync as undo."""
-    try:
-        Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
-    except Exception:
-        pass
+# def hook_core_event_redo():
+#     """After redo: same smart sync as undo."""
+#     try:
+#         Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
+#     except Exception:
+#         pass
 
 
 def _debug_region_before_draw(shader_instance):

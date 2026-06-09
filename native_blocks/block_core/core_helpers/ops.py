@@ -92,7 +92,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
         # Clearing these would prevent restore-action
         rtc_members_to_skip = ["REGISTRY_ALL_BLOCKS", "REGISTRY_ALL_FWCS"]
 
-        event = Enum_Sync_Events.FORCE_RESTORE_RTC
+        event = Enum_Sync_Events.PROPERTY_UPDATE
         
         # Clear or restore the RTC, Blender data is unaffected
         if self.target == "RTC":
