@@ -171,7 +171,7 @@ class Abstract_Shared_UIList_Draw(ABC):
 # ==============================================================================================================================
 
 
-# @dataclass(eq=False)
+@dataclass(eq=False)
 class Shared_UIList_Declaration:
     col_names: list[str]
     col_widths: list[int]
@@ -179,13 +179,11 @@ class Shared_UIList_Declaration:
     scene_colprop_path: str
     scene_colprop_path_UIList_selection_idx_path: str
 
-    RTC_key: Optional[str] = field(default = None)
-
     callback_draw_row: Callable
     callback_draw_details_section: Callable
 
+    RTC_key: Optional[str] = field(default = None)
 
-@dataclass(eq=False)
 class Shared_UIList_Instance(Shared_UIList_Declaration):
     _: KW_ONLY  # everything after this is keyword-only, solving the default ordering problem
 

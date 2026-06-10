@@ -17,14 +17,12 @@ from ...addon_helpers.ui import ui_draw_block_panel_header, ui_draw_shared_debug
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .feature_shader_manager import Wrapper_Shader_Manager
 
 
 
 # Would I ever need to read anything other than Block_RTC_Members in the ui draws?
 def _uilist_draw_uilist_row(context, container, item, idx):
-    pass
+    Wrapper_Runtime_Cache.get_cache("SHADERS")
 
 def _uilist_draw_selection_details(context, container, item, idx):
 

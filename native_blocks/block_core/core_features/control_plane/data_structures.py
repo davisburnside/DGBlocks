@@ -17,6 +17,7 @@ class RTC_Block_Instance:
     # Record — instance state only, no manager logic
 
     block_id: str
+    block_version: tuple[int,int,int]
     block_module: ModuleType
     block_package_name: str
     block_dependencies: list[str]

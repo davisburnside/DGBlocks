@@ -50,7 +50,7 @@ def shallow_validate_block_module(block_module):
     # Validate uniqueness
     block_id = block_module._BLOCK_DECLARATION
     cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-    block_names_and_versions = {i.block_name: i.block_version for i in cached_blocks}
+    block_names_and_versions = {i.block_id: i.block_version for i in cached_blocks}
     if block_id in block_names_and_versions.keys():
         raise Exception(f"A Block with ID '{block_id}' is already registered")
 
@@ -151,6 +151,7 @@ def _create_new_block_record(block_declaration, new_FWC_instances, error_str, lo
 
     block_instance = RTC_Block_Instance(
         block_id,
+        block_version = block_declaration.block_version,
         block_module = block_declaration.block_module,
         block_package_name = package_name,
         block_dependencies = block_declaration.block_dependencies,

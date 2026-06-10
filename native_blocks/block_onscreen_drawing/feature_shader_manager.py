@@ -16,7 +16,7 @@ from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # Intra-block imports
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .helpers import _teardown_draw_handler, _uilist_draw_selection_details, _universal_draw_callback, validate_shader_definitions
+from .helpers import _teardown_draw_handler, _universal_draw_callback, validate_shader_definitions
 from .data_structures import Shader_Instance, Drawhandler_Instance
 
 # Aliases

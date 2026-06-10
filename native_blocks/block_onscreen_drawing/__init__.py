@@ -18,7 +18,7 @@ from ...addon_helpers.ui import ui_draw_block_panel_header, ui_draw_shared_debug
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Shared_UILists, Block_UIList_Configs
+from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_UIList_Configs
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .data_structures import Shader_Definition
 from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types

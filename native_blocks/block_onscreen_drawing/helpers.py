@@ -155,12 +155,13 @@ def _universal_draw_callback(handler_instance) -> None:
     failed_shaders = []
     logger.debug(f"Drawing {shader_count} Shaders of Drawhandler {handler_instance.space} : {handler_instance.region} : {handler_instance.phase}")
     for shader_uid in handler_instance.shader_names:
+        shader = None
         try:
             
             # Fetch shader instance from cache
-            cache_idx = cached_shader_uids.index(shader_uid)
-            if cache_idx == -1: 
+            if shader_uid not in cached_shader_uids: 
                 raise Exception(f"Shader {shader_uid} not found")
+            cache_idx = cached_shader_uids.index(shader_uid)
             shader = cached_shaders[cache_idx]
 
             # Draw the shader
@@ -178,8 +179,10 @@ def _universal_draw_callback(handler_instance) -> None:
                     shader._shader_draw()
 
         except Exception as e:
-            shader.shader_error_str = get_exception_last_n_lines(2, e)
-            failed_shaders.append(shader)
+            if shader:
+                shader.shader_error_str = get_exception_last_n_lines(2, e)
+                shader.is_enabled = False
+                failed_shaders.append(shader)
 
     # restore gpou state
     _restore_gpu_state(prev_gpu_state)

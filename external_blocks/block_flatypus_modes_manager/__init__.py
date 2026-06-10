@@ -11,14 +11,10 @@ from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
-# Inter-block imports
-# --------------------------------------------------------------
-from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
-
-# --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .common_declarations import Block_Loggers, FLATYPUS_SHADER_DEFS
+from .common_declarations import Block_Loggers
+from .shader_declarations import FLATYPUS_SHADER_DEFS
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
