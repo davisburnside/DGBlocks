@@ -8,7 +8,7 @@ import gpu # type: ignore
 from mathutils import Matrix, Vector # type: ignore
 from gpu_extras.batch import batch_for_shader
 
-from .BL_gpu_data_structures import Builtin_Shader_Names, Draw_Phase_type, Draw_Region_Type, Draw_Space_Types, Shader_Types # type: ignore
+from .BL_drawing_structures import Builtin_Shader_Names, Draw_Phase_type, Draw_Region_Type, Draw_Space_Types, Shader_Types # type: ignore
 
 # ==============================================================================================================================
 # DECLARATIVE CONFIG DATACLASSES

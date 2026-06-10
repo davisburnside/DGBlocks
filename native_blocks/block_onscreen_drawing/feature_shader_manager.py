@@ -6,7 +6,6 @@ import bpy
 
 # Addon-level imports
 from ...addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Feature_Wrapper, Abstract_Shared_UIList_Draw, Enum_Sync_Events
-from ...addon_helpers.ui import set_shared_uilist_config
 
 # Inter-block imports
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
@@ -16,9 +15,9 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # Intra-block imports
-from .common_constants import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
+from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .helpers import _teardown_draw_handler, _uilist_draw_selection_details, _universal_draw_callback, validate_shader_definitions
-from .block_data_structures import Shader_Instance, Drawhandler_Instance
+from .data_structures import Shader_Instance, Drawhandler_Instance
 
 # Aliases
 cache_key_shaders = Block_RTC_Members.SHADERS
@@ -26,10 +25,6 @@ cache_key_shaders = Block_RTC_Members.SHADERS
 # ==============================================================================================================================
 # WRAPPER CLASS
 # ==============================================================================================================================
-
-def t1(context, container, item, idx):
-
-    pass
 
 class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
 
@@ -43,18 +38,18 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         logger.debug("Wrapper_Shader_Manager init")
 
         # Setup UIList for Debug Panel
-        set_shared_uilist_config(
-            list_id="BLOCKS_LIST",
-            col_names=("Enabled", "Shader UID", "Draw-Phase/Region/Space"),
-            col_widths=(1, 3, 3),
-            # columns_def=[
-            #     {"type": "ICON", "field": "is_enabled", "icon_true": "HIDE_OFF", "icon_false": "HIDE_ON"},
-            #     {"type": "LABEL", "field": "shader_uid"},
-            #     {"type": "RAW_TEXT", "field": "shader_uid"},
-            # ],
-            row_func = t1,
-            details_func=_uilist_draw_selection_details
-        )
+        # set_shared_uilist_config(
+        #     list_id="BLOCKS_LIST",
+        #     col_names=("Enabled", "Shader UID", "Draw-Phase/Region/Space"),
+        #     col_widths=(1, 3, 3),
+        #     # columns_def=[
+        #     #     {"type": "ICON", "field": "is_enabled", "icon_true": "HIDE_OFF", "icon_false": "HIDE_ON"},
+        #     #     {"type": "LABEL", "field": "shader_uid"},
+        #     #     {"type": "RAW_TEXT", "field": "shader_uid"},
+        #     # ],
+        #     row_func = t1,
+        #     details_func=_uilist_draw_selection_details
+        # )
 
         # The initial pass only exists in the RTC. BL data is not overwritten yet
         event = Enum_Sync_Events.ADDON_INIT
@@ -291,13 +286,9 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     # ----------------------------------------------------------
 
     @classmethod
-    def shared_uilist_poll(cls):
+    def shared_uilist_draw_row(cls, context, container, BL_ColProp_item, RTC_list_item, idx):
         pass
 
     @classmethod
-    def shared_uilist_draw_row(cls):
-        pass
-
-    @classmethod
-    def shared_uilist_draw_details_footer(cls):
+    def shared_uilist_draw_details_footer(cls, context, container, BL_ColProp_item, RTC_list_item, idx):
         pass

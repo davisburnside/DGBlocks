@@ -8,7 +8,7 @@ from gpu_extras.batch import batch_for_shader
 # --------------------------------------------------------------
 # Inter-block imports
 # --------------------------------------------------------------
-from ....native_blocks.block_onscreen_drawing.block_data_structures import Shader_Instance
+from ....native_blocks.block_onscreen_drawing.data_structures import Shader_Instance
 from ....native_blocks.block_onscreen_drawing.helpers import set_draw_geometry_occluded  # type: ignore
 
 # =================================================================================
@@ -193,6 +193,8 @@ class Billboard_Shader(Shader_Instance):
         )
 
     def _shader_draw(self):
+
+        set_draw_geometry_occluded()
     
         # Set Uniforms, which change with viewing angle 
         self.shader_actual.uniform_sampler("icon_texture", self._texture)

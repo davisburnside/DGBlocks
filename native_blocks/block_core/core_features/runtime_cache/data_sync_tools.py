@@ -355,7 +355,7 @@ def default_data_mirror_BL_colprop_update_logic(
     """
     
     RTC_key = data_mirror_instance.RTC_key
-    BL_data_path = data_mirror_instance.default_data_path_in_scene
+    BL_data_path = data_mirror_instance.scene_colprop_path
     key_fields = data_mirror_instance.mirrored_key_field_names
     data_fields = data_mirror_instance.mirrored_data_field_names
 

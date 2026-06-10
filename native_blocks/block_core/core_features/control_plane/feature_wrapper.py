@@ -7,7 +7,6 @@ import bpy # type: ignore
 from .....addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Global_Addon_State, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 from .....addon_helpers.data_tools import reset_propertygroup
 from .....addon_helpers.generic_tools import force_redraw_ui, get_folder_parts
-from .....addon_helpers.ui import set_shared_uilist_config
 
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
@@ -89,12 +88,11 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         Wrapper_Hooks.rebuild_hook_subs_cache()
 
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 2: initialize all Feature Wrapper Classes, of all blocks 
-        # (except block-core, which was initialized during addon register)
+        # 2: initialize all Feature Wrapper Classes, of all blocks (except block-core, which was initialized during addon register)
         core_FWCs = (cls, Wrapper_Runtime_Cache, Wrapper_Hooks, Wrapper_Loggers)
         cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
         for FWC_instance in cached_FWCs:
-            if FWC_instance.actual_class in core_FWCs:  # Already inside init_post_bpy for this FWC, avoid recursion
+            if FWC_instance.actual_class in core_FWCs:
                 continue
             FWC_instance.actual_class.init_wrapper()
 
@@ -182,7 +180,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             _create_new_block_standard_features(block_declaration, logger)
 
             # 4: Create data mirrors to link certain FWCs / RTC members / BL data
-            _create_new_block_RTC_data_mirrors(block_declaration, logger)
+            new_data_mirrors = _create_new_block_RTC_data_mirrors(block_declaration, logger)
 
             # 5: Store Declarations (Not instances) of shard UILists. Commonly used for debugging
             _create_new_block_shared_UILists(block_declaration, logger)

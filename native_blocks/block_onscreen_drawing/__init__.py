@@ -13,17 +13,18 @@ from ...addon_config.static_settings import Documentation_URLs, addon_title
 from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
-from ..block_core.core_helpers.constants import Core_Block_Loggers # type: ignore
-from ...addon_helpers.ui import ui_draw_block_panel_header, ui_draw_shared_debug_list
+from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
+from ...addon_helpers.ui import ui_draw_block_panel_header, ui_draw_shared_debug_list, v2_draw_shared_uilist
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_constants import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Shared_UILists
+from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Shared_UILists, Block_UIList_Configs
 from .feature_shader_manager import Wrapper_Shader_Manager
-from .block_data_structures import Shader_Definition
-from .BL_gpu_data_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
+from .data_structures import Shader_Definition
+from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
 
 cache_key_shaders = Block_RTC_Members.SHADERS
+cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
 
 # ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
@@ -206,7 +207,7 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
         if not drawing_props.shader_mirror:
             layout.label(text="No active shaders", icon="INFO")
-            return
+        
 
         # Per-shader list with is_enabled toggles
         # layout.template_list(
@@ -215,10 +216,15 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
         #     props, "shader_mirror_selected_idx",
         # )
 
-        ui_draw_shared_debug_list(
-            context, layout, "BLOCKS_LIST", 
-            drawing_props, "shader_mirror", "shader_mirror_selected_idx", 
-        )
+        # ui_draw_shared_debug_list(
+        #     context, layout, "BLOCKS_LIST", 
+        #     drawing_props, "shader_mirror", "shader_mirror_selected_idx", 
+        # )
+
+        else:
+            data_mirror_id = tuple(Wrapper_Shader_Manager.__name__, cache_key_shaders.name) # FWC & RTC names
+            data_mirror_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_data_mirrors, "uid", data_mirror_id)
+            v2_draw_shared_uilist(context, layout, data_mirror_instance)
 
 # ==============================================================================================================================
 # BLOCK REGISTRATION HELPERS
@@ -249,5 +255,5 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_RTC_members = Block_RTC_Members,
     block_data_mirrors = Block_Data_Mirrors,
     block_loggers = Block_Loggers,
-    block_shared_UILists = Block_Shared_UILists,
+    block_uilist_configs = Block_UIList_Configs,
 )

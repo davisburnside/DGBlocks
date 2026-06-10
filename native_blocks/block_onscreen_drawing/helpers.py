@@ -11,11 +11,11 @@ from ...addon_helpers.generic_tools import get_exception_last_n_lines
 # Inter-block imports
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ...native_blocks.block_onscreen_drawing.BL_gpu_data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS
+from .BL_drawing_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_constants import Block_Loggers, Block_RTC_Members
+from .common_declarations import Block_Loggers, Block_RTC_Members
 
 # ----------------------------------------------------------
 # Public convenience funcs
@@ -124,18 +124,6 @@ def _teardown_draw_handler(draw_handler_instance):
         draw_handler_instance._handle = None
     draw_handler_instance.shader_names.clear()
 
-
-def _uilist_draw_selection_details(context, container, item, idx):
-
-    box = container.box()
-    print(item, idx)
-    # block_instance = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)[idx]
-    # if item.is_valid:
-    #     box.label(text = f"Block '{block_instance.block_id}' is active and valid", icon='CHECKMARK')
-    # else:
-    #     box.alert = True
-    #     box.label(text = f"Error: {item.error_message}", icon='ERROR')
-    # box.label(text = f"Location: {block_instance.block_package_name}")
 
 
 # ----------------------------------------------------------

@@ -302,7 +302,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         # cache_key = data_mirror_instance.RTC_key
         source_type = "Blender" if BL_is_truth_source else "RTC"
         target_type = "RTC" if BL_is_truth_source else "Blender"
-        use_default_sync_logic = data_mirror_instance.default_data_path_in_scene is not None
+        use_default_sync_logic = data_mirror_instance.scene_colprop_path is not None
         cached_RTC_list = cls.get_cache(cache_key)
 
         # Data-mirror has custom sync functions inside the FWC
@@ -311,7 +311,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             # Update RTC with BL data
             if BL_is_truth_source:
                 if data_mirror_instance.RTC_member_type == "list":
-                    BL_data_path = data_mirror_instance.default_data_path_in_scene
+                    BL_data_path = data_mirror_instance.scene_colprop_path
                     default_data_mirror_RTC_list_update_logic(
                         FWC_instance,
                         BL_data_path,

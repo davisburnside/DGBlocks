@@ -15,7 +15,6 @@ import time
 from .....addon_helpers.data_tools import get_actual_id
 from .....addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper, Enum_Sync_Events
 from .....addon_helpers.generic_tools import find_blocks_owning_func_with_name
-from .....addon_helpers.ui import set_shared_uilist_config
 
 # --------------------------------------------------------------
 # Intra-block imports

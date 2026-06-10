@@ -122,6 +122,10 @@ def create_ui_box_with_header(context:bpy.context, container:bpy.types.UILayout,
 #         "row_func": row_func,
 #     }
 
+def v2_draw_shared_uilist(context, container, data_mirror_instance):
+    print("draw it")
+
+
 
 def ui_draw_shared_debug_list(context, container, list_id, collection_owner, collection_prop, active_idx_prop, rows=5):
     config = get_shared_uilist_config(list_id)

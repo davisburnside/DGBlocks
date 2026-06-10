@@ -1,8 +1,10 @@
 
+from dataclasses import fields
+
 import bpy # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import  Block_Declaration, Enum_Sync_Events, Hook_Source_Declaration, Logger_Declaration, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance
+from .....addon_helpers.data_structures import  Block_Declaration, Enum_Sync_Events, Hook_Source_Declaration, Logger_Declaration, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Shared_UIList_Instance
 from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_folder_parts, is_same_class_by_name, validate_func_args
 
 # Intra-block imports
@@ -203,9 +205,7 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
     cached_data_mirrors = Wrapper_Runtime_Cache.get_cache(cache_key_data_mirrors)
 
     all_known_FWC_names = [f.feature_name for f in cached_FWCs]
-    existing_data_mirror_FWCs = []
-    # all_cache_keys = 
-    # all_known_FWC_names_with_data_mirrors = [f.feature_name for f in cached_data_mirrors]
+    new_data_mirrors = []
 
     for data_mirror_enum in block_declaration.block_data_mirrors:
         
@@ -240,57 +240,27 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
             RTC_member_type,
             enum_val.mirrored_key_field_names,
             enum_val.mirrored_data_field_names,
-            default_data_path_in_scene = enum_val.default_data_path_in_scene,
+            scene_colprop_path = enum_val.scene_colprop_path,
         )
         cached_data_mirrors.append(new_data_mirror)
-    Wrapper_Runtime_Cache.set_cache(cache_key_data_mirrors, cached_data_mirrors)
+        new_data_mirrors.append(new_data_mirror)
 
+    Wrapper_Runtime_Cache.set_cache(cache_key_data_mirrors, cached_data_mirrors)
+    return new_data_mirrors
 
 
 def _create_new_block_shared_UILists(block_declaration, logger):
 
-    # Create data mirrors references for certain RTC members
     cached_shared_UIList_decs = Wrapper_Runtime_Cache.get_cache(cache_key_shared_uilist_declarations)
-    cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
-    FWC_names = [f.feature_name for f in cached_FWCs]
-    cached_data_mirrors = Wrapper_Runtime_Cache.get_cache(cache_key_data_mirrors)
-    data_mirrors_info = {tuple(i.FWC_name, i.RTC_key): i.RTC_member_type for i in cached_data_mirrors}
+    for uilist_config_dec in block_declaration.block_uilist_configs:
 
-    for shared_uilist_dec in block_declaration.block_shared_UILists:
-        FWC_name = shared_uilist_dec.FWC_name
-        RTC_key =  shared_uilist_dec.RTC_key
-        colprop_
-        
-        # Shared UILists should be assocated with 1 FWC/collectionprop_path pair
-        uilist_key = tuple(FWC_name, RTC_key)
-        if uilist_key in cached_shared_UIList_decs.keys():
-            raise Exception("Shared UIList Declaration with unqiue key '{unique_key}' already exists") 
+        # Just a copy: no new fields
+        uilist_config_instance = Shared_UIList_Instance(
+            **{f.name: getattr(uilist_config_dec, f.name) for f in fields(uilist_config_dec)},
+        )
+        cached_shared_UIList_decs.append(uilist_config_instance)
 
-        # Validate FWC
-        if shared_uilist_dec.FWC_name not in FWC_names:
-            raise Exception(f"Shared UIList Declaration references nonexistant FWC '{shared_uilist_dec.FWC_name}'") 
-
-        # Validate RTC Rules. If an RTC key exists, there must be an associated data mirror
-        has_mirrored_RTC_list = cached_shared_UIList_decs.RTC_key is not None
-        if has_mirrored_RTC_list:
-            data_mirror_key = tuple()
-
-        # FWC_name: str
-        # RTC_key: str
-        # col_names: list[str]
-        # col_widths: list[int]
-        # collectionprop_path: str
-        # collectionprop_selection_index_path: str
-
-
-        # shared_uilist_poll
-        
-
-        # shared_uilist_draw_row
-        
-
-        # shared_uilist_draw_details_footer
-
+    Wrapper_Runtime_Cache.set_cache(cache_key_shared_uilist_declarations, cached_shared_UIList_decs)
 
 # ==============================================================================================================================
 # BLOCK REMOVAL

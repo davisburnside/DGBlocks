@@ -7,7 +7,6 @@ import logging
 
 # Addon-level imports
 from .....addon_helpers.data_structures import Enum_Sync_Events, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
-from .....addon_helpers.ui import set_shared_uilist_config
 from .....addon_config.static_settings import base_linebreak_length
 
 # Intra-block imports

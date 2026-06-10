@@ -1,5 +1,7 @@
 
+
 from ...addon_helpers.data_structures import Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, Shared_UIList_Declaration, String_Comparable_Mixin
+from ..block_onscreen_drawing.ui import _uilist_draw_selection_details, _uilist_draw_uilist_row
 
 # ==============================================================================================================================
 # MAIN BLOCK COMPONENTS
@@ -22,20 +24,20 @@ class Block_RTC_Members(String_Comparable_Mixin):
 
 class Block_Data_Mirrors(String_Comparable_Mixin):
     SHADER_MIRROR = RTC_Member_Data_Mirror_Declaration(
-        RTC_key = "SHADERS",
+        RTC_key = Block_RTC_Members.SHADERS.name,
         FWC_name = "Wrapper_Shader_Manager",
         mirrored_key_field_names = ["shader_uid"],
         mirrored_data_field_names = ["is_enabled"],
-        default_data_path_in_scene = None,
+        scene_colprop_path = "dgblocks_onscreen_drawing_props.shader_mirror",
     )
 
-class Block_Shared_UILists(String_Comparable_Mixin):
-
-    SHADERS = Shared_UIList_Declaration(
-        FWC_name = "Wrapper_Shader_Manager",
-        RTC_member_name = Block_RTC_Members.SHADERS.name,
-        col_names = ("Shader Name", "Phase/Region/Space", "Enabled"),
-        col_widths = (3, 3, 1),
-        default_scene_colprop_path = "dgblocks_onscreen_drawing_props.shader_mirror",
-        default_scene_colprop_selection_idx_path = "dgblocks_onscreen_drawing_props.shader_mirror_selected_idx",
+class Block_UIList_Configs(String_Comparable_Mixin):
+    SHADERS_UILIST = Shared_UIList_Declaration(
+        col_names = [],
+        col_widths = [],
+        scene_colprop_path = "dgblocks_onscreen_drawing_props.shader_mirror",
+        scene_colprop_path_UIList_selection_idx_path = "dgblocks_onscreen_drawing_props.shader_mirror_selected_index",
+        RTC_key = Block_RTC_Members.SHADERS,
+        callback_draw_row =_uilist_draw_uilist_row,
+        callback_draw_details_section = _uilist_draw_selection_details,
     )

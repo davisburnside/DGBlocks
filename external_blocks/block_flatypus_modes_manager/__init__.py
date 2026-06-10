@@ -1,7 +1,7 @@
 
-import random
 import sys
-import bpy  # type: ignore
+import bpy
+from .custom_shaders.helpers import populate_points  # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -18,7 +18,7 @@ from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapp
 # --------------------------------------------------------------
 # Intra-block imports
 # --------------------------------------------------------------
-from .constants import Block_Loggers, FLATYPUS_SHADER_DEFS
+from .common_declarations import Block_Loggers, FLATYPUS_SHADER_DEFS
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
@@ -32,38 +32,7 @@ def hook_get_shader_definitions():
 
 def hook_before_first_draw():
 
-    simple2d = Wrapper_Shader_Manager.get_shader("SIMPLE_2D")
-    if simple2d is not None:
-        simple2d.set_points([
-            (-0.5, -0.5),
-            (50.0, 100.5),
-        ])
-        simple2d.set_uniform("color", (1, 1, 1, 1))
-
-    tris = Wrapper_Shader_Manager.get_shader("SIMPLE_TRIS")
-    if tris is not None:
-        tris.set_points([
-            (-0.5, -0.5, 0.0),
-            ( 0.5, -0.5, 0.0),
-            ( 0.0,  0.5, 0.0),
-        ])
-        tris.set_colors([
-            (1.0, 0.0, 0.0, 1.0),
-            (0.0, 1.0, 0.0, 1.0),
-            (0.0, 0.0, 1.0, 1.0),
-        ])
-
-    billboard_shader = Wrapper_Shader_Manager.get_shader("BILLBOARD")
-    if billboard_shader is not None:
-        rf = random.uniform
-        minf, maxf = -0.1, 0.1
-        points = [(rf(minf, maxf), rf(minf, maxf), rf(minf, maxf)) for _ in range(3)]
-        colors = [(0.0, 0.0, 1.0, 1.0) for _ in points]
-        sizes  = [0.5 for _ in points]
-        billboard_shader.set_points(points)
-        billboard_shader.set_colors(colors)
-        billboard_shader.set_billboard_sizes(sizes)
-
+    populate_points()
 
 # ==============================================================================================================================
 # UI PANEL
