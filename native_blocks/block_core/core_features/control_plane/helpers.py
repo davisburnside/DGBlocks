@@ -210,9 +210,9 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
 
     for data_mirror_enum in block_declaration.block_data_mirrors:
         
-        enum_val = data_mirror_enum.value
-        associated_FWC_name = enum_val.FWC_name
-        associated_RTC_key = enum_val.RTC_key
+        data_mirror_dec = data_mirror_enum.value
+        associated_FWC_name = data_mirror_dec.FWC_name
+        associated_RTC_key = data_mirror_dec.RTC_key
 
         # Cache validation
         mirrored_cache = Wrapper_Runtime_Cache.get_cache(associated_RTC_key)
@@ -235,16 +235,24 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
         # Add data-mirror instance as child of existing FWC instance.
         # list_idx = all_known_FWC_names.index(associated_FWC_name)
         # associated_FWC_instance = cached_FWCs[list_idx]
-        new_data_mirror = RTC_FWC_Data_Mirror_Instance(
-            associated_RTC_key,
-            associated_FWC_name,
-            RTC_member_type,
-            enum_val.mirrored_key_field_names,
-            enum_val.mirrored_data_field_names,
-            scene_colprop_path = enum_val.scene_colprop_path,
+        # new_data_mirror = RTC_FWC_Data_Mirror_Instance(
+        #     associated_RTC_key,
+        #     associated_FWC_name,
+        #     RTC_member_type,
+        #     enum_val.mirrored_key_field_names,
+        #     enum_val.mirrored_data_field_names,
+        #     scene_colprop_path = enum_val.scene_colprop_path,
+        # )
+        # cached_data_mirrors.append(new_data_mirror)
+
+        # Just a copy: no new fields
+        data_mirror_instance = RTC_FWC_Data_Mirror_Instance(
+            **{f.name: getattr(data_mirror_dec, f.name) for f in fields(data_mirror_dec)},
+            uid = tuple([associated_FWC_name, associated_RTC_key]),
+            RTC_member_type = RTC_member_type
         )
-        cached_data_mirrors.append(new_data_mirror)
-        new_data_mirrors.append(new_data_mirror)
+        cached_data_mirrors.append(data_mirror_instance)
+        new_data_mirrors.append(data_mirror_instance)
 
     Wrapper_Runtime_Cache.set_cache(cache_key_data_mirrors, cached_data_mirrors)
     return new_data_mirrors
@@ -253,7 +261,9 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
 def _create_new_block_shared_UILists(block_declaration, logger):
 
     cached_shared_UIList_decs = Wrapper_Runtime_Cache.get_cache(cache_key_shared_uilist_declarations)
-    for uilist_config_dec in block_declaration.block_uilist_configs:
+    for enum in block_declaration.block_uilist_configs:
+
+        uilist_config_dec = enum.value
 
         # Just a copy: no new fields
         uilist_config_instance = Shared_UIList_Instance(

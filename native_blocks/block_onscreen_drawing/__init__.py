@@ -14,7 +14,7 @@ from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
-from ...addon_helpers.ui import ui_draw_block_panel_header, ui_draw_shared_debug_list, v2_draw_shared_uilist
+from ...addon_helpers.ui import ui_draw_block_panel_header, v2_draw_shared_uilist, v2_draw_shared_uilist
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -25,6 +25,7 @@ from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phas
 
 cache_key_shaders = Block_RTC_Members.SHADERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
+cache_key_shared_uilist_declarations = Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS
 
 # ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
@@ -216,15 +217,19 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
         #     props, "shader_mirror_selected_idx",
         # )
 
-        # ui_draw_shared_debug_list(
+        # v2_draw_shared_uilist(
         #     context, layout, "BLOCKS_LIST", 
         #     drawing_props, "shader_mirror", "shader_mirror_selected_idx", 
         # )
 
         else:
-            data_mirror_id = tuple(Wrapper_Shader_Manager.__name__, cache_key_shaders.name) # FWC & RTC names
-            data_mirror_instance = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_data_mirrors, "uid", data_mirror_id)
-            v2_draw_shared_uilist(context, layout, data_mirror_instance)
+
+            _, cached_uilist_config, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+                cache_key_shared_uilist_declarations, 
+                "scene_colprop_path",
+                "shader_mirror")
+
+            v2_draw_shared_uilist(context, layout, cached_uilist_config)
 
 # ==============================================================================================================================
 # BLOCK REGISTRATION HELPERS

@@ -176,6 +176,7 @@ class Shared_UIList_Declaration:
     col_names: list[str]
     col_widths: list[int]
     
+    scene_parent_path: str
     scene_colprop_path: str
     scene_colprop_path_UIList_selection_idx_path: str
 
@@ -184,6 +185,7 @@ class Shared_UIList_Declaration:
 
     RTC_key: Optional[str] = field(default = None)
 
+@dataclass
 class Shared_UIList_Instance(Shared_UIList_Declaration):
     _: KW_ONLY  # everything after this is keyword-only, solving the default ordering problem
 

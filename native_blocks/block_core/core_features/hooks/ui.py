@@ -5,7 +5,7 @@
 from datetime import datetime
 import bpy  # type: ignore
 
-from .....addon_helpers.ui import ui_draw_shared_debug_list
+from .....addon_helpers.ui import v2_draw_shared_uilist
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -43,7 +43,7 @@ def _uilayout_draw_hooks_settings(context, container):
     panel_header, panel_body = box.panel(idname="_dummy_dgblocks_core_scene_hooks_mgmt", default_closed=True)
     panel_header.label(text=f"All Hooks ({len(core_props.managed_hooks)})")
     if panel_body is not None:
-        ui_draw_shared_debug_list(
+        v2_draw_shared_uilist(
             context, panel_body, "HOOKS_LIST", 
             core_props, "managed_hooks", "managed_hooks_selected_idx", 
             rows=max(1, len(core_props.managed_hooks))

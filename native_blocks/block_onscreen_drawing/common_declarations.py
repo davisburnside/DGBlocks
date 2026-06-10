@@ -33,10 +33,11 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
 
 class Block_UIList_Configs(String_Comparable_Mixin):
     SHADERS_UILIST = Shared_UIList_Declaration(
-        col_names = [],
-        col_widths = [],
-        scene_colprop_path = "dgblocks_onscreen_drawing_props.shader_mirror",
-        scene_colprop_path_UIList_selection_idx_path = "dgblocks_onscreen_drawing_props.shader_mirror_selected_index",
+        col_names = ["Shader Name", "Phase/Region/Space", "Enabled"],
+        col_widths = [3,3,1],
+        scene_parent_path = "dgblocks_onscreen_drawing_props",
+        scene_colprop_path = "shader_mirror",
+        scene_colprop_path_UIList_selection_idx_path = "shader_mirror_selected_idx",
         RTC_key = Block_RTC_Members.SHADERS,
         callback_draw_row =_uilist_draw_uilist_row,
         callback_draw_details_section = _uilist_draw_selection_details,

@@ -39,7 +39,7 @@ class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty lis
     REGISTRY_ALL_LOGGERS = RTC_Member_Declaration()
     REGISTRY_ALL_DATA_MIRRORS = RTC_Member_Declaration()
     META_REGISTRIES_BEING_SYNCED = RTC_Member_Declaration()
-    SHARED_UILIST_CONFIGS = RTC_Member_Declaration({})
+    SHARED_UILIST_CONFIGS = RTC_Member_Declaration()
 
 class Core_Data_Mirrors(String_Comparable_Mixin):
     BLOCKS_LIST = RTC_Member_Data_Mirror_Declaration(

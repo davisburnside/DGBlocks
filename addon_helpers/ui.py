@@ -93,65 +93,45 @@ def create_ui_box_with_header(context:bpy.context, container:bpy.types.UILayout,
 # Shared UIList class: contains an optional details section
 # --------------------------------------------------------------
 
-# @dataclass()
-# class Shared_UIList_Definition:
-#     uid: str
-#     col_names: list[str]
-#     col_widths: list[int]
-#     callback_list_row: callable
-#     callback_details_footer: Optional[callable] = field(default_factory = None)
 
-
-    # callback_list_row: callable
-    # callback_details_footer: Optional[callable] = field(default_factory = None)
-
-
-
-# def get_shared_uilist_config(list_id):
-#     configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
-#     return configs.get(list_id)
-
-
-# def set_shared_uilist_config(list_id, col_names, col_widths, row_func = None, details_func=None):
-#     configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
-#     configs[list_id] = {
-#         "col_names": col_names,
-#         "col_widths": col_widths,
-#         # "columns_def": columns_def,
-#         "details_func": details_func,
-#         "row_func": row_func,
-#     }
-
-def v2_draw_shared_uilist(context, container, data_mirror_instance):
-    print("draw it")
-
-
-
-def ui_draw_shared_debug_list(context, container, list_id, collection_owner, collection_prop, active_idx_prop, rows=5):
-    config = get_shared_uilist_config(list_id)
-    if not config:
-        container.label(text=f"No config for {list_id}")
-        return
-
+def v2_draw_shared_uilist(context, container, cached_uilist_config):
+   
     # Draw header
-    ui_draw_list_headers(container, config["col_names"], config["col_widths"])
+    ui_draw_list_headers(container, cached_uilist_config.col_names, cached_uilist_config.col_widths)
+    
+    RTC_key = cached_uilist_config.RTC_key
+    colprop_path = cached_uilist_config.scene_colprop_path
+    colprop_idx_path = cached_uilist_config.scene_colprop_path_UIList_selection_idx_path 
+    BL_scene_parent = context.scene.path_resolve(cached_uilist_config.scene_parent_path)
+    BL_colprop = BL_scene_parent.path_resolve(colprop_path)
+    selected_idx = BL_scene_parent.path_resolve(colprop_idx_path)
+    row_count = len(BL_colprop)
 
     # Draw UIList
     row = container.row()
     row.template_list(
         "DGBLOCKS_UL_Shared_Debug_List",
-        list_id,
-        collection_owner, collection_prop,
-        collection_owner, active_idx_prop,
-        rows=rows, maxrows=rows, columns=len(config["col_names"])
+        colprop_path,
+        BL_scene_parent, 
+        colprop_path,
+        BL_scene_parent, 
+        colprop_idx_path,
+        rows = row_count, 
+        columns = len(cached_uilist_config.col_names),
     )
 
     # Draw details if selected and details_func exists
-    idx: int = getattr(collection_owner, active_idx_prop)
-    collection: bpy.types.CollectionProperty = getattr(collection_owner, collection_prop)
-    if config.get("details_func") and 0 <= idx < len(collection):
-        item = collection[idx]
-        config["details_func"](context, container, item, idx)
+    # idx: int = getattr(collection_owner, active_idx_prop)
+    # collection: bpy.types.CollectionProperty = getattr(collection_owner, collection_prop)
+    if cached_uilist_config.callback_draw_details_section and 0 <= selected_idx < row_count:
+        BL_item = BL_colprop[selected_idx]
+        RTC_item = None
+        if RTC_key:
+            associated_cache = Wrapper_Runtime_Cache.get_cache(RTC_key)
+            RTC_item = associated_cache[selected_idx]
+        cached_uilist_config.callback_draw_details_section(context, container, BL_item, RTC_item, selected_idx)
+
+
 
 
 class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
@@ -161,9 +141,23 @@ class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
     """
 
     def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
-        config = get_shared_uilist_config(self.list_id)
-        if not config:
-            container.label(text=f"Missing config for {self.list_id}")
-            return
 
-        config["row_func"](context, container, item, index)
+        _, uillist_config_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+            "SHARED_UILIST_CONFIGS",
+            "scene_colprop_path_UIList_selection_idx_path",
+            active_propname
+        )
+
+        RTC_item = None
+        RTC_key = uillist_config_instance.RTC_key
+        if RTC_key:
+            associated_cache = Wrapper_Runtime_Cache.get_cache(RTC_key)
+            RTC_item = associated_cache[index]
+
+        uillist_config_instance.callback_draw_row(context, container, item, RTC_item, index)
+
+        # configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
+
+        # print(uillist_config_instance)
+
+        # v2_draw_shared_uilist(context, container, uillist_config_instance)
