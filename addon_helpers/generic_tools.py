@@ -16,7 +16,6 @@ import numpy as np
 import bpy  # type: ignore
 import mathutils # type: ignore
 from ..addon_config.static_settings import should_show_developer_ui_panels, addon_name
-from ..addon_helpers.data_structures import Block_Declaration
 
 # --------------------------------------------------------------
 # Generic Blender helpers

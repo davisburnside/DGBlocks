@@ -17,6 +17,7 @@ cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
+cache_key_shared_uilist_declarations = Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS
 enum_hook_post_startup = Core_Block_Hook_Sources.hook_post_startup
 
 # ==============================================================================================================================
@@ -41,9 +42,21 @@ def shallow_validate_block_module(block_module):
     file_dunder_name = block_module.__name__
     if not hasattr(block_module, "_BLOCK_DECLARATION"):
         raise Exception(f"Could not register {file_dunder_name} as a Block. Its __init__.py is missing a required '_BLOCK_DECLARATION' object")
-    
     if not is_same_class_by_name(block_module._BLOCK_DECLARATION, Block_Declaration):#  .__name__ != Block_Declaration.__name__:
         raise Exception(f"Could not register {file_dunder_name} as a Block. Its '_BLOCK_DECLARATION' object is the supposed to be a {Block_Declaration.__class__}, is instead a {block_module._BLOCK_DECLARATION.__class__}")
+
+    # Validate uniqueness
+    block_id = block_module._BLOCK_DECLARATION
+    cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
+    block_names_and_versions = {i.block_name: i.block_version for i in cached_blocks}
+    if block_id in block_names_and_versions.keys():
+        raise Exception(f"A Block with ID '{block_id}' is already registered")
+
+    # Validate dependencies
+    # for block_dep in block_module._BLOCK_DECLARATION.block_dependencies:
+    #     if isinstance(block_dep, str):
+    #         if block_dep not in block_names_and_versions.keys():
+    #             raise Exception(f"Block '{block_dep}' is not installed. Unable to register '{block_id}'")
 
 
 def shallow_validate_block_declaration(block_declaration, logger):
@@ -231,6 +244,53 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
         )
         cached_data_mirrors.append(new_data_mirror)
     Wrapper_Runtime_Cache.set_cache(cache_key_data_mirrors, cached_data_mirrors)
+
+
+
+def _create_new_block_shared_UILists(block_declaration, logger):
+
+    # Create data mirrors references for certain RTC members
+    cached_shared_UIList_decs = Wrapper_Runtime_Cache.get_cache(cache_key_shared_uilist_declarations)
+    cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
+    FWC_names = [f.feature_name for f in cached_FWCs]
+    cached_data_mirrors = Wrapper_Runtime_Cache.get_cache(cache_key_data_mirrors)
+    data_mirrors_info = {tuple(i.FWC_name, i.RTC_key): i.RTC_member_type for i in cached_data_mirrors}
+
+    for shared_uilist_dec in block_declaration.block_shared_UILists:
+        FWC_name = shared_uilist_dec.FWC_name
+        RTC_key =  shared_uilist_dec.RTC_key
+        colprop_
+        
+        # Shared UILists should be assocated with 1 FWC/collectionprop_path pair
+        uilist_key = tuple(FWC_name, RTC_key)
+        if uilist_key in cached_shared_UIList_decs.keys():
+            raise Exception("Shared UIList Declaration with unqiue key '{unique_key}' already exists") 
+
+        # Validate FWC
+        if shared_uilist_dec.FWC_name not in FWC_names:
+            raise Exception(f"Shared UIList Declaration references nonexistant FWC '{shared_uilist_dec.FWC_name}'") 
+
+        # Validate RTC Rules. If an RTC key exists, there must be an associated data mirror
+        has_mirrored_RTC_list = cached_shared_UIList_decs.RTC_key is not None
+        if has_mirrored_RTC_list:
+            data_mirror_key = tuple()
+
+        # FWC_name: str
+        # RTC_key: str
+        # col_names: list[str]
+        # col_widths: list[int]
+        # collectionprop_path: str
+        # collectionprop_selection_index_path: str
+
+
+        # shared_uilist_poll
+        
+
+        # shared_uilist_draw_row
+        
+
+        # shared_uilist_draw_details_footer
+
 
 # ==============================================================================================================================
 # BLOCK REMOVAL

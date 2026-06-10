@@ -31,11 +31,7 @@ def hook_get_shader_definitions():
 
 
 def hook_before_first_draw():
-    """
-    Push initial geometry to all shaders immediately after they are created.
-    Called by Wrapper_Shader_Manager.rebuild_all_shaders() after all instances
-    are live and is_enabled preferences have been restored.
-    """
+
     simple2d = Wrapper_Shader_Manager.get_shader("SIMPLE_2D")
     if simple2d is not None:
         simple2d.set_points([
@@ -92,9 +88,6 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        # enable_drawing is owned by block_onscreen_drawing and drives the whole
-        # rebuild cycle.  Toggling it here fires _cb_enable_drawing_changed which
-        # calls rebuild_all_shaders() or clear_all_shaders() as appropriate.
         layout.prop(
             context.scene.dgblocks_onscreen_drawing_props,
             "enable_drawing",

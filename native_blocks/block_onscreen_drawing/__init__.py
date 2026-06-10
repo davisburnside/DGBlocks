@@ -14,11 +14,11 @@ from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_helpers.constants import Core_Block_Loggers # type: ignore
-from ...addon_helpers.ui import ui_draw_block_panel_header
+from ...addon_helpers.ui import ui_draw_block_panel_header, ui_draw_shared_debug_list
 
 # --------------------------------------------------------------
 # Intra-block imports
-from .common_constants import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members
+from .common_constants import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Shared_UILists
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .block_data_structures import Shader_Definition
 from .BL_gpu_data_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
@@ -27,7 +27,6 @@ cache_key_shaders = Block_RTC_Members.SHADERS
 
 # ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
-# ==============================================================================================================================
 
 def _cb_is_enabled_changed(self, context):
     """
@@ -37,23 +36,12 @@ def _cb_is_enabled_changed(self, context):
     """
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Block_RTC_Members.SHADERS):
         return
-    # shader = Wrapper_Shader_Manager.get_shader(self.shader_uid)
-    # if shader is not None:
-    #     shader.is_enabled = self.is_enabled
 
     logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
-    # Wrapper_Runtime_Cache.resync_single_data_mirror(
-    #     event = Enum_Sync_Events.PROPERTY_UPDATE, 
-    #     BL_is_truth_source = True,
-    #     cache_key = Block_RTC_Members.SHADERS,
-    #     logger = logger,
-    # )
 
     event = Enum_Sync_Events.PROPERTY_UPDATE
     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
     Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
-
-
 
 
 def _cb_enable_drawing_changed(self, context):
@@ -79,10 +67,8 @@ def _cb_enable_viewport_debugging_changed(self, context):
         event = Enum_Sync_Events.PROPERTY_UPDATE
         Wrapper_Shader_Manager.rebuild_all_shaders(event)
 
-
 # ==============================================================================================================================
 # BL PROPERTY GROUPS
-# ==============================================================================================================================
 
 class DGBLOCKS_PG_Shader_Mirror_Row(bpy.types.PropertyGroup):
     """
@@ -119,35 +105,10 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
         description="Draws a rectangle along the boundary of each visible tab/menu/panel in the 3D viewport",
     )
     shader_mirror:       bpy.props.CollectionProperty(type=DGBLOCKS_PG_Shader_Mirror_Row)  # type: ignore
-    shader_mirror_index: bpy.props.IntProperty()  # type: ignore
-
+    shader_mirror_selected_idx: bpy.props.IntProperty()  # type: ignore
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
-# Top-level functions whose names match Block_Hook_Sources members in block_core.
-# Auto-discovered by Wrapper_Hooks at block registration time.
-# ==============================================================================================================================
-
-# def hook_core_event_undo():
-#     """
-#     After undo: delegate to update_RTC_with_mirrored_BL_data, which checks whether the
-#     shader structure has actually changed before deciding to rebuild or only restore
-#     is_enabled values.  Avoids tearing down and recreating GPU resources when the undo
-#     step did not affect the drawing configuration.
-#     """
-#     try:
-#         Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_UNDO)
-#     except Exception:
-#         pass
-
-
-# def hook_core_event_redo():
-#     """After redo: same smart sync as undo."""
-#     try:
-#         Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE_REDO)
-#     except Exception:
-#         pass
-
 
 def _debug_region_before_draw(shader_instance):
     region = bpy.context.region
@@ -201,11 +162,8 @@ def hook_get_shader_definitions():
             )
     return returned_shader_definitions
 
-
-
 # ==============================================================================================================================
-# UI LIST
-# ==============================================================================================================================
+# UI 
 
 class DGBLOCKS_UL_Shader_List(bpy.types.UIList):
     bl_idname = "DGBLOCKS_UL_Shader_List"
@@ -219,10 +177,6 @@ class DGBLOCKS_UL_Shader_List(bpy.types.UIList):
         row.label(text=f"{item.draw_space} / {item.draw_region} / {item.draw_phase}")
 
 
-# ==============================================================================================================================
-# UI PANEL
-# ==============================================================================================================================
-
 class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     bl_label = ""
     bl_idname = "VIEW3D_PT_Debug_Drawing_Panel"
@@ -230,6 +184,7 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = addon_title
 
+    
     def draw_header(self, context):
         ui_draw_block_panel_header(
             context, self.layout,
@@ -240,30 +195,33 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        props = context.scene.dgblocks_onscreen_drawing_props
+        drawing_props = context.scene.dgblocks_onscreen_drawing_props
 
         # Master enable / disable toggle
-        layout.prop(props, "enable_drawing", toggle=True)
+        layout.prop(drawing_props, "enable_drawing", toggle=True)
         
         row = layout.row()
-        row.enabled = props.enable_drawing
-        row.prop(props, "enable_viewport_debugging", toggle=True)
+        row.enabled = drawing_props.enable_drawing
+        row.prop(drawing_props, "enable_viewport_debugging", toggle=True)
 
-        if not props.shader_mirror:
+        if not drawing_props.shader_mirror:
             layout.label(text="No active shaders", icon="INFO")
             return
 
         # Per-shader list with is_enabled toggles
-        layout.template_list(
-            "DGBLOCKS_UL_Shader_List", "",
-            props, "shader_mirror",
-            props, "shader_mirror_index",
-        )
+        # layout.template_list(
+        #     "DGBLOCKS_UL_Shader_List", "",
+        #     props, "shader_mirror",
+        #     props, "shader_mirror_selected_idx",
+        # )
 
+        ui_draw_shared_debug_list(
+            context, layout, "BLOCKS_LIST", 
+            drawing_props, "shader_mirror", "shader_mirror_selected_idx", 
+        )
 
 # ==============================================================================================================================
 # BLOCK REGISTRATION HELPERS
-# ==============================================================================================================================
 
 def register_block_props():
     bpy.types.Scene.dgblocks_onscreen_drawing_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Onscreen_Drawing_Props)
@@ -275,21 +233,21 @@ def unregister_block_props():
 
 # ==============================================================================================================================
 # REQUIRED
-# ==============================================================================================================================
 
 _BLOCK_DECLARATION = Block_Declaration(
-    block_module=sys.modules[__name__],
-    block_id="block-onscreen-draw",
-    block_dependencies=["block-core"],
-    block_bpy_classes=[
+    block_module = sys.modules[__name__],
+    block_id = "block-onscreen-draw",
+    block_dependencies = ["block-core"],
+    block_bpy_classes = [
         DGBLOCKS_PG_Shader_Mirror_Row,
         DGBLOCKS_PG_Onscreen_Drawing_Props,
         DGBLOCKS_UL_Shader_List,
         DGBLOCKS_PT_Debug_Drawing_Panel,
     ],
-    block_feature_wrapper_classes=[Wrapper_Shader_Manager],
-    block_hook_sources=Block_Hook_Sources,
-    block_RTC_members=Block_RTC_Members,
-    block_data_mirrors=Block_Data_Mirrors,
-    block_loggers=Block_Loggers,
+    block_feature_wrapper_classes = [Wrapper_Shader_Manager],
+    block_hook_sources = Block_Hook_Sources,
+    block_RTC_members = Block_RTC_Members,
+    block_data_mirrors = Block_Data_Mirrors,
+    block_loggers = Block_Loggers,
+    block_shared_UILists = Block_Shared_UILists,
 )

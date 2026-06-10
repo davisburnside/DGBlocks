@@ -46,19 +46,12 @@ class RTC_Member_Declaration:
     default_value: any = field(default_factory = list)
 
 
-@dataclass(eq=False)
-class RTC_Member_Data_Mirror_Declaration:
-    RTC_key: str
-    FWC_name: str
-    mirrored_key_field_names: list[str]
-    mirrored_data_field_names: list[str]
-    default_data_path_in_scene: Optional[str]
-
 
 @dataclass(eq=False)
 class Block_Declaration:
     block_module: ModuleType # the block/package's main __init__.py file
     block_id: str
+    block_version: tuple[int,int,int] = field(default = tuple(1,0,0))
     block_dependencies: list[str] = field(default_factory = list)
     block_bpy_classes: list[bpy.types] = field(default_factory = list)
     block_feature_wrapper_classes: list[Callable] = field(default_factory = list)
@@ -66,6 +59,7 @@ class Block_Declaration:
     block_hook_sources: Enum = field(default_factory = list)
     block_RTC_members: Enum = field(default_factory = list)
     block_data_mirrors: Enum = field(default_factory = list)
+    block_shared_UILists: Enum =  field(default_factory = list)
 
 # ==============================================================================================================================
 # COMMON ENUMS
@@ -94,22 +88,18 @@ class Enum_Sync_Events(StrEnum):
 
 class Abstract_Datawrapper_Instance_Manager(ABC):
     # CRUD-style instance management funcs. Inhertited only by wrappers that hold 0-to-many instances of a @dataclass
-    # Examples:                 block-stable-timers, block-stable-events, block-ui-shaders, block-core feature wrappers(loggers, RTC, Hooks)...
-    # Examples not used by:     block-stable-modal (Only a single modal)
 
     @classmethod
     @abstractmethod
-    def create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any:
+    def create_instance(cls, event: Enum_Sync_Events, **kwargs):
         # Can have arbitrary args
-        # Should return instance
-        raise NotImplementedError("Child class must impement this function")
+        raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
     def destroy_instance(cls, event: Enum_Sync_Events, **kwargs):
         # Can have arbitrary args
-        # Should return None
-        raise NotImplementedError("Child class must impement this function")
+        raise NotImplementedError("Child class must implement this function")
 
 
 class Abstract_BL_RTC_List_Syncronizer(ABC):
@@ -119,19 +109,15 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
     @abstractmethod
     def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
         # Used by Wrapper_Control_Plane on undo/redo/load, and by certain property update callbacks
-        # Rebuild an RTC list from the child propertygroup of a parent propertygroup/datablock. Blender is the source of truth
-        # Args must match exactly
-        # Returns are ignored
-        raise NotImplementedError("Child class must impement this function")
+        # Rebuild an RTC list from a mirrored collectionproperty. Data should be moved/reused/modified instead of recreated, when possible
+        raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
     def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
         # Used when RTC data need to be persisted into Blender
-        # RTC data overwries scene/obj/datablock properties. Data is reused/modified instead of recreated, when possible
-        # Args must match exactly
-        # Returns are ignored
-        raise NotImplementedError("Child class must impement this function")
+        # RTC data overwrites a mirrored collectionproperty. Data should be moved/reused/modified instead of recreated, when possible
+        raise NotImplementedError("Child class must implement this function")
 
 
 class Abstract_Feature_Wrapper(ABC):
@@ -143,31 +129,74 @@ class Abstract_Feature_Wrapper(ABC):
     def init_wrapper(cls) -> bool:
         # Is automatically called during register_block_components for all registered features
         # Must have no extra arguments
-        # Must return True if init is successful
-        raise NotImplementedError("Child class must impement this function")
-        pass
+        raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
     def destroy_wrapper(cls):
         # Is automatically called during unregister_block_components for all registered features
         # Must have no extra arguments
-        raise NotImplementedError("Child class must impement this function")
+        raise NotImplementedError("Child class must implement this function")
+
+
+class Abstract_Shared_UIList_Draw(ABC):
+
+    @classmethod
+    @abstractmethod
+    def shared_uilist_poll(cls):
+        return True
+
+    @classmethod
+    @abstractmethod
+    def shared_uilist_draw_row(cls):
+        raise NotImplementedError("Child class must implement this function")
+
+    @classmethod
+    @abstractmethod
+    def shared_uilist_draw_details_footer(cls):
+        pass
 
 
 # ==============================================================================================================================
 # SUPPORT CLASSES FOR FWCS
 # ==============================================================================================================================
 
-@dataclass 
-class RTC_FWC_Data_Mirror_Instance:
-    
-    RTC_key: str # cache key, must be unique
-    # RTC_member_type: str # enum <"list"> / <"dict">
+
+@dataclass(eq=False)
+class Shared_UIList_Declaration:
+    col_names: list[str]
+    col_widths: list[int]
     FWC_name: str
-    RTC_member_type: str
+    RTC_key: Optional[str] = field(default = None)
+    collectionprop_path: Optional[str]= field(default = None)
+    collectionprop_selection_index_path: Optional[str] = field(default = None)
+
+@dataclass(eq=False)
+class Shared_UIList_Declaration:
+    col_names: list[str]
+    col_widths: list[int]
+    FWC_name: str
+    RTC_key: Optional[str] = field(default = None)
+    collectionprop_path: Optional[str]= field(default = None)
+    collectionprop_selection_index_path: Optional[str] = field(default = None)
+
+@dataclass(eq=False)
+class RTC_Member_Data_Mirror_Declaration:
+    RTC_key: str # cache key, must be unique
+    FWC_name: str
     mirrored_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
     mirrored_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
+    default_data_path_in_scene: Optional[str]
+
+@dataclass 
+class RTC_FWC_Data_Mirror_Instance(RTC_Member_Data_Mirror_Declaration):
+    
+    RTC_key: str 
+    
+    FWC_name: str
+    RTC_member_type: str # RTC_member_type: str # enum <"list"> / <"dict">
+    mirrored_key_field_names: list[str] 
+    mirrored_data_field_names: list[str] 
 
     # If None, the FWC must implement 'update_BL_with_mirrored_RTC_data' or 'update_RTC_with_mirrored_BL_data'
     default_data_path_in_scene: Optional[str] = field(default = None)
@@ -180,6 +209,7 @@ class RTC_FWC_Data_Mirror_Instance:
     is_valid:bool = field(default = True)
     error_reason: str = field(default = None)
 
+# Unlike most Instances, FWCs have no associated declaration class. They are referenced directly during registration
 @dataclass
 class RTC_FWC_Instance:
     src_block_id: str

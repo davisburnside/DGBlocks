@@ -1,5 +1,5 @@
 
-from ...addon_helpers.data_structures import Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, String_Comparable_Mixin
+from ...addon_helpers.data_structures import Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, Shared_UIList_Declaration, String_Comparable_Mixin
 
 # ==============================================================================================================================
 # MAIN BLOCK COMPONENTS
@@ -22,9 +22,20 @@ class Block_RTC_Members(String_Comparable_Mixin):
 
 class Block_Data_Mirrors(String_Comparable_Mixin):
     SHADER_MIRROR = RTC_Member_Data_Mirror_Declaration(
-        RTC_key                  = "SHADERS",
-        FWC_name                 = "Wrapper_Shader_Manager",
+        RTC_key = "SHADERS",
+        FWC_name = "Wrapper_Shader_Manager",
         mirrored_key_field_names = ["shader_uid"],
-        mirrored_data_field_names= ["is_enabled"],
+        mirrored_data_field_names = ["is_enabled"],
         default_data_path_in_scene = None,
+    )
+
+class Block_Shared_UILists(String_Comparable_Mixin):
+
+    SHADERS = Shared_UIList_Declaration(
+        FWC_name = "Wrapper_Shader_Manager",
+        RTC_member_name = Block_RTC_Members.SHADERS.name,
+        col_names = ("Shader Name", "Phase/Region/Space", "Enabled"),
+        col_widths = (3, 3, 1),
+        default_scene_colprop_path = "dgblocks_onscreen_drawing_props.shader_mirror",
+        default_scene_colprop_selection_idx_path = "dgblocks_onscreen_drawing_props.shader_mirror_selected_idx",
     )

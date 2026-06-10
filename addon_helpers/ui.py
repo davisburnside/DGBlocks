@@ -1,4 +1,6 @@
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Optional
 import bpy
 from ..native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..native_blocks.block_core.core_helpers.constants import Core_Runtime_Cache_Members
@@ -91,20 +93,34 @@ def create_ui_box_with_header(context:bpy.context, container:bpy.types.UILayout,
 # Shared UIList class: contains an optional details section
 # --------------------------------------------------------------
 
+# @dataclass()
+# class Shared_UIList_Definition:
+#     uid: str
+#     col_names: list[str]
+#     col_widths: list[int]
+#     callback_list_row: callable
+#     callback_details_footer: Optional[callable] = field(default_factory = None)
 
-def get_shared_uilist_config(list_id):
-    configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
-    return configs.get(list_id)
+
+    # callback_list_row: callable
+    # callback_details_footer: Optional[callable] = field(default_factory = None)
 
 
-def set_shared_uilist_config(list_id, col_names, col_widths, columns_def, details_func=None):
-    configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
-    configs[list_id] = {
-        "col_names": col_names,
-        "col_widths": col_widths,
-        "columns_def": columns_def,
-        "details_func": details_func
-    }
+
+# def get_shared_uilist_config(list_id):
+#     configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
+#     return configs.get(list_id)
+
+
+# def set_shared_uilist_config(list_id, col_names, col_widths, row_func = None, details_func=None):
+#     configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
+#     configs[list_id] = {
+#         "col_names": col_names,
+#         "col_widths": col_widths,
+#         # "columns_def": columns_def,
+#         "details_func": details_func,
+#         "row_func": row_func,
+#     }
 
 
 def ui_draw_shared_debug_list(context, container, list_id, collection_owner, collection_prop, active_idx_prop, rows=5):
@@ -135,7 +151,10 @@ def ui_draw_shared_debug_list(context, container, list_id, collection_owner, col
 
 
 class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
-    """Generic UIList for debug panels"""
+    """
+    Generic UIList for debug panels. Uses a (non-hook) callback to draw each row
+    This allows multiple UILists, with differing structures, to share this class
+    """
 
     def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
         config = get_shared_uilist_config(self.list_id)
@@ -143,35 +162,4 @@ class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
             container.label(text=f"Missing config for {self.list_id}")
             return
 
-        row = container.row(align=True)
-        col_widths = config["col_widths"]
-        columns_def = config["columns_def"]
-
-        for i, col_def in enumerate(columns_def):
-            sub = row.row()
-            if i < len(col_widths):
-                sub.ui_units_x = col_widths[i]
-
-            col_type = col_def.get("type", "LABEL")
-            field = col_def.get("field", "")
-
-            if col_type == "LABEL":
-                text = getattr(item, field, "")
-                if isinstance(text, bool):
-                    text = str(text)
-                sub.label(text=text)
-
-            elif col_type == "PROP":
-                icon_only = col_def.get("icon_only", False)
-                if icon_only:
-                    val = getattr(item, field, False)
-                    icon_str = col_def.get("icon_true", "CHECKBOX_HLT") if val else col_def.get("icon_false", "CHECKBOX_DEHLT")
-                    sub.prop(item, field, text="", icon=icon_str)
-                else:
-                    sub.prop(item, field, text="")
-
-            elif col_type == "ICON":
-                val = getattr(item, field, False)
-                icon_str = col_def.get("icon_true", "CHECKMARK") if val else col_def.get("icon_false", "X")
-                sub.label(text="", icon=icon_str)
-
+        config["row_func"](context, container, item, index)

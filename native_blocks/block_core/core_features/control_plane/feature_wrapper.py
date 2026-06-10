@@ -12,10 +12,10 @@ from .....addon_helpers.ui import set_shared_uilist_config
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..loggers.feature_wrapper import get_logger
+from ..loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from ..hooks.feature_wrapper import Wrapper_Hooks
 from .data_structures import RTC_Block_Instance
-from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_properties, _create_new_block_record, _create_new_block_standard_features, _remove_block_FWC_instances, _remove_block_bpy_classes, _remove_block_properties, shallow_validate_block_declaration, shallow_validate_block_module
+from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_properties, _create_new_block_record, _create_new_block_shared_UILists, _create_new_block_standard_features, _remove_block_FWC_instances, _remove_block_bpy_classes, _remove_block_properties, shallow_validate_block_declaration, shallow_validate_block_module
 from .app_handlers import install_core_app_handler_callbacks, remove_core_app_handler_callbacks
 from .msgbus import add_msgbuses, clear_msgbuses, msgbus_subs
 from .ui import _uilayout_draw_blocks_uilist_selection_detail
@@ -51,16 +51,16 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         install_core_app_handler_callbacks(logger)
 
         # Setup UIList for Debug Panel
-        set_shared_uilist_config(
-            list_id="BLOCKS_LIST",
-            col_names=("Valid", "Block ID"),
-            col_widths=(1, 4),
-            columns_def=[
-                {"type": "ICON", "field": "is_valid", "icon_true": "CHECKMARK", "icon_false": "ERROR"},
-                {"type": "LABEL", "field": "block_id"},
-            ],
-            details_func=_uilayout_draw_blocks_uilist_selection_detail
-        )
+        # set_shared_uilist_config(
+        #     list_id="BLOCKS_LIST",
+        #     col_names=("Valid", "Block ID"),
+        #     col_widths=(1, 4),
+        #     columns_def=[
+        #         {"type": "ICON", "field": "is_valid", "icon_true": "CHECKMARK", "icon_false": "ERROR"},
+        #         {"type": "LABEL", "field": "block_id"},
+        #     ],
+        #     details_func=_uilayout_draw_blocks_uilist_selection_detail
+        # )
 
 
     @classmethod
@@ -89,8 +89,9 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         Wrapper_Hooks.rebuild_hook_subs_cache()
 
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 2: initialize all Feature Wrapper Classes, of all blocks (except block-core, which was initialized during addon register)
-        core_FWCs = (cls, Wrapper_Runtime_Cache, Wrapper_Hooks)
+        # 2: initialize all Feature Wrapper Classes, of all blocks 
+        # (except block-core, which was initialized during addon register)
+        core_FWCs = (cls, Wrapper_Runtime_Cache, Wrapper_Hooks, Wrapper_Loggers)
         cached_FWCs = Wrapper_Runtime_Cache.get_cache(cache_key_FWCs)
         for FWC_instance in cached_FWCs:
             if FWC_instance.actual_class in core_FWCs:  # Already inside init_post_bpy for this FWC, avoid recursion
@@ -170,21 +171,23 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
             shallow_validate_block_declaration(block_declaration, logger)
             
-            # 1: Register the new block's bpy.types.* classes into Blender's native registry
+            # 1: Register the new block's bpy.types.* classes and propertygroups into Blender's native registry
             _create_new_block_bpy_classes(block_declaration, logger)
-
             _create_new_block_properties(block_declaration, logger)
 
             # 2: Register the new block's feature-wrapper classes
             new_FWC_instances = _create_and_init_new_block_FWCs(block_declaration, logger)
 
-            # 4: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
+            # 3: Register the new block's RTC members, loggers, and hook sources. Only sync to Blender on the last iteration
             _create_new_block_standard_features(block_declaration, logger)
 
-            # 5: Create data mirrors to link certain FWCs / RTC members / BL data
+            # 4: Create data mirrors to link certain FWCs / RTC members / BL data
             _create_new_block_RTC_data_mirrors(block_declaration, logger)
+
+            # 5: Store Declarations (Not instances) of shard UILists. Commonly used for debugging
+            _create_new_block_shared_UILists(block_declaration, logger)
             
-            # 3: Add block module to global block registry in RTC
+            # 6: Add block module to global block registry in RTC
             error_str = None
             _create_new_block_record(block_declaration, new_FWC_instances, error_str, logger)
 
@@ -232,6 +235,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         # 1-directional: BL never overwrites RTC data for blocks
         pass
 
+
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
         core_props = bpy.context.scene.dgblocks_core_props
@@ -239,8 +243,8 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         if cached_blocks is None:
             return
             
+        # Clear and repopulate BL Data. This will only happen during startup / reload
         core_props.managed_blocks.clear()
-        
         for rtc_block in cached_blocks:
             bl_block = core_props.managed_blocks.add()
             bl_block.block_id = rtc_block.block_id

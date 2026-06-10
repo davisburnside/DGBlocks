@@ -5,20 +5,20 @@ from typing import Optional
 import bpy
 
 # Addon-level imports
-from ...addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Feature_Wrapper, Enum_Sync_Events
+from ...addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Abstract_Feature_Wrapper, Abstract_Shared_UIList_Draw, Enum_Sync_Events
+from ...addon_helpers.ui import set_shared_uilist_config
 
 # Inter-block imports
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.runtime_cache import data_sync_tools
-from ..block_core.core_features.runtime_cache.data_sync_tools import default_data_mirror_BL_colprop_update_logic, default_data_mirror_RTC_list_update_logic, plan_dataclasses_to_match_collectionprop # type: ignore
+from ..block_core.core_features.runtime_cache.data_sync_tools import plan_dataclasses_to_match_collectionprop
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # Intra-block imports
 from .common_constants import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
+from .helpers import _teardown_draw_handler, _uilist_draw_selection_details, _universal_draw_callback, validate_shader_definitions
 from .block_data_structures import Shader_Instance, Drawhandler_Instance
-from .helpers import _teardown_draw_handler, _universal_draw_callback
-from .BL_gpu_data_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS 
 
 # Aliases
 cache_key_shaders = Block_RTC_Members.SHADERS
@@ -27,7 +27,11 @@ cache_key_shaders = Block_RTC_Members.SHADERS
 # WRAPPER CLASS
 # ==============================================================================================================================
 
-class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer):
+def t1(context, container, item, idx):
+
+    pass
+
+class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
 
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation
@@ -38,7 +42,21 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager init")
 
-        # The initial pass only exists in the RTC, BL data is not overwritten yet
+        # Setup UIList for Debug Panel
+        set_shared_uilist_config(
+            list_id="BLOCKS_LIST",
+            col_names=("Enabled", "Shader UID", "Draw-Phase/Region/Space"),
+            col_widths=(1, 3, 3),
+            # columns_def=[
+            #     {"type": "ICON", "field": "is_enabled", "icon_true": "HIDE_OFF", "icon_false": "HIDE_ON"},
+            #     {"type": "LABEL", "field": "shader_uid"},
+            #     {"type": "RAW_TEXT", "field": "shader_uid"},
+            # ],
+            row_func = t1,
+            details_func=_uilist_draw_selection_details
+        )
+
+        # The initial pass only exists in the RTC. BL data is not overwritten yet
         event = Enum_Sync_Events.ADDON_INIT
         cls.rebuild_all_shaders(event, sync_BL = False)
         return True
@@ -52,8 +70,6 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
     # ----------------------------------------------------------
     # Public API
-    # ----------------------------------------------------------
-
     # ----------------------------------------------------------
 
     @classmethod
@@ -86,7 +102,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         if len(list_shaders_from_blocks) == 0:
             logger.info("No Shaders to draw, returning early")
             return
-        cls.validate_shader_definitions(list_shaders_from_blocks)
+        validate_shader_definitions(list_shaders_from_blocks)
 
         # Group definitions by (space, region, phase)
         groups: dict = defaultdict(list)
@@ -159,18 +175,6 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
             cls.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
 
-        # --- Restore user's is_enabled preferences from BL mirror ---
-        # cls._apply_bl_is_enabled_from_mirror()
-
-        # cls._sync_shaders_to_bl_mirror()
-
-        # default_data_mirror_BL_colprop_update_logic(
-        #     FWC_instance,
-        #     data_mirror_instance,
-        #     cached_RTC_list,
-        #     actions_denied,
-        #     logger = None)
-
         DH_count = len(Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES))
         logger.info(f"Created {len(list_shaders_from_blocks)} Shaders across {DH_count} Draw Handlers")
 
@@ -201,7 +205,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
             # drawing_props.enable_drawing = False
             drawing_props.shader_mirror.clear()
-            drawing_props.shader_mirror_index = 0
+            drawing_props.shader_mirror_selected_idx = 0
 
         logger.debug("clear complete")
 
@@ -231,7 +235,6 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         data_fields = data_mirror_instance.mirrored_data_field_names
         data_target = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
         data_source = drawing_props.shader_mirror
-        print([s.shader_uid for s in data_source])
         actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
         filtered_actions = [a for a in actions if a.__class__ in {data_sync_tools.Create, data_sync_tools.Remove}]
         logger.debug(f"BL: {len(data_source)} items | RTC: {len(data_target)} items. | {len(filtered_actions)} Actions")
@@ -241,31 +244,12 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             sync_BL = event in {Enum_Sync_Events.PROPERTY_UPDATE_REDO, Enum_Sync_Events.PROPERTY_UPDATE_UNDO, Enum_Sync_Events.PROPERTY_UPDATE}
             cls.rebuild_all_shaders(event, sync_BL)
 
-        edit_actions = [a for a in actions if a.__class__ in {data_sync_tools.Edit}]
+        # Toggle is_enabled for each row marked for edit. is_enabled is the only UI-editable property of shaders
+        edit_actions = [a for a in actions if a.__class__ == data_sync_tools.Edit]
         for action in edit_actions:
             shader_instance = data_target[action.source_idx]
             shader_instance.is_enabled = not shader_instance.is_enabled
         
-        # # Collect what downstream blocks currently declare
-        # shaders_from_blocks = Wrapper_Hooks.run_hooked_funcs(
-        #     hook_func_name=Block_Hook_Sources.hook_get_shader_definitions,
-        #     should_halt_on_exception=False,
-        # )
-        # list_shaders_from_blocks = sum(shaders_from_blocks.values(), [])
-
-        # if cls._shaders_structurally_match_definitions(list_shaders_from_blocks):
-        #     logger.debug(
-        #         "update_RTC_with_mirrored_BL_data: RTC structure matches BL — "
-        #         "restoring is_enabled only (no shader rebuild)"
-        #     )
-        #     cls._apply_bl_is_enabled_from_mirror()
-        # else:
-        #     logger.debug(
-        #         "update_RTC_with_mirrored_BL_data: RTC structure differs from BL — "
-        #         "performing full rebuild"
-        #     )
-        #     cls.rebuild_all_shaders()
-
 
     @classmethod
     def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
@@ -280,7 +264,8 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         data_target = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
         data_source = drawing_props.shader_mirror
         actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
-        if len(actions) > 0:
+        filtered_actions = [a for a in actions if a.__class__ in {data_sync_tools.Create, data_sync_tools.Remove, data_sync_tools.Move}]
+        if len(filtered_actions) > 0:
             Wrapper_Runtime_Cache.assert_cache_is_not_syncing(Block_RTC_Members.SHADERS)
             Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, True)
             try:
@@ -301,194 +286,18 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             finally:
                 Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, False)
 
-
-        # Perform the standard list->CollectionProperty mirror actions
-        # BL_data_path = "dgblocks_onscreen_drawing_props.shader_mirror"
-        # default_data_mirror_RTC_list_update_logic(
-        #     FWC_instance,
-        #     BL_data_path,
-        #     data_mirror_instance,
-        #     cached_RTC_list = cached_shaders,
-        #     actions_denied = set(),
-        #     logger = logger,
-        # )
-
     # ----------------------------------------------------------
-    # Private helpers
+    # Abstract_Shared_UIList_Draw implementation
     # ----------------------------------------------------------
 
     @classmethod
-    def validate_shader_definitions(cls, shader_defs: list) -> None:
-        """
-        Run all validation checks against a list of Shader_Definition objects.
-        Raises ValueError with a descriptive message if any check fails.
-        All checks complete before any Blender state is mutated.
-        """
-        # --- duplicate uid check ---
-        seen_uids: set = set()
-        for sdef in shader_defs:
-            if sdef.shader_uid in seen_uids:
-                raise ValueError(
-                    f"Duplicate shader uid '{sdef.shader_uid}' in definition_accumulator. "
-                    f"Every Shader_Definition must have a unique uid."
-                )
-            seen_uids.add(sdef.shader_uid)
-
-        # --- (space, region, phase) allowlist check ---
-        for sdef in shader_defs:
-            combo = (sdef.space, sdef.region, sdef.phase)
-            if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
-                raise ValueError(
-                    f"Shader '{sdef.shader_uid}': "
-                    f"({sdef.space.name}, {sdef.region}, {sdef.phase}) "
-                    f"is not a known-valid (space, region, phase) combination. "
-                    f"See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist."
-                )
-
-        # --- builtin vs custom mutual-exclusion check ---
-        for sdef in shader_defs:
-            has_builtin = sdef.builtin_shader_name is not None
-            has_custom  = sdef.custom_shader_class is not None
-            if has_builtin and has_custom:
-                raise ValueError(
-                    f"Shader '{sdef.shader_uid}': both builtin_shader_name and custom_shader_class "
-                    f"are set. Exactly one must be provided."
-                )
-            if not has_builtin and not has_custom:
-                raise ValueError(
-                    f"Shader '{sdef.shader_uid}': neither builtin_shader_name nor custom_shader_class "
-                    f"is set. Exactly one must be provided."
-                )
-
-        # --- shader_type / builtin_shader_name compatibility check (builtin shaders only) ---
-        for sdef in shader_defs:
-            if sdef.builtin_shader_name is None:
-                continue  # custom shader — no builtin compatibility to check
-            allowed_types = _BUILTIN_SHADER_COMPATIBLE_TYPES.get(sdef.builtin_shader_name)
-            if allowed_types is None:
-                raise ValueError(
-                    f"Shader '{sdef.shader_uid}': builtin shader name "
-                    f"'{sdef.builtin_shader_name}' is not in the compatibility map. "
-                    f"Known names: {list(_BUILTIN_SHADER_COMPATIBLE_TYPES.keys())}"
-                )
-            if sdef.shader_type not in allowed_types:
-                raise ValueError(
-                    f"Shader '{sdef.shader_uid}': builtin shader '{sdef.builtin_shader_name}' "
-                    f"is not compatible with shader type '{sdef.shader_type}'. "
-                    f"Allowed types for this builtin: {sorted(str(t) for t in allowed_types)}"
-                )
-
+    def shared_uilist_poll(cls):
+        pass
 
     @classmethod
-    def _shaders_structurally_match_definitions(cls, definitions: list) -> bool:
-        """
-        Return True if the current RTC SHADERS dict is structurally identical to the
-        supplied list of Shader_Definitions — same UIDs in the same order, with the same
-        (space, region, phase) per UID.
-
-        Returns False if the RTC is empty when definitions are non-empty, or vice-versa,
-        or if any UID, order, or location field differs.
-        """
-        rtc_shaders: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
-
-        if len(rtc_shaders) != len(definitions):
-            return False
-
-        rtc_items = list(rtc_shaders.items())  # preserves insertion order (Python 3.7+)
-        for i, sdef in enumerate(definitions):
-            rtc_uid, rtc_shader = rtc_items[i]
-            if rtc_uid != sdef.shader_uid:
-                return False
-            if rtc_shader.draw_space  != sdef.space:
-                return False
-            if rtc_shader.draw_region != sdef.region:
-                return False
-            if rtc_shader.draw_phase  != sdef.phase:
-                return False
-
-        return True
-
+    def shared_uilist_draw_row(cls):
+        pass
 
     @classmethod
-    def _apply_bl_is_enabled_from_mirror(cls) -> None:
-        """
-        Read is_enabled from every BL shader_mirror row and apply to the matching
-        live Shader_Instance.  Called at the end of rebuild_all_shaders so that
-        user toggle preferences survive undo/redo and full rebuilds.
-        Silent no-op if bpy.context or the scene property is unavailable.
-        """
-        try:
-            scene = bpy.context.scene
-            if scene is None:
-                return
-            props = scene.dgblocks_onscreen_drawing_props
-        except AttributeError:
-            return
-
-        rtc_shaders: dict = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
-        for row in props.shader_mirror:
-            shader = rtc_shaders.get(row.shader_uid)
-            if shader is not None:
-                shader.is_enabled = row.is_enabled
-
-
-    @classmethod
-    def _sync_shaders_to_bl_mirror(cls) -> None:
-        """
-        Update the BL shader_mirror CollectionProperty to match the current live
-        SHADERS RTC dict:
-          - Adds rows for shaders not yet in the mirror (is_enabled defaults to True).
-          - Removes rows for shaders that no longer exist.
-          - Updates draw_space/region/phase display fields on existing rows.
-
-        is_enabled on existing rows is intentionally NOT overwritten — the user owns it.
-        Guards with flag_cache_as_syncing to suppress _cb_is_enabled_changed during
-        the structural mirror update.
-        Silent no-op if bpy.context or the scene property is unavailable.
-        """
-        try:
-            scene = bpy.context.scene
-            if scene is None:
-                return
-            props = scene.dgblocks_onscreen_drawing_props
-        except AttributeError:
-            return
-
-        rtc_shaders = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
-
-        Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, True)
-        try:
-            # Index existing rows by uid for O(1) lookup
-            existing: dict = {row.shader_uid: i for i, row in enumerate(props.shader_mirror)}
-
-            # Remove rows for shaders no longer alive.
-            # Sort descending by index so that removing a high-index row
-            # does not shift lower-index rows that are still pending removal.
-            uids_to_remove = [uid for uid in existing if uid not in rtc_shaders]
-            for uid in sorted(uids_to_remove, key=lambda u: existing[u], reverse=True):
-                props.shader_mirror.remove(existing[uid])
-
-            # Re-index after removals
-            existing = {row.uid: i for i, row in enumerate(props.shader_mirror)}
-
-            # Add new rows; update display fields on existing rows
-            for uid, shader in rtc_shaders.items():
-                space_name   = shader.draw_space.name  if shader.draw_space  is not None else ""
-                region_str   = str(shader.draw_region) if shader.draw_region is not None else ""
-                phase_str    = str(shader.draw_phase)  if shader.draw_phase  is not None else ""
-
-                if uid not in existing:
-                    row             = props.shader_mirror.add()
-                    row.uid         = uid
-                    row.is_enabled  = shader.is_enabled
-                    row.draw_space  = space_name
-                    row.draw_region = region_str
-                    row.draw_phase  = phase_str
-                else:
-                    row             = props.shader_mirror[existing[uid]]
-                    row.draw_space  = space_name
-                    row.draw_region = region_str
-                    row.draw_phase  = phase_str
-                    # is_enabled is NOT touched — user preference is authoritative
-        finally:
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, False)
+    def shared_uilist_draw_details_footer(cls):
+        pass

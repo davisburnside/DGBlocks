@@ -83,18 +83,18 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
     @classmethod
     def init_wrapper(cls):
-        
-        set_shared_uilist_config(
-            list_id="HOOKS_LIST",
-            col_names=("Function Name", "Source Block", "Is Enabled?"),
-            col_widths=(2, 2, 1),
-            columns_def=[
-                {"type": "LABEL", "field": "hook_func_name"},
-                {"type": "LABEL", "field": "src_block_id"},
-                {"type": "PROP", "field": "is_hook_enabled", "icon_only": True, "icon_true": "CHECKBOX_HLT", "icon_false": "CHECKBOX_DEHLT"}
-            ],
-            details_func=_uilayout_draw_hooks_uilist_selection_detail
-        )
+        pass
+        # set_shared_uilist_config(
+        #     list_id="HOOKS_LIST",
+        #     col_names=("Function Name", "Source Block", "Is Enabled?"),
+        #     col_widths=(2, 2, 1),
+        #     columns_def=[
+        #         {"type": "LABEL", "field": "hook_func_name"},
+        #         {"type": "LABEL", "field": "src_block_id"},
+        #         {"type": "PROP", "field": "is_hook_enabled", "icon_only": True, "icon_true": "CHECKBOX_HLT", "icon_false": "CHECKBOX_DEHLT"}
+        #     ],
+        #     details_func=_uilayout_draw_hooks_uilist_selection_detail
+        # )
 
     @classmethod
     def destroy_wrapper(cls):
