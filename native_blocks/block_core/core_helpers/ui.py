@@ -2,11 +2,8 @@
 import bpy
 
 from ....addon_config.static_settings import Documentation_URLs, addon_title
-from ....addon_helpers.ui import ui_draw_block_panel_header
-
-from ..core_features.hooks.ui import _uilayout_draw_hooks_settings
-from ..core_features.control_plane.ui import _uilayout_draw_block_manager_settings
-from ..core_features.loggers.ui import _uilayout_draw_logger_settings
+from ....addon_helpers.ui import draw_shared_uilist, ui_draw_block_panel_header
+from ....addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 
 def uilayout_template_columns_for_propertygroup(
         context:bpy.context, 
@@ -35,6 +32,68 @@ def uilayout_template_columns_for_propertygroup(
         
         # 3. Right side: The Property
         split.prop(prop_owner, prop_name, text="")
+
+
+
+def _uilist_hooks_draw_selection_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+    
+    func_name = BL_item.hook_func_name
+    cached_hook_subs = get_Wrapper_Runtime_Cache().get_cache("REGISTRY_ALL_HOOK_SUBSCRIBERS")
+
+    if func_name not in cached_hook_subs:
+        container.label(text="No subscriptions found.")
+        return
+
+    subs = cached_hook_subs[func_name]
+    box = container.box()
+    box.label(text=f"Subscriptions ({len(subs)}):")
+    for sub in subs:
+        box.label(text=f"• {sub.subscriber_block_id}", icon='PLUGIN')
+
+
+def _uilist_hooks_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+    
+    col_widths = uillist_config_instance.col_widths
+    header = container.row()
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[0]
+    sub.label(text = BL_item.hook_func_name)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[1]
+    sub.label(text = BL_item.src_block_id)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[2]
+    sub.label(text = str(RTC_item.subscriber_count))
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[3]
+    sub.prop(BL_item, "is_hook_enabled", text = "")
+
+
+
+
+
+def _uilist_loggers_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
+    col_widths = uillist_config_instance.col_widths
+    header = container.row()
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[0]
+    sub.label(text = BL_item.logger_name)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[1]
+    sub.label(text = BL_item.src_block_id)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[2]
+    sub.prop(BL_item, "level_name", text = "")
+
+
 
 
 class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
@@ -69,8 +128,16 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
             op_rtc_restore = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Restore RTC")
             op_rtc_restore.target = "RTC"
             op_rtc_restore.action = "RESTORE"
-            
+
         # Draw management subpanels for blocks, hooks, & loggers
-        _uilayout_draw_block_manager_settings(context, layout)
-        _uilayout_draw_hooks_settings(context, layout)
-        _uilayout_draw_logger_settings(context, layout)
+        core_feature_drawing = [
+            ("Loggers", core_scene_props.managed_loggers, "managed_loggers"),
+            ("Hooks", core_scene_props.managed_hooks, "managed_hooks")
+        ]
+        for label_str, BL_colprop, colprop_name in core_feature_drawing:
+            box = layout.box()
+            panel_header, panel_body = box.panel(idname = f"_dummy_dgblocks_core_scene_{label_str}", default_closed=True)
+            panel_header.label(text=f"All {label_str} ({len(BL_colprop)})")
+            if panel_body is not None:
+                draw_shared_uilist(context, panel_body, colprop_name)
+                

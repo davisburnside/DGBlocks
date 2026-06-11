@@ -23,7 +23,6 @@ from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Mem
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
 from ..loggers.feature_wrapper import get_logger
 from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
-from .ui import _uilayout_draw_hooks_uilist_selection_detail
 
 # --------------------------------------------------------------
 # Aliases
@@ -83,34 +82,11 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     @classmethod
     def init_wrapper(cls):
         pass
-        # set_shared_uilist_config(
-        #     list_id="HOOKS_LIST",
-        #     col_names=("Function Name", "Source Block", "Is Enabled?"),
-        #     col_widths=(2, 2, 1),
-        #     columns_def=[
-        #         {"type": "LABEL", "field": "hook_func_name"},
-        #         {"type": "LABEL", "field": "src_block_id"},
-        #         {"type": "PROP", "field": "is_hook_enabled", "icon_only": True, "icon_true": "CHECKBOX_HLT", "icon_false": "CHECKBOX_DEHLT"}
-        #     ],
-        #     details_func=_uilayout_draw_hooks_uilist_selection_detail
-        # )
+
 
     @classmethod
     def destroy_wrapper(cls):
         "No-op"
-
-    # --------------------------------------------------------------
-    # Implemented from Abstract_BL_RTC_List_Syncronizer
-    # --------------------------------------------------------------
-
-    # @classmethod
-    # def update_RTC_with_mirrored_BL_data(cls, event):
-    #     pass
-
-
-    # @classmethod
-    # def update_BL_with_mirrored_RTC_data(cls, event):
-    #     pass
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
@@ -320,5 +296,6 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                     is_hook_enabled = True,
                 )
                 new_cached_hook_subs[func_name].append(subscriber_hook_instance)
+                hook_source_instance.subscriber_count += 1
 
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, dict(new_cached_hook_subs))

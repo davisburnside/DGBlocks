@@ -113,4 +113,5 @@ class RTC_Hook_Source_Instance:
     src_block_id: str  # The creator block of the hook
     hook_func_name: str
     hook_func_named_args: Dict[str, Any]  # Used for type-warnings & debugging
+    subscriber_count: int = 0
     is_hook_enabled: bool = True

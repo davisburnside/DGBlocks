@@ -1,9 +1,6 @@
-from enum import Enum, StrEnum, auto
-from types import ModuleType
-from typing import Any, Callable, Dict, Optional
-import bpy #type: ignore
 
-from ....addon_helpers.data_structures import Global_Addon_State, Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, String_Comparable_Mixin
+from ....addon_helpers.data_structures import Global_Addon_State, Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, Shared_UIList_Declaration, String_Comparable_Mixin
+from ..core_helpers.ui import _uilist_hooks_draw_row, _uilist_hooks_draw_selection_details, _uilist_loggers_draw_row
 
 _BLOCK_ID = "block-core"
 
@@ -64,3 +61,26 @@ class Core_Data_Mirrors(String_Comparable_Mixin):
         scene_colprop_path = "dgblocks_core_props.managed_loggers",
     )
 
+
+class Core_UIList_Configs(String_Comparable_Mixin):
+    LOGGERS_UILIST = Shared_UIList_Declaration(
+        col_names = ["Logger", "Source Block", "Level"],
+        col_widths = [3, 3, 2],
+        scene_parent_path = "dgblocks_core_props",
+        scene_colprop_path = "managed_loggers",
+        scene_colprop_path_UIList_selection_idx_path = "managed_loggers_selected_idx",
+        RTC_key = "REGISTRY_ALL_LOGGERS",
+        callback_draw_row = _uilist_loggers_draw_row,
+        callback_draw_details_section = None
+    )
+    HOOKS_UILIST = Shared_UIList_Declaration(
+        col_names = ["Function Name", "Source Block", "Subs", "Enabled"],
+        col_widths = [3, 3, 1, 1],
+        scene_parent_path = "dgblocks_core_props",
+        scene_colprop_path = "managed_hooks",
+        scene_colprop_path_UIList_selection_idx_path = "managed_hooks_selected_idx",
+        RTC_key = "REGISTRY_ALL_HOOK_SOURCES",
+        callback_draw_row = _uilist_hooks_draw_row,
+        callback_draw_details_section = _uilist_hooks_draw_selection_details
+    )
+    

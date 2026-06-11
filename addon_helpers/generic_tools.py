@@ -20,6 +20,15 @@ from ..addon_config.static_settings import should_show_developer_ui_panels, addo
 # --------------------------------------------------------------
 # Generic Blender helpers
 # --------------------------------------------------------------
+global _dirty_wrapper_runtime_cache
+def get_Wrapper_Runtime_Cache():
+
+    global _dirty_wrapper_runtime_cache
+    return _dirty_wrapper_runtime_cache
+
+def set_Wrapper_Runtime_Cache(val):
+    global _dirty_wrapper_runtime_cache
+    _dirty_wrapper_runtime_cache = val
 
 def is_bpy_ready():
     try:

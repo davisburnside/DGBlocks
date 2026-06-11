@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 import bpy
-from ..native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..native_blocks.block_core.core_helpers.constants import Core_Runtime_Cache_Members
+
+from ..addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 from ..addon_config.static_settings import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
 
 # --------------------------------------------------------------
@@ -88,24 +88,29 @@ def create_ui_box_with_header(context:bpy.context, container:bpy.types.UILayout,
         self_container.separator(type="LINE", factor = separator_factor)
     return self_container
 
-
 # --------------------------------------------------------------
 # Shared UIList class: contains an optional details section
 # --------------------------------------------------------------
 
-
-def v2_draw_shared_uilist(context, container, cached_uilist_config):
+def draw_shared_uilist(context, container, scene_data_path):
    
-    # Draw header
-    ui_draw_list_headers(container, cached_uilist_config.col_names, cached_uilist_config.col_widths)
-    
-    RTC_key = cached_uilist_config.RTC_key
-    colprop_path = cached_uilist_config.scene_colprop_path
-    colprop_idx_path = cached_uilist_config.scene_colprop_path_UIList_selection_idx_path 
-    BL_scene_parent = context.scene.path_resolve(cached_uilist_config.scene_parent_path)
+    # Get UIList config metadata
+    _dirty_wrapper_RTC = get_Wrapper_Runtime_Cache()
+    _, uillist_config_instance, _ = _dirty_wrapper_RTC.get_unique_instance_from_registry_list(
+        "SHARED_UILIST_CONFIGS", 
+        "scene_colprop_path",
+        scene_data_path,
+    )
+    RTC_key = uillist_config_instance.RTC_key
+    colprop_path = uillist_config_instance.scene_colprop_path
+    colprop_idx_path = uillist_config_instance.scene_colprop_path_UIList_selection_idx_path 
+    BL_scene_parent = context.scene.path_resolve(uillist_config_instance.scene_parent_path)
     BL_colprop = BL_scene_parent.path_resolve(colprop_path)
     selected_idx = BL_scene_parent.path_resolve(colprop_idx_path)
     row_count = len(BL_colprop)
+
+    # Draw list header
+    ui_draw_list_headers(container, uillist_config_instance.col_names, uillist_config_instance.col_widths)
 
     # Draw UIList
     row = container.row()
@@ -117,21 +122,17 @@ def v2_draw_shared_uilist(context, container, cached_uilist_config):
         BL_scene_parent, 
         colprop_idx_path,
         rows = row_count, 
-        columns = len(cached_uilist_config.col_names),
+        columns = len(uillist_config_instance.col_names),
     )
 
     # Draw details if selected and details_func exists
-    # idx: int = getattr(collection_owner, active_idx_prop)
-    # collection: bpy.types.CollectionProperty = getattr(collection_owner, collection_prop)
-    if cached_uilist_config.callback_draw_details_section and 0 <= selected_idx < row_count:
+    if uillist_config_instance.callback_draw_details_section and 0 <= selected_idx < row_count:
         BL_item = BL_colprop[selected_idx]
         RTC_item = None
         if RTC_key:
-            associated_cache = Wrapper_Runtime_Cache.get_cache(RTC_key)
+            associated_cache = _dirty_wrapper_RTC.get_cache(RTC_key)
             RTC_item = associated_cache[selected_idx]
-        cached_uilist_config.callback_draw_details_section(context, container, BL_item, RTC_item, selected_idx)
-
-
+        uillist_config_instance.callback_draw_details_section(context, container, uillist_config_instance, BL_item, RTC_item, selected_idx)
 
 
 class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
@@ -140,24 +141,22 @@ class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
     This allows multiple UILists, with differing structures, to share this class
     """
 
-    def draw_item(self, context, container, data, item, icon, active_data, active_propname, index):
+    def draw_item(self, context, container, data, BL_item, icon, active_data, active_propname, selected_list_index):
 
-        _, uillist_config_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
+        # Get the associated uilist_config instance
+        _dirty_wrapper_RTC = get_Wrapper_Runtime_Cache()
+        _, uillist_config_instance, _ = _dirty_wrapper_RTC.get_unique_instance_from_registry_list(
             "SHARED_UILIST_CONFIGS",
             "scene_colprop_path_UIList_selection_idx_path",
             active_propname
         )
 
+        # Get the associated RTC member, if it exists
         RTC_item = None
         RTC_key = uillist_config_instance.RTC_key
         if RTC_key:
-            associated_cache = Wrapper_Runtime_Cache.get_cache(RTC_key)
-            RTC_item = associated_cache[index]
+            associated_cache = _dirty_wrapper_RTC.get_cache(RTC_key)
+            RTC_item = associated_cache[selected_list_index]
 
-        uillist_config_instance.callback_draw_row(context, container, item, RTC_item, index)
-
-        # configs = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.SHARED_UILIST_CONFIGS)
-
-        # print(uillist_config_instance)
-
-        # v2_draw_shared_uilist(context, container, uillist_config_instance)
+        # instance-specific draw callback
+        uillist_config_instance.callback_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, selected_list_index)

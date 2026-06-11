@@ -37,20 +37,6 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager init")
 
-        # Setup UIList for Debug Panel
-        # set_shared_uilist_config(
-        #     list_id="BLOCKS_LIST",
-        #     col_names=("Enabled", "Shader UID", "Draw-Phase/Region/Space"),
-        #     col_widths=(1, 3, 3),
-        #     # columns_def=[
-        #     #     {"type": "ICON", "field": "is_enabled", "icon_true": "HIDE_OFF", "icon_false": "HIDE_ON"},
-        #     #     {"type": "LABEL", "field": "shader_uid"},
-        #     #     {"type": "RAW_TEXT", "field": "shader_uid"},
-        #     # ],
-        #     row_func = t1,
-        #     details_func=_uilist_draw_selection_details
-        # )
-
         # The initial pass only exists in the RTC. BL data is not overwritten yet
         event = Enum_Sync_Events.ADDON_INIT
         cls.rebuild_all_shaders(event, sync_BL = False)

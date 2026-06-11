@@ -42,6 +42,7 @@ for name, module in modules_to_reload:
 
 from .addon_helpers.data_structures import Enum_Sync_Events
 from .addon_config.preferences import DGBLOCKS_UP_Core_Preferences
+from .addon_helpers.generic_tools import set_Wrapper_Runtime_Cache
 from .addon_config.active_blocks import _BLOCK_PACKAGES
 from .addon_config.static_settings import addon_name
 
@@ -59,11 +60,12 @@ from .native_blocks.block_core.core_helpers.constants import Core_Block_Loggers,
 # clear_console()
 def register():
 
+    set_Wrapper_Runtime_Cache(Wrapper_Runtime_Cache)
 
     # Register Addon props. This is the only addon-level class
     bpy.utils.register_class(DGBLOCKS_UP_Core_Preferences)
 
-    _RTC_dummy = Wrapper_Runtime_Cache # for debugging
+    
     
     # Core feature-wrapper classes are bootstrapped first, before their owner block starts registration.
     

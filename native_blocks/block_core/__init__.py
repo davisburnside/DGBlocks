@@ -7,7 +7,7 @@ import bpy
 from ...addon_helpers.data_structures import Block_Declaration
 
 # Core block imports
-from .core_helpers.constants import Core_Block_Hook_Sources, Core_Block_Loggers, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
+from .core_helpers.constants import Core_Data_Mirrors, Core_Block_Hook_Sources, Core_Block_Loggers, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id, Core_UIList_Configs
 from .core_helpers.ops import DGBLOCKS_OT_Copy_To_Clipboard, DGBLOCKS_OT_Debug_Clear_And_Restore_Caches, DGBLOCKS_OT_Force_Reload_Refresh_UI, DGBLOCKS_OT_Force_Reload_Scripts, DGBLOCKS_OT_Open_Help_Page
 from .core_helpers.props import DGBLOCKS_PG_Core_Props
 from .core_helpers.debugging import debug_extract_core_block_data_to_print, debug_ui_draw_core_block_printing_options
@@ -64,6 +64,7 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_hook_sources = Core_Block_Hook_Sources,
     block_RTC_members = Core_Runtime_Cache_Members,
     block_data_mirrors = Core_Data_Mirrors,
+    block_uilist_configs = Core_UIList_Configs,
 )
 
 def register_block_props():

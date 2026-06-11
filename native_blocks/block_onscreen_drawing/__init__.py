@@ -2,7 +2,6 @@
 import sys
 import bpy
 
-
 # --------------------------------------------------------------
 # Addon-level imports
 from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
@@ -14,7 +13,7 @@ from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
-from ...addon_helpers.ui import ui_draw_block_panel_header, v2_draw_shared_uilist, v2_draw_shared_uilist
+from ...addon_helpers.ui import ui_draw_block_panel_header, draw_shared_uilist
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -208,28 +207,8 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
         if not drawing_props.shader_mirror:
             layout.label(text="No active shaders", icon="INFO")
-        
-
-        # Per-shader list with is_enabled toggles
-        # layout.template_list(
-        #     "DGBLOCKS_UL_Shader_List", "",
-        #     props, "shader_mirror",
-        #     props, "shader_mirror_selected_idx",
-        # )
-
-        # v2_draw_shared_uilist(
-        #     context, layout, "BLOCKS_LIST", 
-        #     drawing_props, "shader_mirror", "shader_mirror_selected_idx", 
-        # )
-
         else:
-
-            _, cached_uilist_config, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-                cache_key_shared_uilist_declarations, 
-                "scene_colprop_path",
-                "shader_mirror")
-
-            v2_draw_shared_uilist(context, layout, cached_uilist_config)
+            draw_shared_uilist(context, layout, "shader_mirror")
 
 # ==============================================================================================================================
 # BLOCK REGISTRATION HELPERS
