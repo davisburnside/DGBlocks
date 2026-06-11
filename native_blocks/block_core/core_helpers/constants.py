@@ -1,6 +1,6 @@
 
 from ....addon_helpers.data_structures import Global_Addon_State, Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, Shared_UIList_Declaration, String_Comparable_Mixin
-from ..core_helpers.ui import _uilist_hooks_draw_row, _uilist_hooks_draw_selection_details, _uilist_loggers_draw_row
+from ..core_helpers.ui import _uilist_blocks_draw_row, _uilist_blocks_draw_selection_details, _uilist_hooks_draw_row, _uilist_hooks_draw_selection_details, _uilist_loggers_draw_row
 
 _BLOCK_ID = "block-core"
 
@@ -82,5 +82,15 @@ class Core_UIList_Configs(String_Comparable_Mixin):
         RTC_key = "REGISTRY_ALL_HOOK_SOURCES",
         callback_draw_row = _uilist_hooks_draw_row,
         callback_draw_details_section = _uilist_hooks_draw_selection_details
+    )
+    BLOCKS_UILIST = Shared_UIList_Declaration(
+        col_names = ["Status", "Block Name", "Version",],
+        col_widths = [1, 4, 2],
+        scene_parent_path = "dgblocks_core_props",
+        scene_colprop_path = "managed_blocks",
+        scene_colprop_path_UIList_selection_idx_path = "managed_blocks_selected_idx",
+        RTC_key = "REGISTRY_ALL_BLOCKS",
+        callback_draw_row = _uilist_blocks_draw_row,
+        callback_draw_details_section = _uilist_blocks_draw_selection_details
     )
     

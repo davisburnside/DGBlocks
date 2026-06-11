@@ -5,36 +5,38 @@ from ....addon_config.static_settings import Documentation_URLs, addon_title
 from ....addon_helpers.ui import draw_shared_uilist, ui_draw_block_panel_header
 from ....addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 
-def uilayout_template_columns_for_propertygroup(
-        context:bpy.context, 
-        container:bpy.types.UILayout, 
-        property_owners:list[bpy.types.PropertyGroup], 
-        property_names:list[str],
-        property_titles:list[str]):
-    
-    if len(property_owners) != len(property_names) or len(property_names) != len(property_titles): # one prop_name per prop_owner
-        raise Exception(f"List lengths must match: property_owners={len(property_owners)} property_names={len(property_names)} property_titles={len(property_titles)}")
-    
-    col = container.column(align=True)
-    for idx, prop_owner in enumerate(property_owners):
-        
-        prop_name = property_names[idx]
-        
-        # 1. Create a split. factor=0.4 means the left side takes 40% width.
-        # align=True connects the boxes, creating that vertical 'seam' line.
-        split = col.split(factor=0.6, align=True)
-        
-        # 2. Left side: The Label
-        # Use a nested row with alignment='RIGHT' to keep text against the line.
-        left_side = split.row(align=True)
-        left_side.alignment = 'RIGHT'
-        left_side.label(text=property_titles[idx])
-        
-        # 3. Right side: The Property
-        split.prop(prop_owner, prop_name, text="")
+# Block-mngr UIList funcs
+def _uilist_blocks_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
 
+    col_widths = uillist_config_instance.col_widths
+    header = container.row()
 
+    sub = header.row()
+    sub.ui_units_x = col_widths[0]
+    icon = "WARNING_LARGE" if RTC_item.error_message else "CHECKMARK"
+    sub.label(text = "", icon = icon)
 
+    sub = header.row()
+    sub.ui_units_x = col_widths[1]
+    sub.label(text = RTC_item.block_id)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[2]
+    version_str = ".".join([str(i) for i in RTC_item.block_version])
+    sub.label(text = version_str)
+
+def _uilist_blocks_draw_selection_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
+    box = container.box()
+    block_instance = get_Wrapper_Runtime_Cache().get_cache("REGISTRY_ALL_BLOCKS")[list_idx]
+    if BL_item.is_valid:
+        box.label(text = f"'{block_instance.block_id}' is active", icon='CHECKMARK')
+    else:
+        box.alert = True
+        box.label(text = f"Error: {RTC_item.error_message}", icon='ERROR')
+    box.label(text = f"Location: {block_instance.block_package_name}")
+
+# Hooks-mngr UIList funcs
 def _uilist_hooks_draw_selection_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
     
     func_name = BL_item.hook_func_name
@@ -49,7 +51,6 @@ def _uilist_hooks_draw_selection_details(context, container, uillist_config_inst
     box.label(text=f"Subscriptions ({len(subs)}):")
     for sub in subs:
         box.label(text=f"• {sub.subscriber_block_id}", icon='PLUGIN')
-
 
 def _uilist_hooks_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
     
@@ -72,10 +73,7 @@ def _uilist_hooks_draw_row(context, container, uillist_config_instance, BL_item,
     sub.ui_units_x = col_widths[3]
     sub.prop(BL_item, "is_hook_enabled", text = "")
 
-
-
-
-
+# Logger-mngr UIList funcs
 def _uilist_loggers_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
 
     col_widths = uillist_config_instance.col_widths
@@ -92,8 +90,6 @@ def _uilist_loggers_draw_row(context, container, uillist_config_instance, BL_ite
     sub = header.row()
     sub.ui_units_x = col_widths[2]
     sub.prop(BL_item, "level_name", text = "")
-
-
 
 
 class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
@@ -131,8 +127,9 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
 
         # Draw management subpanels for blocks, hooks, & loggers
         core_feature_drawing = [
-            ("Loggers", core_scene_props.managed_loggers, "managed_loggers"),
-            ("Hooks", core_scene_props.managed_hooks, "managed_hooks")
+            ("Blocks", core_scene_props.managed_hooks, "managed_blocks"),
+            ("Hooks", core_scene_props.managed_hooks, "managed_hooks"),
+            ("Loggers", core_scene_props.managed_loggers, "managed_loggers")
         ]
         for label_str, BL_colprop, colprop_name in core_feature_drawing:
             box = layout.box()
