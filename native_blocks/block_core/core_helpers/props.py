@@ -1,6 +1,7 @@
 import bpy
 from ..core_features.control_plane.data_structures import DGBLOCKS_PG_Block_Record
 from ..core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
+from ..core_features.hooks.helpers import _callback_hook_sub_uilist_selection_idx_updated
 from ..core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance
 
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
@@ -27,6 +28,6 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     managed_blocks: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Block_Record) # type: ignore
     managed_blocks_selected_idx: bpy.props.IntProperty() # type: ignore
     managed_hooks: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Hook_Reference)  # type: ignore
-    managed_hooks_selected_idx: bpy.props.IntProperty()  # type: ignore
+    managed_hooks_selected_idx: bpy.props.IntProperty(update = _callback_hook_sub_uilist_selection_idx_updated)  # type: ignore
     managed_loggers_selected_idx: bpy.props.IntProperty()  # type: ignore
     managed_loggers: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Logger_Instance) # type: ignore

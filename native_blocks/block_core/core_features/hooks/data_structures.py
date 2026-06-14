@@ -76,7 +76,8 @@ class RTC_Hook_Subscriber_Instance:
     should_bypass_run: bool = False  # Causes hook call bypass (bypass-via-status)
     min_ms_between_runs: int = 0  # Causes hook call bypass (bypass-via-frequency)
     max_ms_timout_for_bypass_reset: int = 0  # resets should_bypass_run to False
-    timestamp_ms_last_attempt: int = 0  # used by min_ms_between_runs
+    last_run_timestamp_nanos: int = 0  # used by min_ms_between_runs
+    duration_nanos_last_run: float = 0.0 
     total_nanos_running_time: float = 0.0  # used for debugging & UI Alerts
     count_hook_propagate_success: int = 0  # increments when hook func completes without exception
     count_hook_propagate_failure: int = 0  # increments when hook func raises an exception
@@ -91,17 +92,6 @@ class RTC_Hook_Subscriber_Instance:
     # The callable hook function from the downstream block
     actual_function: Optional[Callable] = field(default=None, repr=False)  # Cached function reference
 
-    # def get_hook_func(self) -> Optional[Callable]:
-    #     """Get cached function reference, avoiding repeated getattr() calls."""
-    #     if self._cached_func is None:
-    #         self._cached_func = getattr(
-    #             self.subscriber_block_module,
-    #             self.hook_func_name,
-    #             None
-    #         )
-    #     return self._cached_func
-
-
 @dataclass
 class RTC_Hook_Source_Instance:
     """
@@ -115,3 +105,4 @@ class RTC_Hook_Source_Instance:
     hook_func_named_args: Dict[str, Any]  # Used for type-warnings & debugging
     subscriber_count: int = 0
     is_hook_enabled: bool = True
+    trigger_count: int = 0

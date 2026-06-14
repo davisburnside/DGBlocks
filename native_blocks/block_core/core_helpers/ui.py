@@ -1,8 +1,9 @@
 
+import time
 import bpy
 
 from ....addon_config.static_settings import Documentation_URLs, addon_title
-from ....addon_helpers.ui import draw_shared_uilist, ui_draw_block_panel_header
+from ....addon_helpers.ui import format_timestamp_for_ui, draw_shared_uilist, ui_draw_generic_instance_data, ui_draw_block_panel_header, ui_draw_static_list, ui_draw_subpanel
 from ....addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 
 # Block-mngr UIList funcs
@@ -35,8 +36,23 @@ def _uilist_blocks_draw_selection_details(context, container, uillist_config_ins
         box.alert = True
         box.label(text = f"Error: {RTC_item.error_message}", icon='ERROR')
     box.label(text = f"Location: {block_instance.block_package_name}")
+    box.label(text = f"TODO: button op to open folder")
 
 # Hooks-mngr UIList funcs
+ui_structure_for_hook_sub_instance = {
+    "Run Counts": [
+        ("Success", "count_hook_propagate_success"),
+        ("Failure", "count_hook_propagate_failure"),
+        ("Skip from Status", "count_bypass_via_status"),
+        ("Skip from Data Filter", "count_bypass_via_data_filter"),
+        ("Skip from Freq. Filter", "count_bypass_via_frequency"),
+    ],
+    "Run Statistics":[
+        ("Last Run Time", "last_run_timestamp_nanos", format_timestamp_for_ui),
+        ("Last Run Duration (ns)", "duration_nanos_last_run"),
+    ]
+}
+
 def _uilist_hooks_draw_selection_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
     
     func_name = BL_item.hook_func_name
@@ -48,9 +64,18 @@ def _uilist_hooks_draw_selection_details(context, container, uillist_config_inst
 
     subs = cached_hook_subs[func_name]
     box = container.box()
-    box.label(text=f"Subscriptions ({len(subs)}):")
-    for sub in subs:
-        box.label(text=f"• {sub.subscriber_block_id}", icon='PLUGIN')
+    box.label(text=f"Subs for '{func_name}'")
+    for hook_sub_instance in subs:
+        kwargs = {"instance": hook_sub_instance, "structure": ui_structure_for_hook_sub_instance}
+        ui_draw_subpanel(
+            context, 
+            box, 
+            f"hook_sub_{hook_sub_instance.subscriber_block_id }", 
+            hook_sub_instance.subscriber_block_id, 
+            ui_draw_generic_instance_data, 
+            **kwargs,
+        )
+
 
 def _uilist_hooks_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
     
@@ -71,6 +96,10 @@ def _uilist_hooks_draw_row(context, container, uillist_config_instance, BL_item,
 
     sub = header.row()
     sub.ui_units_x = col_widths[3]
+    sub.label(text = str(RTC_item.trigger_count))
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[4]
     sub.prop(BL_item, "is_hook_enabled", text = "")
 
 # Logger-mngr UIList funcs
@@ -99,9 +128,27 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = addon_title
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw_header(self, context):
         ui_draw_block_panel_header(context, self.layout, "Block-Core", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
+
+
+    def draw_subpanel_body(self, context, container):
+
+        core_scene_props = context.scene.dgblocks_core_props
+        grid = container.grid_flow(columns=2)
+        grid.prop(core_scene_props, "addon_is_active")
+        grid.prop(core_scene_props, "debug_mode_enabled")
+        grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
+        grid.prop(core_scene_props, "documentation_weblinks_enabled")
+        op_rtc_clear = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Clear RTC")
+        op_rtc_clear.target = "RTC"
+        op_rtc_clear.action = "CLEAR"
+        op_rtc_restore = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Restore RTC")
+        op_rtc_restore.target = "RTC"
+        op_rtc_restore.action = "RESTORE"
+        grid.label(text = "TODO: Addon Data Folder path")
+
 
     def draw(self, context):
         
@@ -109,21 +156,7 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         core_scene_props = context.scene.dgblocks_core_props
     
         # General settings
-        box = layout.box()
-        panel_header, panel_body = box.panel(idname = "_dummy_dgblocks_core_general", default_closed=True)
-        panel_header.label(text = "General")
-        if panel_body is not None: 
-            grid = panel_body.grid_flow(columns=2)
-            grid.prop(core_scene_props, "addon_is_active")
-            grid.prop(core_scene_props, "debug_mode_enabled")
-            grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
-            grid.prop(core_scene_props, "documentation_weblinks_enabled")
-            op_rtc_clear = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Clear RTC")
-            op_rtc_clear.target = "RTC"
-            op_rtc_clear.action = "CLEAR"
-            op_rtc_restore = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Restore RTC")
-            op_rtc_restore.target = "RTC"
-            op_rtc_restore.action = "RESTORE"
+        ui_draw_subpanel(context, layout, "general", "General Settings", self.draw_subpanel_body)
 
         # Draw management subpanels for blocks, hooks, & loggers
         core_feature_drawing = [
@@ -132,9 +165,7 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
             ("Loggers", core_scene_props.managed_loggers, "managed_loggers")
         ]
         for label_str, BL_colprop, colprop_name in core_feature_drawing:
-            box = layout.box()
-            panel_header, panel_body = box.panel(idname = f"_dummy_dgblocks_core_scene_{label_str}", default_closed=True)
-            panel_header.label(text=f"All {label_str} ({len(BL_colprop)})")
-            if panel_body is not None:
-                draw_shared_uilist(context, panel_body, colprop_name)
-                
+            label_str = f"All {label_str} ({len(BL_colprop)})"
+            kwargs = {"scene_data_path": colprop_name}
+            ui_draw_subpanel(context, layout, colprop_name, label_str, draw_shared_uilist, **kwargs)
+            

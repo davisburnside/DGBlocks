@@ -21,11 +21,11 @@ class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_core_event_undo = Hook_Source_Declaration({})
     hook_core_event_redo = Hook_Source_Declaration({})
     hook_post_startup = Hook_Source_Declaration()
-    SCENE_MONITOR_SCENE_CHANGED = Hook_Source_Declaration({"old_scene": str, "new_scene": str})
-    SCENE_MONITOR_ACTIVE_SCENE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
-    SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
-    SCENE_MONITOR_ACTIVE_MODE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
-    SCENE_MONITOR_ACTIVE_OBJ_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
+    # SCENE_MONITOR_SCENE_CHANGED = Hook_Source_Declaration({"old_scene": str, "new_scene": str})
+    # SCENE_MONITOR_ACTIVE_SCENE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
+    # SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
+    # SCENE_MONITOR_ACTIVE_MODE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
+    # SCENE_MONITOR_ACTIVE_OBJ_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
 
 class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty list as default
     ADDON_METADATA = RTC_Member_Declaration(Global_Addon_State())
@@ -74,8 +74,8 @@ class Core_UIList_Configs(String_Comparable_Mixin):
         callback_draw_details_section = None
     )
     HOOKS_UILIST = Shared_UIList_Declaration(
-        col_names = ["Function Name", "Source Block", "Subs", "Enabled"],
-        col_widths = [3, 3, 1, 1],
+        col_names = ["Function Name", "Source Block", "Subs", "Runs", "Enabled"],
+        col_widths = [3, 3, 1, 1, 1],
         scene_parent_path = "dgblocks_core_props",
         scene_colprop_path = "managed_hooks",
         scene_colprop_path_UIList_selection_idx_path = "managed_hooks_selected_idx",

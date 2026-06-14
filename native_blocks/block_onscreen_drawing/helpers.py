@@ -129,12 +129,21 @@ def _teardown_draw_handler(draw_handler_instance):
 # ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
 
+def _handle_batch_update(shader):
+
+    if shader._needs_new_batch:
+        start_ts = time.time()
+        shader._shader_update_batch()
+        duration = (time.time() - start_ts)
+        shader.last_batch_creation_timestamp = start_ts
+        shader.last_batch_creation_duration_nanos = duration
+        shader.batch_count_of_shader += 1
+        shader._needs_new_batch = False
+
 def _universal_draw_callback(handler_instance) -> None:
     """
-    # MODULE-LEVEL DRAW CALLBACK
-    # One function reused for every draw_handler_add call.
-    # The handler instance is passed via Blender's args tuple.
-    # No context is used here.
+    Universa function reused for every draw_handler_add call.
+    Used for both builtin and custom shaders
     """
 
     if (    bpy.context is None 
@@ -166,16 +175,21 @@ def _universal_draw_callback(handler_instance) -> None:
 
             # Draw the shader
             if shader.is_enabled:
-                shader.last_draw_attempt_timestamp = time.time()
+                shader.last_draw_timestamp = time.time()
+                shader.draw_count_of_batch += 1
 
                 # Builtin shaders include optional before/after callbacks, because the '_shader_draw' func is not overrideable in this case
                 if shader._is_builtin_shader:
-                    shader._builtin_shader_before_draw()
+                    if shader._builtin_shader_before_draw:
+                        shader._builtin_shader_before_draw()
+                    _handle_batch_update(shader)
                     shader._shader_draw()
-                    shader._builtin_shader_after_draw()
+                    if shader._builtin_shader_after_draw:
+                        shader._builtin_shader_after_draw()
 
                 # Custom shaders are expected to handle all logic in an overridden '_shader_draw' func
                 else:
+                    _handle_batch_update(shader)
                     shader._shader_draw()
 
         except Exception as e:

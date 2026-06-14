@@ -1,6 +1,3 @@
-# ==============================================================================================================================
-# IMPORTS
-# ==============================================================================================================================
 
 from collections import Counter, defaultdict
 from enum import Enum
@@ -22,7 +19,8 @@ from .....addon_helpers.generic_tools import find_blocks_owning_func_with_name
 from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache, get_actual_rtc_key
 from ..loggers.feature_wrapper import get_logger
-from .data_structures import RTC_Hook_Subscriber_Instance, RTC_Hook_Source_Instance
+from .data_structures import RTC_Hook_Source_Instance, RTC_Hook_Subscriber_Instance
+from .helpers import _HOOK_DATA_FILTER_ATTR, increment_bypass_count_of_subs
 
 # --------------------------------------------------------------
 # Aliases
@@ -31,40 +29,6 @@ cache_key_blocks = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS
 cache_key_hook_sources = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
 cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS
 
-# ==============================================================================================================================
-# HOOK DATA FILTER DECORATOR
-# ==============================================================================================================================
-
-_HOOK_DATA_FILTER_ATTR = "__hook_data_filter__"
-
-
-def hook_data_filter(predicate: Callable[..., bool]):
-    """
-    Decorator. Attaches a data-filter predicate to a subscriber hook function.
-
-    The predicate is evaluated at call time inside run_hooked_funcs, BEFORE the
-    hook function itself is invoked. If the predicate returns False the call is
-    skipped and counted as a 'bypass-via-data-filter'.
-
-    Predicate signature:
-        predicate(hook_metadata, **kwargs) -> bool
-
-    Args:
-        hook_metadata : RTC_Hook_Subscriber_Instance  — the live metadata record for this
-                        hook/block pair.
-        **kwargs      : The same keyword arguments that will be forwarded to the
-                        hook function. Use **_ to absorb args you don't care about.
-
-    Returns True  → proceed with the hook call.
-    Returns False → skip (bypass-via-data-filter, counted separately).
-
-    The decorated function is returned UNCHANGED — zero call-path overhead when
-    the filter passes.
-    """
-    def decorator(func):
-        setattr(func, _HOOK_DATA_FILTER_ATTR, predicate)
-        return func  # function is NOT wrapped — no call-path overhead
-    return decorator
 
 # ==============================================================================================================================
 # MAIN MODULE FEATURE WRAPPER CLASS
@@ -171,25 +135,24 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         logger = get_logger(Core_Block_Loggers.HOOKS)
         all_returns: Dict[str, Any] = {}
         actual_hook_func_name = get_actual_id(hook_func_name)
-        # RTC_subscriber_hooks = Wrapper_Runtime_Cache.get_all_with_key_value_from_registry_list(
-        #     cache_key_hook_subscribers,
-        #     key_field_name="hook_func_name",
-        #     key_field_value=hook_func_name,
-        # )
-
+        _, hook_source_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_hook_sources, "hook_func_name", actual_hook_func_name)
+        if not hook_source_instance:
+            raise Exception(f"Hook source '{actual_hook_func_name}' not found")
+        if not hook_source_instance.is_hook_enabled:
+            increment_bypass_count_of_subs(hook_source_instance, actual_hook_func_name)
+            return
+        
         cached_hook_subs = Wrapper_Runtime_Cache.get_cache(cache_key_hook_subscribers)
 
         if actual_hook_func_name not in cached_hook_subs:
             logger.debug(f"No subscriber listeners found for hook '{actual_hook_func_name}'")
             return all_returns
-
-        current_time_ms = int(time.time() * 1000)
+        hook_source_instance.trigger_count += 1
+        current_time_nanos = time.time()
         start_time_nanos = None
         end_time_nanos = None
         for hook_sub_instance in cached_hook_subs[actual_hook_func_name]:
             block_id = hook_sub_instance.subscriber_block_id
-            if not hook_sub_instance.is_hook_enabled:
-                continue
 
             # 1. Filter by subscriber block if specified
             if subscriber_block_id is not None and subscriber_block_id != block_id:
@@ -197,7 +160,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             # 2. Check bypass timeout/reset logic
             if hook_sub_instance.should_bypass_run and hook_sub_instance.max_ms_timout_for_bypass_reset > 0:
-                time_since_last = current_time_ms - hook_sub_instance.timestamp_ms_last_attempt
+                time_since_last = current_time_nanos - hook_sub_instance.last_run_timestamp_nanos
                 if time_since_last >= hook_sub_instance.max_ms_timout_for_bypass_reset:
                     hook_sub_instance.should_bypass_run = False
                     logger.debug(f"Reset bypass flag for hook '{actual_hook_func_name}' on block '{block_id}'")
@@ -210,7 +173,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             # 4. Check rate limiting  [bypass-via-frequency]
             if hook_sub_instance.min_ms_between_runs > 0:
-                time_since_last = current_time_ms - hook_sub_instance.timestamp_ms_last_attempt
+                time_since_last = current_time_nanos - hook_sub_instance.last_run_timestamp_nanos
                 if time_since_last < hook_sub_instance.min_ms_between_runs:
                     hook_sub_instance.count_bypass_via_frequency += 1
                     logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (rate limited)")
@@ -236,10 +199,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             # 7. Execute with timing and re-entrancy protection
             start_time_nanos = time.time()  # recalculate right before func call
             hook_sub_instance.is_currently_running = True
-            hook_sub_instance.timestamp_ms_last_attempt = start_time_nanos * 1000
+            hook_sub_instance.last_run_timestamp_nanos = start_time_nanos
             try:
                 result = hook_sub_instance.actual_function(**kwargs)
-                end_time_nanos = time.time()  # recalculate right after func call
                 hook_sub_instance.count_hook_propagate_success += 1
 
                 if subscriber_block_id is not None:
@@ -247,7 +209,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 all_returns[block_id] = result
 
             except Exception as e:
-                end_time_nanos = time.time()
+                
                 hook_sub_instance.count_hook_propagate_failure += 1
                 logger.error(f"Exception when calling hook '{actual_hook_func_name}' of subscriber '{block_id}'", exc_info=True)
                 if should_halt_on_exception:
@@ -257,20 +219,17 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             finally:
                 # Always reset running flag, even on exception
                 hook_sub_instance.is_currently_running = False
+                end_time_nanos = time.time()
 
                 # Track execution time
                 execution_time_nanos = end_time_nanos - start_time_nanos
                 hook_sub_instance.total_nanos_running_time += execution_time_nanos
+                hook_sub_instance.duration_nanos_last_run = execution_time_nanos
 
         return all_returns
 
+    def rebuild_hook_subs_cache():
 
-    @classmethod
-    def rebuild_hook_subs_cache(cls):
-        """
-        Rebuild REGISTRY_ALL_HOOK_SUBSCRIBERS from REGISTRY_ALL_HOOK_SOURCES and REGISTRY_ALL_BLOCKS.
-        """
-        
         logger = get_logger(Core_Block_Loggers.HOOKS)
         logger.debug("Rebuilding RTC Hook subscribers")
 

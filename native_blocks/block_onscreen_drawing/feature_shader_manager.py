@@ -1,5 +1,6 @@
 
 from collections import defaultdict
+import time
 import types
 from typing import Optional
 import bpy
@@ -39,7 +40,10 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
         # The initial pass only exists in the RTC. BL data is not overwritten yet
         event = Enum_Sync_Events.ADDON_INIT
-        cls.rebuild_all_shaders(event, sync_BL = False)
+        if bpy.context.scene.dgblocks_onscreen_drawing_props.enable_drawing:
+            cls.rebuild_all_shaders(event, sync_BL = False)
+        else:
+            cls.clear_all_shaders()
         return True
 
 
@@ -71,6 +75,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         """
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Rebuilding all Shaders")
+        print(bpy.context.scene.dgblocks_onscreen_drawing_props.enable_drawing, "!!!")
 
         cls.clear_all_shaders()
 
@@ -79,7 +84,8 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             hook_func_name=Block_Hook_Sources.hook_get_shader_definitions,
             should_halt_on_exception=False,
         )
-        list_shaders_from_blocks = sum(shaders_from_blocks.values(), [])
+        list_shaders_from_blocks = sum(shaders_from_blocks.values(), []) # Simple list, order-preserving
+        inverted_shaders_dict = {shader.shader_uid: key for key, shaders in shaders_from_blocks.items() for shader in shaders}
         if len(list_shaders_from_blocks) == 0:
             logger.info("No Shaders to draw, returning early")
             return
@@ -97,14 +103,16 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         for (space, region, phase), sdefs in groups.items():
             handler_instance = Drawhandler_Instance(space=space, region=region, phase=phase)
             for sdef in sdefs:
+                source_block_id = inverted_shaders_dict[sdef.shader_uid]
                 if sdef.custom_shader_class is not None:
                     shader_instance = sdef.custom_shader_class(
-                        shader_uid=sdef.shader_uid,
-                        shader_type=sdef.shader_type,
-                        builtin_shader_name=None,
-                        draw_space=sdef.space,
-                        draw_region=sdef.region,
-                        draw_phase=sdef.phase,
+                        src_block_id = source_block_id,
+                        shader_uid = sdef.shader_uid,
+                        shader_type = sdef.shader_type,
+                        builtin_shader_name = None,
+                        draw_space = sdef.space,
+                        draw_region = sdef.region,
+                        draw_phase = sdef.phase,
                         **sdef.custom_shader_kwargs,
                     )
                     logger.debug(
@@ -113,12 +121,13 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
                     )
                 else:
                     shader_instance = Shader_Instance(
-                        shader_uid=sdef.shader_uid,
-                        shader_type=sdef.shader_type,
-                        builtin_shader_name=sdef.builtin_shader_name,
-                        draw_space=sdef.space,
-                        draw_region=sdef.region,
-                        draw_phase=sdef.phase,
+                        src_block_id = source_block_id,
+                        shader_uid = sdef.shader_uid,
+                        shader_type = sdef.shader_type,
+                        builtin_shader_name = sdef.builtin_shader_name,
+                        draw_space = sdef.space,
+                        draw_region = sdef.region,
+                        draw_phase = sdef.phase,
                     )
 
                     # Monkeypatch optional before/after draw callbacks
@@ -136,6 +145,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
                     )
 
                 shader_instance._shader_init()
+                shader_instance.shader_creation_timestamp = time.time()
                 handler_instance.shader_names.append(sdef.shader_uid)
                 rtc_shaders.append(shader_instance)
 
@@ -267,14 +277,3 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
             finally:
                 Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.SHADERS, False)
 
-    # ----------------------------------------------------------
-    # Abstract_Shared_UIList_Draw implementation
-    # ----------------------------------------------------------
-
-    @classmethod
-    def shared_uilist_draw_row(cls, context, container, BL_ColProp_item, RTC_list_item, idx):
-        pass
-
-    @classmethod
-    def shared_uilist_draw_details_footer(cls, context, container, BL_ColProp_item, RTC_list_item, idx):
-        pass

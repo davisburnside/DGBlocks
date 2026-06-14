@@ -150,21 +150,6 @@ class Abstract_Shared_UIList_Draw(ABC):
         # error_str = f"'shared_uilist_instance.scene_colprop_path' is None. FWC '{shared_uilist_instance.FWC_name}' must implement this function"
         raise NotImplementedError("Child class must implement this function")
 
-    @classmethod
-    @abstractmethod
-    def shared_uilist_poll(cls):
-        return True
-
-    @classmethod
-    @abstractmethod
-    def shared_uilist_draw_row(cls):
-        raise NotImplementedError("Child class must implement this function")
-
-    @classmethod
-    @abstractmethod
-    def shared_uilist_draw_details_footer(cls):
-        pass
-
 
 # ==============================================================================================================================
 # SUPPORT CLASSES FOR FWCS

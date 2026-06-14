@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+import time
 from typing import Optional
 import bpy
 
@@ -9,6 +11,51 @@ from ..addon_config.static_settings import min_width_for_weblink_btn_spawn, sepa
 # --------------------------------------------------------------
 # "Blind draw" functions: All drawing logic is contained inside the function
 # --------------------------------------------------------------
+
+def format_timestamp_for_ui(timestamp) -> str:
+    if not timestamp:
+        return "Never"
+    dt = datetime.fromtimestamp(timestamp)
+    return f"{dt.strftime('%Y-%m-%d %H:%M:%S')}.{int((timestamp % 1) * 1_000_000):06d}"
+
+def ui_draw_generic_instance_data(context, layout, instance, structure: dict):
+    scene = context.scene
+
+    for category, entries in structure.items():
+        box = layout.box()
+        box.label(text=category)
+
+        col = box.column(align=True)
+        for entry in entries:
+            split = col.split(factor=0.6)
+            
+            # 3-tuple
+            if len(entry) == 3:
+                label, var_name, third_item = entry
+                split.label(text=label)
+                if callable(third_item):
+                    raw_data = getattr(instance, var_name)
+                    func = third_item
+                    formatted_data = func(raw_data)
+                    split.label(text = str(formatted_data))
+                else:
+                    scene_data_path = third_item
+                    property_name = var_name
+                    owner = scene.path_resolve(scene_data_path)
+                    split.prop(owner, property_name, text=label)
+
+            # (For non-BL data only)
+            # 2-tuple, draw instance variable directly
+            else:
+                label, var_name = entry
+                raw_data = getattr(instance, var_name)
+                split.label(text = label)
+                split.label(text = str(raw_data))
+                # if callable(accessor):
+                #     label_value = accessor(stats)
+                # else:
+                #     label_value = getattr(stats, accessor)
+                # split.label(text = label_value)
 
 def ui_draw_list_headers(container, col_names: set, col_widths: set):
 
@@ -60,9 +107,21 @@ def uilayout_section_separator(container, lines_count:int = 2, extra_space:float
     if extra_space > 0:
         container.separator(factor = extra_space)
     for _ in range(lines_count):
-        container.separator(type="LINE", factor = 0.4)
+        container.separator(type="LINE", factor = 0.2)
     if extra_space > 0:
         container.separator(factor = extra_space)
+
+def ui_draw_subpanel(context, container, panel_uid, header_text, _callback_draw_contents, **kwargs):
+
+    box = container.box()
+    panel_header, panel_body = box.panel(idname = f"_dummy_dgblocks_core_scene_{panel_uid}", default_closed=True)
+    if header_text:
+        panel_header.label(text = header_text)
+    if panel_body is not None:
+        uilayout_section_separator(box, extra_space = 0)
+        _callback_draw_contents(context, box, **kwargs)
+        uilayout_section_separator(box, extra_space = 0, lines_count = 0)
+    return panel_header, panel_body
 
 # --------------------------------------------------------------
 # "Interactive draw" functions: Returns UILayout objects to be used in further draws

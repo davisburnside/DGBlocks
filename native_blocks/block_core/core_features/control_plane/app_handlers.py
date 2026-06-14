@@ -17,10 +17,10 @@ cache_key_metadata = Core_Runtime_Cache_Members.ADDON_METADATA
 cache_key_FWCs = Core_Runtime_Cache_Members.REGISTRY_ALL_FWCS
 enum_hook_undo = Core_Block_Hook_Sources.hook_core_event_undo
 enum_hook_redo = Core_Block_Hook_Sources.hook_core_event_redo
-enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SCENE_CHANGED
-enum_hook_active_workspace_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED
-enum_hook_active_mode_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_CHANGED
-enum_hook_active_obj_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_OBJ_CHANGED
+# enum_hook_active_scene_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_SCENE_CHANGED
+# enum_hook_active_workspace_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED
+# enum_hook_active_mode_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_MODE_CHANGED
+# enum_hook_active_obj_changed = Core_Block_Hook_Sources.SCENE_MONITOR_ACTIVE_OBJ_CHANGED
 
 
 
@@ -201,7 +201,7 @@ def _callback_depsgraph_post(scene, depsgraph):
     if not (ADDON_METADATA.POST_REG_INIT_HAS_RUN and ADDON_METADATA.ADDON_STARTED_SUCCESSFULLY):
         return
 
-    _update_addon_state_trackers(scene)
+    # _update_addon_state_trackers(scene)
 
 
 # --------------------------------------------------------------

@@ -59,17 +59,25 @@ class Shader_Definition:
 @dataclass
 class Shader_Instance:
 
-    # Required fields
+    # Primary fields
     shader_type: str  # Enum value of 'POINTS', 'LINES', 'TRIS'
     shader_uid: str
+    src_block_id: str
 
     # Draw location — populated by Wrapper_Shader_Manager at creation time
     draw_space:  Any = None  # Draw_Space_Types
     draw_region: Any = None  # Draw_Region_Type
     draw_phase:  Any = None  # Draw_Phase_type
 
+    # Shader & batch stats
+    shader_creation_timestamp: int = 0
+    last_batch_creation_timestamp: int = 0
+    last_draw_timestamp: int = 0
+    draw_count_of_batch: int = 0
+    batch_count_of_shader: int = 0 # Resets to 0 when shader is recreated
+    last_batch_creation_duration_nanos: float = 0.0
+    
     # Status
-    last_draw_attempt_timestamp: int = -1
     is_enabled: bool = True
     shader_error_str: str = None   # set by _universal_draw_callback on exception; None = no error
 
@@ -85,6 +93,10 @@ class Shader_Instance:
     _indices: np.ndarray = field(init=False, default=None)
     _highest_index: int = -1
     _needs_new_batch: bool = True
+
+    # Optional callbacks for deault shaders
+    _builtin_shader_before_draw = None
+    _builtin_shader_after_draw = None
 
     # ----------------------------------------------------------
     # CALLED BEFORE SHADER DRAW — triggers expensive batch update
@@ -130,11 +142,11 @@ class Shader_Instance:
     # ----------------------------------------------------------
     # Optional, for builtin shaders only
 
-    def _builtin_shader_before_draw(self):
-        pass
+    # def _builtin_shader_before_draw(self):
+    #     pass
 
-    def _builtin_shader_after_draw(self):
-        pass
+    # def _builtin_shader_after_draw(self):
+    #     pass
 
     # ----------------------------------------------------------
     # Can be overridden by child classes
