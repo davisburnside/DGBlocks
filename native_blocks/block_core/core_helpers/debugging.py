@@ -24,7 +24,7 @@ class Debugging_Print_Options(StrEnum):
     ALL_BLOCKS_BL_PREFERENCES_PROPS = auto()
 
 debug_sort_hooks_choice_items = [
-    ("last_run_timestamp_nanos", "Time Last Called", "Time Last Called"),
+    ("last_run_timestamp", "Time Last Called", "Time Last Called"),
     ("is_hook_enabled", "Is Enabled", "Is Enabled"),
     ("count_hook_propagate_success", "Success Count", "Number of successful hook calls"),
     ("count_hook_propagate_failure", "Failure Count", "Number of hook calls that raised an exception"),
@@ -46,12 +46,12 @@ def _get_data_for_subscriber_hook_table(column_rename_map):
             for bhm in all_subscriber_hooks[hook_func_name]:
                 
                 # Reformat (RTC_Hook_Subscriber_Instance -> dict) & rename columns of hook data for printing
-                if bhm.total_nanos_running_time == 0:
+                if bhm.total_running_time == 0:
                     avg_ms_runtime = 0
                 else:
-                    avg_ms_runtime = (bhm.count_hook_propagate_success + bhm.count_hook_propagate_failure) / (bhm.total_nanos_running_time * 1000)
+                    avg_ms_runtime = (bhm.count_hook_propagate_success + bhm.count_hook_propagate_failure) / (bhm.total_running_time * 1000)
                 raw_data = {
-                    debug_sort_hooks_choice_items[0][0] : datetime.fromtimestamp(bhm.last_run_timestamp_nanos/1000).strftime(("%Y-%m-%d %H:%M:%S.%f")),
+                    debug_sort_hooks_choice_items[0][0] : datetime.fromtimestamp(bhm.last_run_timestamp/1000).strftime(("%Y-%m-%d %H:%M:%S.%f")),
                     debug_sort_hooks_choice_items[1][0] : not bhm.is_hook_enabled,
                     debug_sort_hooks_choice_items[2][0] : bhm.count_hook_propagate_success,
                     debug_sort_hooks_choice_items[3][0] : bhm.count_hook_propagate_failure,

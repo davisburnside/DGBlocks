@@ -21,6 +21,7 @@ from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_L
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .data_structures import Shader_Definition
 from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
+from .helpers import _clear_all_shaders, _rebuild_all_shaders
 
 cache_key_shaders = Block_RTC_Members.SHADERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
@@ -54,9 +55,9 @@ def _cb_enable_drawing_changed(self, context):
 
     event = Enum_Sync_Events.PROPERTY_UPDATE
     if self.enable_drawing:
-        Wrapper_Shader_Manager.rebuild_all_shaders(event)
+        _rebuild_all_shaders(event)
     else:
-        Wrapper_Shader_Manager.clear_all_shaders()
+        _clear_all_shaders()
 
 
 def _cb_enable_viewport_debugging_changed(self, context):
@@ -66,7 +67,7 @@ def _cb_enable_viewport_debugging_changed(self, context):
     """
     if self.enable_drawing:
         event = Enum_Sync_Events.PROPERTY_UPDATE
-        Wrapper_Shader_Manager.rebuild_all_shaders(event)
+        _rebuild_all_shaders(event)
 
 # ==============================================================================================================================
 # BL PROPERTY GROUPS

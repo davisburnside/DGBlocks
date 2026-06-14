@@ -48,8 +48,8 @@ ui_structure_for_hook_sub_instance = {
         ("Skip from Freq. Filter", "count_bypass_via_frequency"),
     ],
     "Run Statistics":[
-        ("Last Run Time", "last_run_timestamp_nanos", format_timestamp_for_ui),
-        ("Last Run Duration (ns)", "duration_nanos_last_run"),
+        ("Last Run Time", "last_run_timestamp", format_timestamp_for_ui),
+        ("Last Run Duration (ns)", "duration_last_run"),
     ]
 }
 

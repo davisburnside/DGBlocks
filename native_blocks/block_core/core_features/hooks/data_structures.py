@@ -76,9 +76,9 @@ class RTC_Hook_Subscriber_Instance:
     should_bypass_run: bool = False  # Causes hook call bypass (bypass-via-status)
     min_ms_between_runs: int = 0  # Causes hook call bypass (bypass-via-frequency)
     max_ms_timout_for_bypass_reset: int = 0  # resets should_bypass_run to False
-    last_run_timestamp_nanos: int = 0  # used by min_ms_between_runs
-    duration_nanos_last_run: float = 0.0 
-    total_nanos_running_time: float = 0.0  # used for debugging & UI Alerts
+    last_run_timestamp: int = 0  # used by min_ms_between_runs
+    duration_last_run: float = 0.0 
+    total_running_time: float = 0.0  # used for debugging & UI Alerts
     count_hook_propagate_success: int = 0  # increments when hook func completes without exception
     count_hook_propagate_failure: int = 0  # increments when hook func raises an exception
     count_bypass_via_data_filter: int = 0  # increments when arg_filter predicate returns False

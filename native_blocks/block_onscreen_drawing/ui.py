@@ -30,7 +30,7 @@ ui_structure_for_shader_instance = {
     "Draw Statistics":[
         ("Draw Count, of Current Batch", "draw_count_of_batch"),
         ("Batch Count, of Current Shader)", "batch_count_of_shader"),
-        ("Batch Creation Duration", "last_batch_creation_duration_nanos")
+        ("Batch Creation Duration", "last_batch_creation_duration")
     ]
 }
 

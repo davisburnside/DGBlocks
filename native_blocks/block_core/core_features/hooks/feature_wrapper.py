@@ -148,9 +148,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             logger.debug(f"No subscriber listeners found for hook '{actual_hook_func_name}'")
             return all_returns
         hook_source_instance.trigger_count += 1
-        current_time_nanos = time.time()
-        start_time_nanos = None
-        end_time_nanos = None
+        current_time = time.time()
+        start_time = None
+        end_time = None
         for hook_sub_instance in cached_hook_subs[actual_hook_func_name]:
             block_id = hook_sub_instance.subscriber_block_id
 
@@ -160,7 +160,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             # 2. Check bypass timeout/reset logic
             if hook_sub_instance.should_bypass_run and hook_sub_instance.max_ms_timout_for_bypass_reset > 0:
-                time_since_last = current_time_nanos - hook_sub_instance.last_run_timestamp_nanos
+                time_since_last = current_time - hook_sub_instance.last_run_timestamp
                 if time_since_last >= hook_sub_instance.max_ms_timout_for_bypass_reset:
                     hook_sub_instance.should_bypass_run = False
                     logger.debug(f"Reset bypass flag for hook '{actual_hook_func_name}' on block '{block_id}'")
@@ -173,7 +173,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
             # 4. Check rate limiting  [bypass-via-frequency]
             if hook_sub_instance.min_ms_between_runs > 0:
-                time_since_last = current_time_nanos - hook_sub_instance.last_run_timestamp_nanos
+                time_since_last = current_time - hook_sub_instance.last_run_timestamp
                 if time_since_last < hook_sub_instance.min_ms_between_runs:
                     hook_sub_instance.count_bypass_via_frequency += 1
                     logger.debug(f"Skipping hook '{actual_hook_func_name}' on block '{block_id}' (rate limited)")
@@ -197,9 +197,9 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             logger.debug(f"Calling hook '{actual_hook_func_name}' of subscriber block '{block_id}'")
 
             # 7. Execute with timing and re-entrancy protection
-            start_time_nanos = time.time()  # recalculate right before func call
+            start_time = time.time()  # recalculate right before func call
             hook_sub_instance.is_currently_running = True
-            hook_sub_instance.last_run_timestamp_nanos = start_time_nanos
+            hook_sub_instance.last_run_timestamp = start_time
             try:
                 result = hook_sub_instance.actual_function(**kwargs)
                 hook_sub_instance.count_hook_propagate_success += 1
@@ -219,12 +219,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
             finally:
                 # Always reset running flag, even on exception
                 hook_sub_instance.is_currently_running = False
-                end_time_nanos = time.time()
+                end_time = time.time()
 
                 # Track execution time
-                execution_time_nanos = end_time_nanos - start_time_nanos
-                hook_sub_instance.total_nanos_running_time += execution_time_nanos
-                hook_sub_instance.duration_nanos_last_run = execution_time_nanos
+                execution_time = end_time - start_time
+                hook_sub_instance.total_running_time += execution_time
+                hook_sub_instance.duration_last_run = execution_time
 
         return all_returns
 

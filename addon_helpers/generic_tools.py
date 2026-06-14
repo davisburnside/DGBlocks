@@ -215,7 +215,7 @@ def validate_FWC_data_mirrors_after_init():
 # def get_ts_millis() -> int:
 #     return time.time() // 1_000_000
 
-# def get_ts_nanos() -> int:
+# def get_ts() -> int:
 #     return time.time()
 
 def get_names_of_parent_classes(python_obj: any):

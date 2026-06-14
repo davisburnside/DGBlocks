@@ -22,7 +22,7 @@ registering one Blender draw handler per `(space, region, phase)` group, creatin
 Drawing is controlled by the `enable_drawing` scene property. Setting it `True` triggers a full
 rebuild:
 
-1. `_cb_enable_drawing_changed` fires → calls `Wrapper_Shader_Manager.rebuild_all_shaders()`
+1. `_cb_enable_drawing_changed` fires → calls `Wrapper_Shader_Manager._rebuild_all_shaders()`
 2. `hook_get_shader_definitions` is broadcast — each subscribed block appends its
    `Shader_Definition` list to the shared `definition_accumulator`
 3. Definitions are validated, grouped by `(space, region, phase)`, and turned into live
@@ -54,7 +54,7 @@ against what downstream blocks declare **before** deciding what to do:
    - **Same UIDs, same order, same `(space, region, phase)` per UID** → structure is
      unchanged; only call `_apply_bl_is_enabled_from_mirror()` to restore `is_enabled` values
      Blender may have reverted. No draw handlers or GPU resources are recreated.
-   - **Any difference** → full `rebuild_all_shaders()` (clear + recreate everything).
+   - **Any difference** → full `_rebuild_all_shaders()` (clear + recreate everything).
 
 The most common undo/redo step (editing non-drawing data while drawing is active) takes the
 fast path and never touches GPU objects.
@@ -102,7 +102,7 @@ fast path and never touches GPU objects.
 
 ## Public API — `Wrapper_Shader_Manager`
 
-### `rebuild_all_shaders() -> None`
+### `_rebuild_all_shaders() -> None`
 
 Full rebuild cycle. Called automatically by `_cb_enable_drawing_changed` when `enable_drawing`
 becomes `True`, and by undo/redo hooks. Downstream blocks do **not** call this directly —
@@ -256,7 +256,7 @@ block_onscreen_drawing/
 ├── common_constants.py               # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors
 ├── BL_gpu_data_structures.py         # Space/Region/Phase enums, validation allowlists
 ├── block_data_structures.py          # Shader_Definition, Shader_Instance, Drawhandler_Instance
-├── feature_shader_manager.py         # Wrapper_Shader_Manager (rebuild_all_shaders, clear, get_shader)
+├── feature_shader_manager.py         # Wrapper_Shader_Manager (_rebuild_all_shaders, clear, get_shader)
 ├── feature_draw_handler_manager.py   # DEPRECATED — re-exports Wrapper_Shader_Manager as alias
 └── helpers.py                        # _universal_draw_callback, validate_shader_definitions,
                                       # GPU state helpers
