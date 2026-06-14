@@ -268,7 +268,7 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
             actions_denied = set(),
             logger = logger,
         )
-        # cls.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
+        # cls._update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
 
     # Notify downstream blocks before the first draw. Blocks can populate Shader Instrance's points/colors arrays from this hook
     Wrapper_Hooks.run_hooked_funcs(

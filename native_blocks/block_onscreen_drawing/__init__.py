@@ -43,7 +43,7 @@ def _cb_is_enabled_changed(self, context):
 
     event = Enum_Sync_Events.PROPERTY_UPDATE
     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
-    Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
+    Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
 
 
 def _cb_enable_drawing_changed(self, context):

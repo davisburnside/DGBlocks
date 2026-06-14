@@ -578,7 +578,7 @@ def register_block():
 
     # Register all block classes & components
     block_module = get_self_block_module(block_manager_wrapper = Wrapper_Block_Management) # returns this __init__.py file
-    Wrapper_Block_Management.create_instance(
+    Wrapper_Block_Management._create_instance(
         block_module = block_module,
         block_bpy_types_classes = classes,
     )
@@ -605,7 +605,7 @@ def unregister_block():
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.debug(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Block_Management.destroy_instance(_BLOCK_ID)
+    Wrapper_Block_Management._remove_instance(_BLOCK_ID)
     
     global _mask_shader, _wpos_shader, _handler_ref, vpbake_terminator_points
     if _handler_ref is not None:

@@ -130,14 +130,14 @@ so enum members can be passed directly to `get_cache()` / `set_cache()` without 
 ```python
 class Abstract_Feature_Wrapper(ABC):
     @classmethod @abstractmethod
-    def init_wrapper(cls) -> bool: ...    # called during post-bpy registration phase
+    def _init_wrapper(cls) -> bool: ...    # called during post-bpy registration phase
 
     @classmethod @abstractmethod
-    def destroy_wrapper(cls): ...         # called during block unregistration — no extra args
+    def _remove_wrapper(cls): ...         # called during block unregistration — no extra args
 ```
 
 > The old `init_pre_bpy` / `init_post_bpy` two-phase pattern is **gone**. There is one
-> `init_wrapper()`. The addon-wide deferred post-bpy init is handled only by
+> `_init_wrapper()`. The addon-wide deferred post-bpy init is handled only by
 > `Wrapper_Control_Plane.init_post_bpy()` via `bpy.app.timers` and `load_post` handlers.
 
 **Optional extensions:**
@@ -145,13 +145,13 @@ class Abstract_Feature_Wrapper(ABC):
 ```python
 class Abstract_Datawrapper_Instance_Manager(ABC):
     # For FWCs managing 0-to-many @dataclass instances
-    def create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any: ...
-    def destroy_instance(cls, event: Enum_Sync_Events, **kwargs): ...
+    def _create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any: ...
+    def _remove_instance(cls, event: Enum_Sync_Events, **kwargs): ...
 
 class Abstract_BL_RTC_List_Syncronizer(ABC):
     # Required if the FWC has at least one Data Mirror
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events): ...
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): ...
+    def _update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events): ...
+    def _update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): ...
 ```
 
 **Naming:** `Wrapper_<Feature>` for managers; `RTC_<Feature>_Instance` for record dataclasses.
@@ -160,12 +160,12 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
 
 `Wrapper_Control_Plane` (in `block_core/core_features/control_plane/`) drives the full addon lifecycle:
 
-- `init_wrapper()` → installs `bpy.app.handlers`, schedules deferred `init_post_bpy()`
-- `init_post_bpy()` → calls `init_wrapper()` on all other FWCs, runs 2-pass data mirror sync,
+- `_init_wrapper()` → installs `bpy.app.handlers`, schedules deferred `init_post_bpy()`
+- `init_post_bpy()` → calls `_init_wrapper()` on all other FWCs, runs 2-pass data mirror sync,
   fires `hook_post_startup`, sets `ADDON_METADATA.POST_REG_INIT_HAS_RUN = True`
-- `create_instance(event, block_module)` → reads `_BLOCK_DECLARATION`, registers bpy classes,
+- `_create_instance(event, block_module)` → reads `_BLOCK_DECLARATION`, registers bpy classes,
   FWCs, RTC members, loggers, hook sources, data mirrors
-- `destroy_instance(event, block_id)` → removes all of the above for the named block
+- `_remove_instance(event, block_id)` → removes all of the above for the named block
 
 # 9. DATA OWNERSHIP + BL↔RTC SYNC
 
@@ -207,7 +207,7 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
 - If **`default_data_path_in_scene` is set**: the framework handles both sync directions
   automatically.
 - If **`default_data_path_in_scene` is `None`**: the owning FWC **must** implement both
-  `update_RTC_with_mirrored_BL_data(event)` and `update_BL_with_mirrored_RTC_data(event)`.
+  `_update_RTC_with_mirrored_BL_data(event)` and `_update_BL_with_mirrored_RTC_data(event)`.
   Both functions are required; the framework calls them during all sync events.
 
 # 11. HOOK SYSTEM
@@ -277,8 +277,8 @@ logger.error("Failed", exc_info=True)
 | Hook subscribers | `hook_<name>` — top-level in `__init__.py` |
 
 **Verb semantics:** `get_*` returns existing/None; `create_*` creates; `set_*` upserts;
-`destroy_*` removes; `init_wrapper` sets up; `destroy_wrapper` tears down;
-`update_RTC_with_mirrored_BL_data` rebuilds RTC from BL; `update_BL_with_mirrored_RTC_data`
+`destroy_*` removes; `_init_wrapper` sets up; `_remove_wrapper` tears down;
+`_update_RTC_with_mirrored_BL_data` rebuilds RTC from BL; `_update_BL_with_mirrored_RTC_data`
 pushes RTC to BL; `enable_/disable_` toggles without destroying.
 
 # 14. BLOCK AUTHORING CHECKLIST
@@ -306,5 +306,5 @@ pushes RTC to BL; `enable_/disable_` toggles without destroying.
 - Do not let wrapper exceptions escape into Blender event callbacks — log and degrade gracefully.
 - Do not use the old enum names `Block_Hooks`, `Block_Runtime_Cache_Members`, or
   `Block_Logger_Definitions` — they no longer exist.
-- Do not use the old two-phase init methods `init_pre_bpy` / `init_post_bpy` — use `init_wrapper`.
+- Do not use the old two-phase init methods `init_pre_bpy` / `init_post_bpy` — use `_init_wrapper`.
 - Do not define `register_block(event)` / `unregister_block(event)` functions — use `_BLOCK_DECLARATION`.

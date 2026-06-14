@@ -43,10 +43,10 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     # --------------------------------------------------------------
 
     @classmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
         
         # Initialize the cache
-        cls.destroy_wrapper()
+        cls._remove_wrapper()
         cls._cache = {}  # Force new dict instance
         cls._lock = threading.RLock()  # Force new lock instance
         
@@ -57,7 +57,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
 
 
     @classmethod
-    def destroy_wrapper(cls):
+    def _remove_wrapper(cls):
         # Clear all cache data. Called during unregister
         with cls._lock:
             cls._cache = {}
@@ -350,9 +350,9 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         else:
             logger.debug(f"(Custom mirror sync) Updating {target_type} with {source_type} truth-source for cache '{cache_key}'")
             if BL_is_truth_source:
-                FWC_instance.actual_class.update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
+                FWC_instance.actual_class._update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
             else:
-                FWC_instance.actual_class.update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
+                FWC_instance.actual_class._update_BL_with_mirrored_RTC_data(event, FWC_instance, data_mirror_instance)
 
     @classmethod
     def resync_data_mirrors(
@@ -364,7 +364,7 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
     ) -> None:
         """
         Iterate through all registered Feature_Wrapper_References and call their
-        update_RTC_with_mirrored_BL_data method.
+        _update_RTC_with_mirrored_BL_data method.
         """
 
         source_type = "Blender" if BL_is_truth_source else "RTC"

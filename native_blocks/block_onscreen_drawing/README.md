@@ -40,10 +40,10 @@ Setting `enable_drawing` `False` calls `clear_all_shaders()`, which tears down a
 
 Undo/redo is handled by `hook_core_event_undo` / `hook_core_event_redo` subscribers in
 `__init__.py`, which delegate to
-`Wrapper_Shader_Manager.update_RTC_with_mirrored_BL_data(event)` — the standard
+`Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data(event)` — the standard
 `Abstract_BL_RTC_List_Syncronizer` sync method.
 
-`update_RTC_with_mirrored_BL_data` avoids unnecessary GPU work by comparing the current RTC
+`_update_RTC_with_mirrored_BL_data` avoids unnecessary GPU work by comparing the current RTC
 against what downstream blocks declare **before** deciding what to do:
 
 1. If `enable_drawing` is `False` → `clear_all_shaders()` and return.
@@ -97,8 +97,8 @@ fast path and never touches GPU objects.
 
 | Hook | Action |
 |---|---|
-| `hook_core_event_undo` | Calls `update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_UNDO)` — smart structural comparison; full rebuild only if shader set changed |
-| `hook_core_event_redo` | Calls `update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_REDO)` — same logic |
+| `hook_core_event_undo` | Calls `_update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_UNDO)` — smart structural comparison; full rebuild only if shader set changed |
+| `hook_core_event_redo` | Calls `_update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_REDO)` — same logic |
 
 ## Public API — `Wrapper_Shader_Manager`
 

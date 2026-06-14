@@ -58,13 +58,13 @@ block_core/
 Central lifecycle manager for the entire addon. Drives block registration, FWC orchestration,
 data mirror sync, and fires lifecycle hooks.
 
-- `init_wrapper()` — Installs `bpy.app.handlers` (load_post, undo_post, redo_post,
+- `_init_wrapper()` — Installs `bpy.app.handlers` (load_post, undo_post, redo_post,
   depsgraph_update_post) and schedules deferred `init_post_bpy()` via `bpy.app.timers`.
-- `init_post_bpy()` — Called once bpy context is ready. Calls `init_wrapper()` on all
+- `init_post_bpy()` — Called once bpy context is ready. Calls `_init_wrapper()` on all
   other FWCs, runs the two-pass BL↔RTC data mirror sync, fires `hook_post_startup`.
-- `create_instance(event, block_module)` — Reads `block_module._BLOCK_DECLARATION` and
+- `_create_instance(event, block_module)` — Reads `block_module._BLOCK_DECLARATION` and
   registers the block's bpy classes, FWCs, RTC members, loggers, hook sources, and data mirrors.
-- `destroy_instance(event, block_id)` — Unregisters all of the above for the named block.
+- `_remove_instance(event, block_id)` — Unregisters all of the above for the named block.
 
 ### `Wrapper_Runtime_Cache`
 Thread-safe (RLock) in-memory dictionary. All transient addon data lives here.
@@ -81,12 +81,12 @@ Registry of Python `logging.Logger` instances, one per declared logger.
 
 - `get_logger(logger_id)` — Public convenience function. Returns the logger for the given
   enum member (or a fallback logger if the RTC is not yet initialised).
-- `create_instance(event, logger_name, src_block_id, level_name)` — Creates and caches a new logger. Generally only called during startup, not runtime
+- `_create_instance(event, logger_name, src_block_id, level_name)` — Creates and caches a new logger. Generally only called during startup, not runtime
 
 ### `Wrapper_Hooks`
 Registry of hook sources and their discovered subscriber functions.
 
-- `create_instance(event, src_block_id, hook_func_name, hook_func_named_args)` — Registers a
+- `_create_instance(event, src_block_id, hook_func_name, hook_func_named_args)` — Registers a
   new hook source in RTC. Generally only called during startup, not runtime
 - `rebuild_hook_subs_cache()` — Scans all registered block modules for top-level functions
   whose names match declared hook source member names. Called once during `init_post_bpy()`.
@@ -121,8 +121,8 @@ Wrapper_Hooks.run_hooked_funcs(hook_func_name=Block_Hook_Sources.hook_post_start
 
 # Control Plane
 from .core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
-Wrapper_Control_Plane.create_instance(event, block_module=sys.modules[__name__])
-Wrapper_Control_Plane.destroy_instance(event, block_id="block-my-feature")
+Wrapper_Control_Plane._create_instance(event, block_module=sys.modules[__name__])
+Wrapper_Control_Plane._remove_instance(event, block_id="block-my-feature")
 ```
 
 ---

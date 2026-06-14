@@ -147,8 +147,8 @@ class Wrapper_Example_Things(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         return True
 
     @classmethod
-    def destroy_wrapper(cls, event: Enum_Sync_Events) -> bool:
-        get_logger(Block_Logger_Definitions.LIFECYCLE).debug("destroy_wrapper")
+    def _remove_wrapper(cls, event: Enum_Sync_Events) -> bool:
+        get_logger(Block_Logger_Definitions.LIFECYCLE).debug("_remove_wrapper")
         return True
 
     # --------------------------------------------------------------
@@ -156,7 +156,7 @@ class Wrapper_Example_Things(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
     # --------------------------------------------------------------
 
     @classmethod
-    def create_instance(cls, thing_id: str, label: str) -> RTC_Example_Thing_Instance:
+    def _create_instance(cls, thing_id: str, label: str) -> RTC_Example_Thing_Instance:
         all_things = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.THINGS)
         if thing_id in all_things:
             get_logger(Block_Logger_Definitions.LIFECYCLE).warning(
@@ -170,7 +170,7 @@ class Wrapper_Example_Things(Abstract_Feature_Wrapper, Abstract_Datawrapper_Inst
         return instance
 
     @classmethod
-    def destroy_instance(cls, thing_id: str) -> bool:
+    def _remove_instance(cls, thing_id: str) -> bool:
         all_things = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.THINGS)
         if thing_id not in all_things:
             return False
@@ -239,7 +239,7 @@ def register_block(event: Enum_Sync_Events):
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
     block_module = get_self_block_module(block_manager_wrapper=Wrapper_Control_Plane)
-    Wrapper_Control_Plane.create_instance(
+    Wrapper_Control_Plane._create_instance(
         event,
         block_module                  = block_module,
         block_bpy_types_classes       = _block_classes_to_register,
@@ -258,7 +258,7 @@ def unregister_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Control_Plane.destroy_instance(event, block_id=_BLOCK_ID)
+    Wrapper_Control_Plane._remove_instance(event, block_id=_BLOCK_ID)
 
     if hasattr(bpy.types.Scene, "dgblocks_example_props"):
         del bpy.types.Scene.dgblocks_example_props

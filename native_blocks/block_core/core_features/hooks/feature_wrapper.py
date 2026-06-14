@@ -40,76 +40,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
     # All data managed by this wrapper is stored in RTC
 
     # --------------------------------------------------------------
-    # Implemented from Abstract_Feature_Wrapper
-    # --------------------------------------------------------------
-
-    @classmethod
-    def init_wrapper(cls):
-        pass
-
-
-    @classmethod
-    def destroy_wrapper(cls):
-        "No-op"
-
-    # --------------------------------------------------------------
-    # Implemented from Abstract_Datawrapper_Instance_Manager
-    # --------------------------------------------------------------
-
-    @classmethod
-    def create_instance(
-        cls,
-        event: Enum_Sync_Events,
-        src_block_id: str,
-        hook_func_name: str | Enum,
-        hook_func_named_args: Dict[str, Any] = None,
-    ) -> None:
-
-        logger = get_logger(Core_Block_Loggers.HOOKS)
-        logger.debug(f"Creating hook source '{hook_func_name}'")
-
-        # # Validate uniqueness. Return with no action upon duplication attempt
-        actual_hook_func_name = get_actual_rtc_key(hook_func_name)
-        idx, existing_instance, cached_hook_sources = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_hook_sources, "hook_func_name", actual_hook_func_name)
-        if existing_instance:
-            logger.debug(f"Hook source '{actual_hook_func_name}' already exists in RTC. Returning with no action")
-            return
-
-        # Create & cache new hook source
-        hook_src_instance = RTC_Hook_Source_Instance(
-            src_block_id,
-            actual_hook_func_name,
-            hook_func_named_args,
-        )
-        cached_hook_sources.append(hook_src_instance)
-        Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, cached_hook_sources)
-
-        return hook_src_instance
-
-
-    @classmethod
-    def destroy_instance(
-        cls,
-        event: Enum_Sync_Events,
-        hook_func_name: str,
-    ) -> None:
-        """
-        Remove hook source & derived subscribers
-        """
-
-        logger = get_logger(Core_Block_Loggers.HOOKS)
-        logger.debug(f"Removing hook source '{hook_func_name}'")
-
-        # Remove source hook from registry
-        Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
-            member_key=cache_key_hook_sources,
-            uniqueness_field="hook_func_name",
-            uniqueness_field_value=hook_func_name,
-        )
-
-    # --------------------------------------------------------------
-    # Public funcs specific to this class
-    # --------------------------------------------------------------
+    # Public API
 
     @classmethod
     def run_hooked_funcs(
@@ -228,6 +159,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
 
         return all_returns
 
+
     def rebuild_hook_subs_cache():
 
         logger = get_logger(Core_Block_Loggers.HOOKS)
@@ -258,3 +190,71 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
                 hook_source_instance.subscriber_count += 1
 
         Wrapper_Runtime_Cache.set_cache(cache_key_hook_subscribers, dict(new_cached_hook_subs))
+
+    # --------------------------------------------------------------
+    # Implemented from Abstract_Feature_Wrapper
+    # --------------------------------------------------------------
+
+    @classmethod
+    def _init_wrapper(cls):
+        pass
+
+
+    @classmethod
+    def _remove_wrapper(cls):
+        "No-op"
+
+    # --------------------------------------------------------------
+    # Implemented from Abstract_Datawrapper_Instance_Manager
+    # --------------------------------------------------------------
+
+    @classmethod
+    def _create_instance(
+        cls,
+        event: Enum_Sync_Events,
+        src_block_id: str,
+        hook_func_name: str | Enum,
+        hook_func_named_args: Dict[str, Any] = None,
+    ) -> None:
+
+        logger = get_logger(Core_Block_Loggers.HOOKS)
+        logger.debug(f"Creating hook source '{hook_func_name}'")
+
+        # # Validate uniqueness. Return with no action upon duplication attempt
+        actual_hook_func_name = get_actual_rtc_key(hook_func_name)
+        idx, existing_instance, cached_hook_sources = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(cache_key_hook_sources, "hook_func_name", actual_hook_func_name)
+        if existing_instance:
+            logger.debug(f"Hook source '{actual_hook_func_name}' already exists in RTC. Returning with no action")
+            return
+
+        # Create & cache new hook source
+        hook_src_instance = RTC_Hook_Source_Instance(
+            src_block_id,
+            actual_hook_func_name,
+            hook_func_named_args,
+        )
+        cached_hook_sources.append(hook_src_instance)
+        Wrapper_Runtime_Cache.set_cache(cache_key_hook_sources, cached_hook_sources)
+
+        return hook_src_instance
+
+
+    @classmethod
+    def _remove_instance(
+        cls,
+        event: Enum_Sync_Events,
+        hook_func_name: str,
+    ) -> None:
+        """
+        Remove hook source & derived subscribers
+        """
+
+        logger = get_logger(Core_Block_Loggers.HOOKS)
+        logger.debug(f"Removing hook source '{hook_func_name}'")
+
+        # Remove source hook from registry
+        Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
+            member_key=cache_key_hook_sources,
+            uniqueness_field="hook_func_name",
+            uniqueness_field_value=hook_func_name,
+        )

@@ -174,7 +174,7 @@ def _create_new_block_standard_features(block_declaration, logger):
 
     # Loggers - initialized with default log levels
     for logger_enum in block_declaration.block_loggers:
-        Wrapper_Loggers.create_instance(
+        Wrapper_Loggers._create_instance(
             event,
             src_block_id = block_declaration.block_id,
             logger_name = logger_enum.name,
@@ -183,7 +183,7 @@ def _create_new_block_standard_features(block_declaration, logger):
 
     # Hook Sources - remain unchanged after init
     for idx, hook_source_enum in enumerate(block_declaration.block_hook_sources):
-        Wrapper_Hooks.create_instance(
+        Wrapper_Hooks._create_instance(
             event,
             src_block_id = block_declaration.block_id,
             hook_func_name = hook_source_enum.name,
@@ -302,7 +302,7 @@ def _remove_block_FWC_instances(block_instance, logger):
     if block_instance.block_id != core_block_id:
         for FWC_instance in reversed(block_instance.block_FWC_instances):
             try:
-                FWC_instance.actual_class.destroy_wrapper()
+                FWC_instance.actual_class._remove_wrapper()
                 Wrapper_Runtime_Cache.destroy_unique_instance_from_registry_list(
                     member_key=cache_key_FWCs,
                     uniqueness_field="feature_name",

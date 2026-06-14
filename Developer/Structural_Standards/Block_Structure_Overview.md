@@ -253,19 +253,19 @@ Every feature is packaged in a single **Feature Wrapper Class** (FWC). All FWCs 
 class Abstract_Feature_Wrapper(ABC):
     @classmethod
     @abstractmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
         """Called during block registration. No extra arguments."""
         ...
 
     @classmethod
     @abstractmethod
-    def destroy_wrapper(cls):
+    def _remove_wrapper(cls):
         """Called during block unregistration. No extra arguments."""
         ...
 ```
 
 > **Note:** The old two-phase `init_pre_bpy` / `init_post_bpy` pattern no longer exists.
-> There is a single `init_wrapper()`. The addon-wide post-bpy deferred init is handled
+> There is a single `_init_wrapper()`. The addon-wide post-bpy deferred init is handled
 > exclusively by `Wrapper_Control_Plane.init_post_bpy()` via app-timer and `load_post` handlers.
 
 **Optional abstract extensions:**
@@ -273,13 +273,13 @@ class Abstract_Feature_Wrapper(ABC):
 ```python
 class Abstract_Datawrapper_Instance_Manager(ABC):
     # For FWCs that manage 0-to-many instances of a @dataclass
-    def create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any: ...
-    def destroy_instance(cls, event: Enum_Sync_Events, **kwargs): ...
+    def _create_instance(cls, event: Enum_Sync_Events, **kwargs) -> any: ...
+    def _remove_instance(cls, event: Enum_Sync_Events, **kwargs): ...
 
 class Abstract_BL_RTC_List_Syncronizer(ABC):
     # Required when the FWC has at least one Data Mirror (see §9)
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events): ...
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): ...
+    def _update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events): ...
+    def _update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events): ...
 ```
 
 ### Wrapper + RTC Record Pattern
@@ -304,7 +304,7 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     """Manager — classmethods only, no instance state."""
 
     @classmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
         # Creates RTC_Draw_Handler_Instance entries in RTC at startup
         ...
 
@@ -360,22 +360,22 @@ def unregister_block_props():
 
 `Wrapper_Control_Plane` is the FWC that drives the entire addon lifecycle:
 
-1. **`init_wrapper()`** (called during addon `register()`):
+1. **`_init_wrapper()`** (called during addon `register()`):
    - Writes initial `Global_Addon_State` to RTC
    - Installs all `bpy.app.handlers` (load_post, undo_post, redo_post, depsgraph_update_post)
    - Schedules deferred `init_post_bpy()` via `bpy.app.timers`
 
 2. **`init_post_bpy()`** (deferred, called once bpy context is ready):
-   - Calls `init_wrapper()` on all other registered FWCs
+   - Calls `_init_wrapper()` on all other registered FWCs
    - Runs two-pass BL↔RTC data mirror sync
    - Fires `hook_post_startup` to all subscriber blocks
    - Sets `ADDON_METADATA.POST_REG_INIT_HAS_RUN = True`
 
-3. **`create_instance(event, block_module)`**:
+3. **`_create_instance(event, block_module)`**:
    - Reads `block_module._BLOCK_DECLARATION`
    - Registers bpy classes, FWC classes, RTC members, loggers, hook sources, data mirrors
 
-4. **`destroy_instance(event, block_id)`**:
+4. **`_remove_instance(event, block_id)`**:
    - Removes bpy classes, FWC instances, RTC members for the given block
 
 ---
@@ -510,7 +510,7 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
 - If **`default_data_path_in_scene` is set**: `Wrapper_Runtime_Cache.resync_data_mirrors()`
   handles both directions automatically using the declared field names.
 - If **`default_data_path_in_scene` is `None`**: the owning FWC **must** implement both
-  `update_RTC_with_mirrored_BL_data(event)` and `update_BL_with_mirrored_RTC_data(event)`.
+  `_update_RTC_with_mirrored_BL_data(event)` and `_update_BL_with_mirrored_RTC_data(event)`.
   Both functions must be present; the framework will call them during sync events.
 
 ### Sync Triggers
@@ -628,10 +628,10 @@ if hasattr(bpy.types.Scene, "dgblocks_my_props"):
 | `create_*` | Create new instance; fail/warn if already exists |
 | `set_*` | Upsert (create or overwrite) |
 | `destroy_*` | Remove instance or tear down wrapper |
-| `init_wrapper` | One-time setup during block registration |
-| `destroy_wrapper` | Complete teardown during block unregistration |
-| `update_RTC_with_mirrored_BL_data` | Rebuild RTC from BL (BL is source of truth) |
-| `update_BL_with_mirrored_RTC_data` | Push RTC data into BL |
+| `_init_wrapper` | One-time setup during block registration |
+| `_remove_wrapper` | Complete teardown during block unregistration |
+| `_update_RTC_with_mirrored_BL_data` | Rebuild RTC from BL (BL is source of truth) |
+| `_update_BL_with_mirrored_RTC_data` | Push RTC data into BL |
 | `enable_` / `disable_` | Toggle without destroying |
 | `register_*` / `unregister_*` | Blender registry operations |
 | `hook_*` | Top-level subscriber hook function in `__init__.py` |
@@ -693,7 +693,7 @@ class RTC_Draw_Handler_Instance:
 - [ ] All bpy classes listed in `block_bpy_classes`
 - [ ] All FWCs listed in `block_feature_wrapper_classes`
 - [ ] `constants.py` declares `Block_Hook_Sources`, `Block_Loggers`, `Block_RTC_Members` (and `Block_Data_Mirrors`) using `String_Comparable_Mixin` and typed declaration dataclasses
-- [ ] If block has Data Mirrors with `default_data_path_in_scene=None`, the FWC implements both `update_RTC_with_mirrored_BL_data` and `update_BL_with_mirrored_RTC_data`
+- [ ] If block has Data Mirrors with `default_data_path_in_scene=None`, the FWC implements both `_update_RTC_with_mirrored_BL_data` and `_update_BL_with_mirrored_RTC_data`
 - [ ] No `print()`, no magic string literals for hook/logger/RTC IDs
 - [ ] Dependent blocks listed in `_BLOCK_DEPENDENCIES` before any inter-block imports
 
@@ -707,7 +707,7 @@ class RTC_Draw_Handler_Instance:
 4. **Manager-Record Pattern**: `Wrapper_*` classes manage; `RTC_*_Instance` dataclasses hold state
 5. **Two-Tier Data**: Scene PropertyGroups (persistent) ↔ RTC (transient) with Data Mirror sync
 6. **Hook-Based Communication**: Blocks communicate via named hook functions, not direct calls
-7. **Single init**: `init_wrapper()` replaces the old two-phase `init_pre_bpy` / `init_post_bpy`
+7. **Single init**: `_init_wrapper()` replaces the old two-phase `init_pre_bpy` / `init_post_bpy`
 8. **Graceful Degradation**: Defensive checks, structured logging, early returns
 9. **Lifecycle Discipline**: `Wrapper_Control_Plane` drives all init/destroy sequencing
 10. **Consistency**: Naming, structure, patterns repeated across all blocks

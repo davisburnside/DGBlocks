@@ -54,7 +54,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
 
         # Define Monkeypatch func to allow custom logger functionality
         def log_with_linebreak(self, log_message: str, length_factor: int = 4):
@@ -70,7 +70,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         # Create all core loggers
         event = Enum_Sync_Events.ADDON_INIT
         for new_logger_enum in Core_Block_Loggers:
-            cls.create_instance(
+            cls._create_instance(
                 event,
                 logger_name=new_logger_enum.name,
                 src_block_id=_BLOCK_ID,
@@ -90,7 +90,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         # )
 
     @classmethod
-    def destroy_wrapper(cls, event, self_FWC_instance) -> bool:
+    def _remove_wrapper(cls, event, self_FWC_instance) -> bool:
         "No-op. Loggers exist until the addon's final unregister() steps"
 
     # --------------------------------------------------------------
@@ -98,7 +98,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
     # --------------------------------------------------------------
 
     @classmethod
-    def create_instance(
+    def _create_instance(
         cls,
         event: Enum_Sync_Events,
         logger_name: Enum,
@@ -139,7 +139,7 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         return new_logger
 
     @classmethod
-    def destroy_instance(cls, event: Enum_Sync_Events, logger_name: any):
+    def _remove_instance(cls, event: Enum_Sync_Events, logger_name: any):
 
         logger = get_logger(Core_Block_Loggers.REGISTRATE)
 

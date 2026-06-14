@@ -97,7 +97,7 @@ class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
         # Clear or restore the RTC, Blender data is unaffected
         if self.target == "RTC":
 
-            # Clearing data does not use destroy_instance function. It directly updates the RTC's _cache. This should not be done in a production setting
+            # Clearing data does not use _remove_instance function. It directly updates the RTC's _cache. This should not be done in a production setting
             if self.action == "CLEAR":
                 for cache_key, cache_data in Wrapper_Runtime_Cache._cache.items():
                     if cache_key in rtc_members_to_skip:

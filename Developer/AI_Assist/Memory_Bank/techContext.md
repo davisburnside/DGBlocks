@@ -131,7 +131,7 @@ Developer/
 | Logging | `block-core` | `get_logger(enum)` → wrapped `logging.Logger` |
 | Runtime Cache | `block-core` | `Wrapper_Runtime_Cache.{get_cache, set_cache, create_cache, remove_cache, flag_cache_as_syncing, ...}` |
 | Hook dispatch | `block-core` | `Wrapper_Hooks.run_hooked_funcs(...)`, `@hook_data_filter` |
-| Block lifecycle | `block-core` | `Wrapper_Control_Plane.{create_instance, destroy_instance, ...}` |
+| Block lifecycle | `block-core` | `Wrapper_Control_Plane.{_create_instance, _remove_instance, ...}` |
 | BL↔RTC sync helpers | `block-core` | `update_dataclasses_to_match_collectionprop`, `update_collectionprop_to_match_dataclasses` |
 | Pretty-print debugging | `block-debug-console-print` | The `DGBLOCKS_OT_Debug_Console_Print_Block_Diagnostics` operator + `make_pretty_json_string_from_data` |
 | GPU draw + shaders | `block-onscreen-drawing` | `Wrapper_Draw_Handlers.{enable_draw_handler, disable_draw_handler, add_shader}`, `Shader_Instance` |

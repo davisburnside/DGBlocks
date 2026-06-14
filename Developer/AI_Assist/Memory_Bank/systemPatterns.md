@@ -77,8 +77,8 @@ def unregister_block(event):  ...           # Tears it down
 
 `register_block` and `unregister_block` must accept a single positional arg
 `event: Enum_Sync_Events`. Most of the time, that argument is just passed
-through to `Wrapper_Control_Plane.create_instance()` /
-`destroy_instance()`.
+through to `Wrapper_Control_Plane._create_instance()` /
+`_remove_instance()`.
 
 Optional but commonly present:
 - **Hook implementations** (functions named `hook_*`) — picked up by name.
@@ -296,13 +296,13 @@ class Wrapper_Draw_Handlers(Abstract_Feature_Wrapper):
     def init_post_bpy(cls) -> bool: ...
 
     @classmethod
-    def destroy_wrapper(cls) -> bool: ...
+    def _remove_wrapper(cls) -> bool: ...
 
     @classmethod
-    def create_instance(cls, ...): ...
+    def _create_instance(cls, ...): ...
 
     @classmethod
-    def destroy_instance(cls, ...): ...
+    def _remove_instance(cls, ...): ...
 ```
 
 - **Never** holds instance attributes. Every method is a `@classmethod`.
@@ -323,9 +323,9 @@ Defined in `addon_helpers/data_structures.py`:
 
 | Base class | When to inherit |
 |---|---|
-| `Abstract_Feature_Wrapper` | **Every** wrapper. Forces `init_pre_bpy`, `init_post_bpy`, `destroy_wrapper`. |
-| `Abstract_Datawrapper_Instance_Manager` | Wrappers that manage 0-to-many records via CRUD. Forces `create_instance`, `destroy_instance`. |
-| `Abstract_BL_RTC_List_Syncronizer` | Wrappers whose records mirror Scene PropertyGroup data. Forces `update_RTC_with_mirrored_BL_data`, `update_BL_with_mirrored_RTC_data`. |
+| `Abstract_Feature_Wrapper` | **Every** wrapper. Forces `init_pre_bpy`, `init_post_bpy`, `_remove_wrapper`. |
+| `Abstract_Datawrapper_Instance_Manager` | Wrappers that manage 0-to-many records via CRUD. Forces `_create_instance`, `_remove_instance`. |
+| `Abstract_BL_RTC_List_Syncronizer` | Wrappers whose records mirror Scene PropertyGroup data. Forces `_update_RTC_with_mirrored_BL_data`, `_update_BL_with_mirrored_RTC_data`. |
 
 ---
 
@@ -367,7 +367,7 @@ class Block_RTC_Members(Enum):
 - All three enum *names* are in `SCREAMING_SNAKE_CASE`.
 - Enum *values* are unique tuples (Python aliases enums with duplicate values).
 - The first enum member should be the most-fundamental one.
-- These enums are passed verbatim into `Wrapper_Control_Plane.create_instance(...)`.
+- These enums are passed verbatim into `Wrapper_Control_Plane._create_instance(...)`.
 
 ---
 
@@ -391,7 +391,7 @@ def register_block(event: Enum_Sync_Events):
     logger.log_with_linebreak(f"Starting registration for '{_BLOCK_ID}'")
 
     block_module = get_self_block_module(block_manager_wrapper=Wrapper_Control_Plane)
-    Wrapper_Control_Plane.create_instance(
+    Wrapper_Control_Plane._create_instance(
         event,
         block_module                  = block_module,
         block_bpy_types_classes       = _block_classes_to_register,
@@ -410,7 +410,7 @@ def unregister_block(event: Enum_Sync_Events):
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting unregistration for '{_BLOCK_ID}'")
 
-    Wrapper_Control_Plane.destroy_instance(event, block_id=_BLOCK_ID)
+    Wrapper_Control_Plane._remove_instance(event, block_id=_BLOCK_ID)
 
     if hasattr(bpy.types.Scene, "<addon>_<block>_props"):
         del bpy.types.Scene.<addon>_<block>_props
@@ -419,7 +419,7 @@ def unregister_block(event: Enum_Sync_Events):
 ```
 
 **Rules:**
-- Always pass *enum classes*, not lists of values, to `create_instance`.
+- Always pass *enum classes*, not lists of values, to `_create_instance`.
 - Always log start and end of (un)registration via `Core_Block_Loggers.REGISTRATE`.
 - Cleanup order is the reverse of setup order.
 - Defensive `hasattr` guard before `del bpy.types.Scene.<prop>`.
@@ -563,7 +563,7 @@ sync on file-load / undo / redo. The wrapper must implement:
 
 ```python
 @classmethod
-def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
+def _update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
     """BL is source of truth. Rebuild RTC dataclasses from CollectionProperty rows."""
     update_dataclasses_to_match_collectionprop(
         actual_FWC    = cls,
@@ -576,7 +576,7 @@ def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
     )
 
 @classmethod
-def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
+def _update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
     """RTC is source of truth. Push dataclass values into CollectionProperty rows."""
     Wrapper_Runtime_Cache.flag_cache_as_syncing(cache_key, True)
     try:
@@ -592,7 +592,7 @@ def _callback_thing_changed(self, context):
     if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key) or not is_bpy_ready():
         return
     try:
-        Wrapper_<Feature>.update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE)
+        Wrapper_<Feature>._update_RTC_with_mirrored_BL_data(Enum_Sync_Events.PROPERTY_UPDATE)
     except Exception:
         get_logger(...).error("Sync failed", exc_info=True)
 ```

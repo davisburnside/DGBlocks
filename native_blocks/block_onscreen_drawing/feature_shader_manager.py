@@ -26,7 +26,6 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
     # ----------------------------------------------------------
     # Public API
-    # ----------------------------------------------------------
 
     @classmethod
     def enable_and_poll_for_shaders(cls):
@@ -46,10 +45,9 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation
-    # ----------------------------------------------------------
 
     @classmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager init")
 
@@ -63,17 +61,16 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
 
 
     @classmethod
-    def destroy_wrapper(cls) -> None:
+    def _remove_wrapper(cls) -> None:
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager destroy — clearing all handlers")
         _clear_all_shaders()
 
     # ----------------------------------------------------------
     # Abstract_BL_RTC_List_Syncronizer implementation
-    # ----------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
+    def _update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
 
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         drawing_props = bpy.context.scene.dgblocks_onscreen_drawing_props
@@ -104,7 +101,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
+    def _update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
         
         # This function assumes that _rebuild_all_shaders() has been already executed after the RTC update event
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)

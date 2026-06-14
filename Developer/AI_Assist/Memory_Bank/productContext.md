@@ -28,7 +28,7 @@ data. Steps in order:
    `_BLOCK_ID`, `_BLOCK_VERSION`, `_BLOCK_DEPENDENCIES`, `register_block`, or
    `unregister_block`, or if a declared dependency isn't already registered.
 4. **For each valid block, call `block.register_block(event)`.** Inside, the
-   block calls `Wrapper_Control_Plane.create_instance(...)`, which:
+   block calls `Wrapper_Control_Plane._create_instance(...)`, which:
    - Registers all `bpy.types.*` classes
    - Calls `init_pre_bpy()` on each Feature Wrapper Class (FWC)
    - Caches the block's metadata in the RTC
@@ -71,10 +71,10 @@ This includes all hook/logger/RTC components of a block.
 
 ### Phase F — `unregister()`
 Blocks unregister in **reverse order** of registration. Each block calls
-`Wrapper_Control_Plane.destroy_instance(...)`, which:
+`Wrapper_Control_Plane._remove_instance(...)`, which:
 
 1. Unregisters all bpy classes.
-2. Calls `destroy_wrapper()` on each FWC.
+2. Calls `_remove_wrapper()` on each FWC.
 3. Removes the block's loggers, hooks, and RTC members.
 
 Core-block destroys itself last, including the RTC itself.
@@ -102,7 +102,7 @@ This is the single most important mental model in the codebase.
 
 A wrapper that needs both layers inherits from
 `Abstract_BL_RTC_List_Syncronizer` and implements
-`update_RTC_with_mirrored_BL_data` and `update_BL_with_mirrored_RTC_data`.
+`_update_RTC_with_mirrored_BL_data` and `_update_BL_with_mirrored_RTC_data`.
 
 ---
 

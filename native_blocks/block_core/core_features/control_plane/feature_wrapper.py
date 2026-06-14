@@ -34,7 +34,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
         """
         Called during register() before bpy is fully available.
         """
@@ -93,7 +93,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         for FWC_instance in cached_FWCs:
             if FWC_instance.actual_class in core_FWCs:
                 continue
-            FWC_instance.actual_class.init_wrapper()
+            FWC_instance.actual_class._init_wrapper()
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 3: Load saved settings for all data mirrors into RTC , then perform 2 syncs. This ensures file-saved data is properly loaded alongside new RTC data
@@ -132,7 +132,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
 
     @classmethod
-    def destroy_wrapper(cls) -> bool:
+    def _remove_wrapper(cls) -> bool:
         """
         Remove bpy.app.handlers and clear the sync registry.
         Called during core-block unregistration.
@@ -150,7 +150,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def create_instance(cls, event: Enum_Sync_Events, block_module: ModuleType):
+    def _create_instance(cls, event: Enum_Sync_Events, block_module: ModuleType):
         """
         Blocks are created during addon startup/refresh. They can also be removed/recreated during runtime
         """
@@ -202,11 +202,11 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             failed_block_declaration = Block_Declaration(block_module = block_module, block_id = block_id, block_dependencies = [])
             _create_new_block_record(failed_block_declaration, [], error_str, logger)
             event = Enum_Sync_Events.ADDON_INIT
-            # cls.destroy_instance(event, block_id = block_id)
+            # cls._remove_instance(event, block_id = block_id)
 
 
     @classmethod
-    def destroy_instance(cls, event: Enum_Sync_Events, block_instance: RTC_Block_Instance):
+    def _remove_instance(cls, event: Enum_Sync_Events, block_instance: RTC_Block_Instance):
 
         # Note that the Block record itself is not removed from RTC's REGISTRY_ALL_BLOCKS cache. Instead, its 'is_block_enabled' property is set to false
         # It is the only "trace" that should remain of a removed block.
@@ -228,13 +228,13 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
+    def _update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
         # 1-directional: BL never overwrites RTC data for blocks
         pass
 
 
     @classmethod
-    def update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
+    def _update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
         core_props = bpy.context.scene.dgblocks_core_props
         cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
         if cached_blocks is None:

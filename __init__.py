@@ -71,7 +71,7 @@ def register():
     
     core_block_FWCs = [Wrapper_Runtime_Cache, Wrapper_Loggers, Wrapper_Control_Plane, Wrapper_Hooks]
     for actual_feature_wrapper_class in core_block_FWCs:
-        actual_feature_wrapper_class.init_wrapper()
+        actual_feature_wrapper_class._init_wrapper()
     
     logger = get_logger(Core_Block_Loggers.REGISTRATE)
     logger.log_with_linebreak(f"Starting main pre-bpy registration for Addon '{addon_name}'")
@@ -82,7 +82,7 @@ def register():
     # To see the full list of actions triggered by the registration loop, set REGISTRATE, POST_REGISTRATE, BLOCK_MGMT Loggers to 'DEBUG'
     event = Enum_Sync_Events.ADDON_INIT
     for block_module in _BLOCK_PACKAGES:
-        Wrapper_Control_Plane.create_instance(event, block_module)
+        Wrapper_Control_Plane._create_instance(event, block_module)
 
     logger.log_with_linebreak(f"Finished main pre-bpy registration for Addon '{addon_name}'")
 
@@ -97,7 +97,7 @@ def unregister():
     cached_blocks = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
     for block_instance in reversed(cached_blocks):
         try:
-            Wrapper_Control_Plane.destroy_instance(event, block_instance)
+            Wrapper_Control_Plane._remove_instance(event, block_instance)
         except:
             logger.error(f"Exception when unregistering block '{block_instance.block_id}': ", exc_info = True)
     

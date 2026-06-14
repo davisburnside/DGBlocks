@@ -91,13 +91,13 @@ class Abstract_Datawrapper_Instance_Manager(ABC):
 
     @classmethod
     @abstractmethod
-    def create_instance(cls, event: Enum_Sync_Events, **kwargs):
+    def _create_instance(cls, event: Enum_Sync_Events, **kwargs):
         # Can have arbitrary args
         raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
-    def destroy_instance(cls, event: Enum_Sync_Events, **kwargs):
+    def _remove_instance(cls, event: Enum_Sync_Events, **kwargs):
         # Can have arbitrary args
         raise NotImplementedError("Child class must implement this function")
 
@@ -107,14 +107,14 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
 
     @classmethod
     @abstractmethod
-    def update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
+    def _update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
         # Used by Wrapper_Control_Plane on undo/redo/load, and by certain property update callbacks
         # Rebuild an RTC list from a mirrored collectionproperty. Data should be moved/reused/modified instead of recreated, when possible
         raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
-    def update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
+    def _update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
         # Used when RTC data need to be persisted into Blender
         # RTC data overwrites a mirrored collectionproperty. Data should be moved/reused/modified instead of recreated, when possible
         raise NotImplementedError("Child class must implement this function")
@@ -126,14 +126,14 @@ class Abstract_Feature_Wrapper(ABC):
 
     @classmethod
     @abstractmethod
-    def init_wrapper(cls) -> bool:
+    def _init_wrapper(cls) -> bool:
         # Is automatically called during register_block_components for all registered features
         # Must have no extra arguments
         raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
-    def destroy_wrapper(cls):
+    def _remove_wrapper(cls):
         # Is automatically called during unregister_block_components for all registered features
         # Must have no extra arguments
         raise NotImplementedError("Child class must implement this function")
@@ -182,7 +182,7 @@ class RTC_Member_Data_Mirror_Declaration:
     mirrored_key_field_names: list[str] # determines unique, canonical records. Field values must be str, int, tuple...
     mirrored_data_field_names: list[str] # fields synced between BL & RTC records when key_fields match
 
-    scene_colprop_path: Optional[str] = field(default = None) # If None, the FWC must implement 'update_BL_with_mirrored_RTC_data' or 'update_RTC_with_mirrored_BL_data'
+    scene_colprop_path: Optional[str] = field(default = None) # If None, the FWC must implement '_update_BL_with_mirrored_RTC_data' or '_update_RTC_with_mirrored_BL_data'
 
 @dataclass 
 class RTC_FWC_Data_Mirror_Instance(RTC_Member_Data_Mirror_Declaration):
