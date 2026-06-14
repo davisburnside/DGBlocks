@@ -22,39 +22,26 @@ registering one Blender draw handler per `(space, region, phase)` group, creatin
 Drawing is controlled by the `enable_drawing` scene property. Setting it `True` triggers a full
 rebuild:
 
-1. `_cb_enable_drawing_changed` fires → calls `Wrapper_Shader_Manager._rebuild_all_shaders()`
-2. `hook_get_shader_definitions` is broadcast — each subscribed block appends its
-   `Shader_Definition` list to the shared `definition_accumulator`
+1. `_cb_enable_drawing_changed` fires → calls `_rebuild_all_shaders()`
+2. `hook_get_shader_definitions` is broadcast — each subscribed block returns a list of its `Shader_Definition` objects.
 3. Definitions are validated, grouped by `(space, region, phase)`, and turned into live
    `Shader_Instance` objects with one Blender draw handler per group
-4. `_apply_bl_is_enabled_from_mirror()` reads BL `shader_mirror` and restores each shader's
-   `is_enabled` preference
-5. `_sync_shaders_to_bl_mirror()` upserts BL rows to reflect the new live shader set
-6. `hook_before_first_draw` is broadcast — each subscribed block pushes initial geometry via
+4. `Wrapper_Runtime_Cache.resync_single_data_mirror()` pushes the new RTC list to the BL `shader_mirror` collection to reflect the new live shader set
+5. `hook_before_first_draw` is broadcast — each subscribed block pushes initial geometry via
    `Wrapper_Shader_Manager.get_shader(uid)`
 
-Setting `enable_drawing` `False` calls `clear_all_shaders()`, which tears down all draw handlers.  The BL
-`shader_mirror` rows are **not** cleared — `is_enabled` preferences survive the toggle.
+Setting `enable_drawing` `False` calls `_clear_all_shaders()`, which tears down all draw handlers and clears the BL `shader_mirror`.
 
 ### Undo / Redo — smart structural comparison
 
-Undo/redo is handled by `hook_core_event_undo` / `hook_core_event_redo` subscribers in
-`__init__.py`, which delegate to
-`Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data(event)` — the standard
-`Abstract_BL_RTC_List_Syncronizer` sync method.
+Undo/redo is handled automatically by the core runtime cache mirroring system which delegates to `Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data(event)`.
 
-`_update_RTC_with_mirrored_BL_data` avoids unnecessary GPU work by comparing the current RTC
-against what downstream blocks declare **before** deciding what to do:
+`_update_RTC_with_mirrored_BL_data` avoids unnecessary GPU work by comparing the current BL mirror against what is currently in the RTC:
 
-1. If `enable_drawing` is `False` → `clear_all_shaders()` and return.
-2. Fire `hook_get_shader_definitions` to get the fresh intended shader set (hooks remain the
-   authoritative polling mechanism — the onscreen-draw block never hard-imports downstream
-   shader definitions).
-3. Compare fresh definitions against current RTC `SHADERS`:
-   - **Same UIDs, same order, same `(space, region, phase)` per UID** → structure is
-     unchanged; only call `_apply_bl_is_enabled_from_mirror()` to restore `is_enabled` values
-     Blender may have reverted. No draw handlers or GPU resources are recreated.
-   - **Any difference** → full `_rebuild_all_shaders()` (clear + recreate everything).
+1. If `enable_drawing` is `False` → calls `_clear_all_shaders()` and returns.
+2. Uses `plan_dataclasses_to_match_collectionprop` to generate a list of differences between the BL collection and RTC list.
+3. If `Create` or `Remove` actions exist (e.g. shader sets changed structure), it triggers a full `_rebuild_all_shaders()`.
+4. If only `Edit` actions exist (e.g. the user toggled `is_enabled`), it simply toggles `is_enabled` on the affected RTC instances. No draw handlers or GPU resources are recreated.
 
 The most common undo/redo step (editing non-drawing data while drawing is active) takes the
 fast path and never touches GPU objects.
@@ -90,28 +77,22 @@ fast path and never touches GPU objects.
 
 | Member | Direction | Kwargs | Purpose |
 |---|---|---|---|
-| `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `definition_accumulator: list` | Collect `Shader_Definition` objects; subscribers call `definition_accumulator.extend(...)` |
-| `hook_before_first_draw` | block_onscreen_drawing → subscribers | _(none)_ | Push initial geometry via `get_shader(uid)` after all instances are live |
+| `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `{}` | Collect `Shader_Definition` objects; subscribers return a list of definitions |
+| `hook_before_first_draw` | block_onscreen_drawing → subscribers | `{}` | Push initial geometry via `get_shader(uid)` after all instances are live |
 
 ## Hook Subscriptions (core hooks)
 
-| Hook | Action |
-|---|---|
-| `hook_core_event_undo` | Calls `_update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_UNDO)` — smart structural comparison; full rebuild only if shader set changed |
-| `hook_core_event_redo` | Calls `_update_RTC_with_mirrored_BL_data(PROPERTY_UPDATE_REDO)` — same logic |
+*(No direct core hook subscriptions in `__init__.py`. Undo/redo is handled via `Abstract_BL_RTC_List_Syncronizer` data mirror sync in `Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data`)*
 
 ## Public API — `Wrapper_Shader_Manager`
 
-### `_rebuild_all_shaders() -> None`
+### `enable_and_poll_for_shaders()`
 
-Full rebuild cycle. Called automatically by `_cb_enable_drawing_changed` when `enable_drawing`
-becomes `True`, and by undo/redo hooks. Downstream blocks do **not** call this directly —
-they participate via hooks.
+Sets `enable_drawing` to `True`, which triggers a full rebuild cycle.
 
-### `clear_all_shaders() -> None`
+### `disable_shaders()`
 
-Tears down all live Blender draw handlers and discards all `Shader_Instance` objects.
-Does **not** touch the BL `shader_mirror` — `is_enabled` preferences are preserved.
+Sets `enable_drawing` to `False`, which tears down all live Blender draw handlers, discards all `Shader_Instance` objects, and clears the BL `shader_mirror`.
 
 ### `get_shader(uid: str) -> Shader_Instance | None`
 
@@ -202,8 +183,8 @@ the draw; these can be monkeypatched via `Shader_Definition.builtin_shader_befor
 from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
 from .constants import MY_SHADER_DEFS
 
-def hook_get_shader_definitions(definition_accumulator: list):
-    definition_accumulator.extend(MY_SHADER_DEFS)
+def hook_get_shader_definitions():
+    return MY_SHADER_DEFS
 
 def hook_before_first_draw():
     shader = Wrapper_Shader_Manager.get_shader("MY_LINES")
@@ -248,16 +229,14 @@ mutated. Checks:
 
 ## Files
 
-```
+```text
 block_onscreen_drawing/
-├── __init__.py                       # Block declaration, BL props, UIList, panel,
-│                                     # hook subscribers (undo/redo), register_block_props
+├── __init__.py                       # Block declaration, BL props, UIList, panel, hook subscribers
 ├── README.md                         # This file
-├── common_constants.py               # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors
-├── BL_gpu_data_structures.py         # Space/Region/Phase enums, validation allowlists
-├── block_data_structures.py          # Shader_Definition, Shader_Instance, Drawhandler_Instance
-├── feature_shader_manager.py         # Wrapper_Shader_Manager (_rebuild_all_shaders, clear, get_shader)
-├── feature_draw_handler_manager.py   # DEPRECATED — re-exports Wrapper_Shader_Manager as alias
-└── helpers.py                        # _universal_draw_callback, validate_shader_definitions,
-                                      # GPU state helpers
+├── common_declarations.py            # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors, Block_UIList_Configs
+├── BL_drawing_structures.py          # Space/Region/Phase enums, builtin shaders enums, validation allowlists
+├── data_structures.py                # Shader_Definition, Shader_Instance, Drawhandler_Instance
+├── feature_shader_manager.py         # Wrapper_Shader_Manager (_update_RTC..., _update_BL...)
+├── helpers.py                        # _rebuild_all_shaders, _clear_all_shaders, _universal_draw_callback, validate_shader_definitions
+└── ui.py                             # UIList draw helpers
 ```
