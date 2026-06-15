@@ -43,6 +43,27 @@ class Wrapper_Timer_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         )
         return timer
 
+    @classmethod
+    def request_timer_rebuild(cls, event) -> None:
+        """
+        Public API for dependent blocks to trigger a full timer rebuild.
+        If timers are not currently enabled, enabling them fires the rebuild automatically
+        via the scene property update callback.
+        If already enabled, calls _rebuild_all_timers() directly.
+        """
+        logger = get_logger(Block_Loggers.TIMER_LIFECYCLE)
+        try:
+            timers_props = bpy.context.scene.dgblocks_timers_props
+        except AttributeError:
+            logger.warning("request_timer_rebuild: bpy.context.scene not available, skipping")
+            return
+        if not timers_props.enable_timers:
+            logger.debug("request_timer_rebuild: timers not enabled — enabling now (triggers rebuild)")
+            timers_props.enable_timers = True
+        else:
+            logger.debug("request_timer_rebuild: timers already enabled — rebuilding directly")
+            _rebuild_all_timers(event)
+
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation
 

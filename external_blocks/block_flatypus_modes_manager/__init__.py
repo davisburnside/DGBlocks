@@ -41,8 +41,18 @@ def hook_get_timer_definitions():
 
     return [
         Timer_Definition(
-            timer_uid = "atimer",
+            timer_uid = "A-timer",
             frequency = 0.5,
+            callback = timer_call,
+        ),
+        Timer_Definition(
+            timer_uid = "B-timer",
+            frequency = 0.5,
+            callback = timer_call,
+        ),
+        Timer_Definition(
+            timer_uid = "C-timer",
+            frequency = 0.3,
             callback = timer_call,
         )
     ]

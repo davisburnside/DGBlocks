@@ -93,6 +93,7 @@ class Shader_Instance:
     _indices: np.ndarray = field(init=False, default=None)
     _highest_index: int = -1
     _needs_new_batch: bool = True
+    _uniforms: dict = field(init=False, default_factory=dict, repr=False)  # Python-side cache of all set_uniform() calls
 
     # Optional callbacks for deault shaders
     _builtin_shader_before_draw = None
@@ -121,7 +122,8 @@ class Shader_Instance:
 
     @final
     def set_uniform(self, name: str, value: Any):
-        """Handles uniform mapping to GPU types."""
+        """Handles uniform mapping to GPU types and caches the value for Python-side read-back."""
+        self._uniforms[name] = value
         if isinstance(value, (tuple, list, Matrix, Vector, float, np.ndarray)):
             self.shader_actual.uniform_float(name, value)
         elif isinstance(value, bool):
@@ -130,6 +132,11 @@ class Shader_Instance:
             self.shader_actual.uniform_int(name, value)
         elif isinstance(value, gpu.types.GPUTexture):
             self.shader_actual.uniform_sampler(name, value)
+
+    @final
+    def get_uniform(self, name: str) -> Any:
+        """Return the last Python-side value passed to set_uniform(name), or None if never set."""
+        return self._uniforms.get(name)
 
     # ----------------------------------------------------------
     # Computed helpers

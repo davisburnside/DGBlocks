@@ -6,7 +6,7 @@
 # --------------------------------------------------------------
 # Builtin blocks with actual usecases
 # --------------------------------------------------------------
-from ..native_blocks import block_core, block_debug_console_print, block_onscreen_drawing, block_timers #, block_pip_library_manager
+from ..native_blocks import block_core, block_debug_console_print, block_onscreen_drawing, block_timers, block_animations #, block_pip_library_manager
 
 # --------------------------------------------------------------
 # Builtin blocks for demos / learning
@@ -35,6 +35,7 @@ _BLOCK_PACKAGES = [
     block_debug_console_print,
     block_onscreen_drawing,
     block_timers,
+    block_animations,
     block_flatypus_modes_manager,
     # block_pip_library_manager,
     # _block_usecase_01_minimal,
