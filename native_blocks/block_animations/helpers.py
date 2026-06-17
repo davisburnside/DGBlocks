@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 # Addon-level imports
 from ...addon_helpers.data_structures import Enum_Sync_Events
+from ...addon_helpers.generic_tools import force_redraw_ui
 
 # Inter-block imports
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
@@ -239,6 +240,8 @@ def _tick_all_at_framerate(framerate: float, timer_instance) -> None:
         if anim in cached:
             cached.remove(anim)
             logger.debug(f"Animation '{anim.animation_uid}' completed")
+            shader = Wrapper_Shader_Manager.get_shader(anim.target_shader_uid)
+            setattr(shader, anim.data_name, anim._start_state)
             if anim._callback_after_finish is not None:
                 try:
                     anim._callback_after_finish(anim)
@@ -264,3 +267,5 @@ def _tick_all_at_framerate(framerate: float, timer_instance) -> None:
             lambda: Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE),
             first_interval=0.01,
         )
+
+    force_redraw_ui(bpy.context)

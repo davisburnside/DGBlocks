@@ -21,6 +21,9 @@ def _uilist_draw_uilist_row(context, container, uillist_config_instance, BL_item
     sub.ui_units_x = col_widths[2]
     sub.prop(BL_item, "is_enabled", text = "")
 
+def _ui_show_count(list_property):
+    return len(list_property)
+
 ui_structure_for_shader_instance = {
     "Creation Times": [
         ("Shader Creation Time", "shader_creation_timestamp", format_timestamp_for_ui),
@@ -31,6 +34,14 @@ ui_structure_for_shader_instance = {
         ("Draw Count, of Current Batch", "draw_count_of_batch"),
         ("Batch Count, of Current Shader)", "batch_count_of_shader"),
         ("Batch Creation Duration", "last_batch_creation_duration")
+    ],
+
+}
+ui_structure_for_custom_shader_instance = {
+    "Shader info":[
+        ("type", "builtin_shader_name"),
+        ("Points Count", "_points", _ui_show_count),
+        ("Tris Count", "_indices", _ui_show_count),
     ]
 }
 
@@ -39,3 +50,4 @@ def _uilist_draw_selection_details(context, container, uillist_config_instance, 
     box = container.box()
     kwargs = {"instance": RTC_item, "structure": ui_structure_for_shader_instance}
     ui_draw_generic_instance_data(context, box, RTC_item, ui_structure_for_shader_instance)
+    ui_draw_generic_instance_data(context, box, RTC_item, ui_structure_for_custom_shader_instance)

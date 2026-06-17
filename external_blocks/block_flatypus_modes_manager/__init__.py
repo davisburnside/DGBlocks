@@ -37,25 +37,25 @@ def timer_call(aa):
     print(aa)
 
 
-def hook_get_timer_definitions():
+# def hook_get_timer_definitions():
 
-    return [
-        Timer_Definition(
-            timer_uid = "A-timer",
-            frequency = 0.5,
-            callback = timer_call,
-        ),
-        Timer_Definition(
-            timer_uid = "B-timer",
-            frequency = 0.5,
-            callback = timer_call,
-        ),
-        Timer_Definition(
-            timer_uid = "C-timer",
-            frequency = 0.3,
-            callback = timer_call,
-        )
-    ]
+#     return [
+#         Timer_Definition(
+#             timer_uid = "A-timer",
+#             frequency = 0.5,
+#             callback = timer_call,
+#         ),
+#         Timer_Definition(
+#             timer_uid = "B-timer",
+#             frequency = 0.5,
+#             callback = timer_call,
+#         ),
+#         Timer_Definition(
+#             timer_uid = "C-timer",
+#             frequency = 0.3,
+#             callback = timer_call,
+#         )
+#     ]
 
 
 def hook_before_first_draw():

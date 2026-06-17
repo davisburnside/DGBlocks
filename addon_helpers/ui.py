@@ -35,6 +35,8 @@ def ui_draw_generic_instance_data(context, layout, instance, structure: dict):
                 split.label(text=label)
                 if callable(third_item):
                     raw_data = getattr(instance, var_name)
+                    if raw_data is None:
+                        raw_data = []
                     func = third_item
                     formatted_data = func(raw_data)
                     split.label(text = str(formatted_data))
