@@ -8,14 +8,14 @@ _BLOCK_ID = "block-core"
 # MAIN BLOCK COMPONENTS - Loggers, Hooks, & RTC (Runtime Cache) Members
 
 class Core_Block_Loggers(String_Comparable_Mixin):
-    HOOKS = Logger_Declaration("INFO")
-    BLOCK_MGMT = Logger_Declaration("DEBUG")
-    RTC_DATA_SYNC = Logger_Declaration("DEBUG")
-    REGISTRATE = Logger_Declaration("DEBUG")
-    POST_REGISTRATE = Logger_Declaration("DEBUG")
+    HOOKS = Logger_Declaration("DEBUG")
+    BLOCK_MGMT = Logger_Declaration("INFO")
+    RTC_DATA_SYNC = Logger_Declaration("INFO")
+    REGISTRATE = Logger_Declaration("INFO")
+    POST_REGISTRATE = Logger_Declaration("INFO")
     UI = Logger_Declaration("WARNING")
-    TRACKED_DATABLOCK_TYPES = Logger_Declaration("DEBUG")
-    SCENE_MONITOR = Logger_Declaration("DEBUG")
+    TRACKED_DATABLOCK_TYPES = Logger_Declaration("INFO")
+    SCENE_MONITOR = Logger_Declaration("INFO")
 
 class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_core_event_undo = Hook_Source_Declaration({})

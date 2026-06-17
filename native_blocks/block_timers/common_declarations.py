@@ -11,8 +11,8 @@ class Block_Hook_Sources(String_Comparable_Mixin):
 
 
 class Block_Loggers(String_Comparable_Mixin):
-    TIMER_LIFECYCLE   = Logger_Declaration("DEBUG")
-    TIMER_FIRE_EVENTS = Logger_Declaration("DEBUG")
+    TIMER_LIFECYCLE   = Logger_Declaration("INFO")
+    TIMER_FIRE_EVENTS = Logger_Declaration("INFO")
 
 
 class Block_RTC_Members(String_Comparable_Mixin):

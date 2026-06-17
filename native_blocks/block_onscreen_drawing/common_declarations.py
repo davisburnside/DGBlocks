@@ -13,8 +13,8 @@ class Block_Hook_Sources(String_Comparable_Mixin):
 
 
 class Block_Loggers(String_Comparable_Mixin):    
-    DRAWHANDLER_LIFECYCLE = Logger_Declaration("DEBUG")
-    SHADER_BATCH_EVENTS   = Logger_Declaration("DEBUG")
+    DRAWHANDLER_LIFECYCLE = Logger_Declaration("INFO")
+    SHADER_BATCH_EVENTS   = Logger_Declaration("INFO")
 
 
 class Block_RTC_Members(String_Comparable_Mixin):

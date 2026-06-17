@@ -106,8 +106,8 @@ class Block_Hook_Sources(String_Comparable_Mixin):
     hook_post_startup = Hook_Source_Declaration()   # no kwargs
 
 class Block_Loggers(String_Comparable_Mixin):
-    DRAWHANDLER_LIFECYCLE = Logger_Declaration("DEBUG")
-    SHADER_BATCH_EVENTS   = Logger_Declaration("DEBUG")
+    DRAWHANDLER_LIFECYCLE = Logger_Declaration("INFO")
+    SHADER_BATCH_EVENTS   = Logger_Declaration("INFO")
 
 class Block_RTC_Members(String_Comparable_Mixin):
     DRAW_PHASES = RTC_Member_Declaration({})   # default value = empty dict

@@ -12,7 +12,7 @@ from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 from ...native_blocks.block_timers.data_structures import Timer_Definition
-
+from ...native_blocks.block_mesh_extract.data_structures import ALL_MET_ATTRS, MET_Attr_Declaration, Mesh_Extract_Target
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -35,7 +35,6 @@ def timer_call(aa):
     if num > 40:
         raise Exception(f"Exception_{num}")
     print(aa)
-
 
 # def hook_get_timer_definitions():
 
@@ -61,6 +60,20 @@ def timer_call(aa):
 def hook_before_first_draw():
 
     populate_points()
+
+def hook_get_mesh_extract_targets():
+    
+    return [
+        Mesh_Extract_Target(
+            object_name = "Cube",
+            read_attributes = ALL_MET_ATTRS)
+    # custom_attributes: list = field(default_factory=list)   # list[tuple[domain_class, str]]
+    # callbacks:         list = field(default_factory=list)   # list[Mesh_Extract_Callback]
+    ]
+
+def hook_mesh_extract_ready(object_names):
+    print("ready", object_names)
+
 
 # ==============================================================================================================================
 # UI PANEL

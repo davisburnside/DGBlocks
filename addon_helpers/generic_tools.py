@@ -120,7 +120,7 @@ def find_blocks_owning_func_with_name(func_name: str, registered_blocks:list[Mod
     ]
     if logger:
         block_ids = [b.block_id for b in blocks]
-        logger.debug(f"Found {len(blocks)} blocks with hook func '{blocks}': {block_ids}")
+        logger.debug(f"Found {len(blocks)} blocks with func '{func_name}': {block_ids}")
     return blocks
 
 def validate_block_list_before_registration(blocks_to_register: list[any]):
