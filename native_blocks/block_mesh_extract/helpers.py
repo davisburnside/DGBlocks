@@ -465,8 +465,9 @@ def _extract_single_object(
         # ---- Callbacks ----
         for cb in target.callbacks:
             t0 = time.perf_counter()
+            arr = None
             try:
-                cb.callback(instance, **cb.params)
+                arr = cb.callback(instance, **cb.params)
             except Exception as e:
                 logger.error(
                     f"Mesh_Extract_Callback '{cb.uid}' raised on '{object_name}'",
@@ -474,7 +475,8 @@ def _extract_single_object(
                 )
                 # Callbacks do not abort the extraction — log and continue
             prev_count = instance.extract_metadata.get(cb.uid, {}).get("read_count", 0)
-            _record_attr_meta(instance, None, cb.uid, t0, prev_count + 1)
+            shape = arr.shape if arr is not None else None
+            _record_attr_meta(instance, shape, cb.uid, t0, prev_count + 1)
 
         instance.is_valid = True
 

@@ -65,7 +65,7 @@ def hook_before_first_draw():
 def hook_get_mesh_extract_targets():
 
     def _cb_planarity_groups(instance, tolerance_deg, min_area, self_planarity_threshold):
-        instance.custom_domain_data["coplanar_group_id"] = compute_coplanar_groups(
+        computed_data = compute_coplanar_groups(
             face_normals                 = instance.face_normal,
             face_areas                   = instance.face_area,
             face_face_neighbor_indices   = instance.face_face_neighbor_indices,
@@ -78,6 +78,9 @@ def hook_get_mesh_extract_targets():
             min_area                     = min_area,
             self_planarity_threshold     = self_planarity_threshold,
         )
+
+        instance.custom_domain_data["coplanar_group_id"] = computed_data
+        return computed_data
 
     def _cb_planarity_boundaries(instance):
         group_ids = instance.custom_domain_data.get("coplanar_group_id")
@@ -93,6 +96,7 @@ def hook_get_mesh_extract_targets():
             corner_vertex_index          = instance.corner_vertex_index,
             n_faces                      = instance.face_normal.shape[0],
         )
+
 
 
     _PLANARITY_GROUPS_CB = Mesh_Extract_Callback(
