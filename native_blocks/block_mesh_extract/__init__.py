@@ -24,7 +24,7 @@ from .common_declarations import (
     Block_UIList_Configs,
 )
 from .feature_mesh_extract import Wrapper_Mesh_Extract
-from .data_structures import MET, Mesh_Extract_Target, Mesh_Extract_Callback
+from .data_structures import MET, Mesh_Extract_Target
 from .helpers import run_mesh_extract
 
 cache_key_instances  = Block_RTC_Members.MESH_EXTRACT_INSTANCES

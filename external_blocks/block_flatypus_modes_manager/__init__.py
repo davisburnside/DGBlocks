@@ -12,7 +12,7 @@ from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_helpers.ui import ui_draw_block_panel_header
 
 from ...native_blocks.block_timers.data_structures import Timer_Definition
-from ...native_blocks.block_mesh_extract.data_structures import ALL_MET_ATTRS, MET, MET_Attr_Declaration, Mesh_Extract_Callback, Mesh_Extract_Target
+from ...native_blocks.block_mesh_extract.data_structures import ALL_MET_ATTRS, MET, Mesh_Extract_Target
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -64,7 +64,7 @@ def hook_before_first_draw():
 
 def hook_get_mesh_extract_targets():
 
-    def _cb_planarity_groups(instance, tolerance_deg, min_area, self_planarity_threshold):
+    def _cb_planarity_groups(instance):
         computed_data = compute_coplanar_groups(
             face_normals                 = instance.face_normal,
             face_areas                   = instance.face_area,
@@ -74,19 +74,18 @@ def hook_get_mesh_extract_targets():
             face_loop_start              = instance.face_loop_start,
             face_loop_total              = instance.face_loop_total,
             corner_vertex_index          = instance.corner_vertex_index,
-            tolerance_deg                = tolerance_deg,
-            min_area                     = min_area,
-            self_planarity_threshold     = self_planarity_threshold,
+            tolerance_deg                = 0.3,
+            min_area                     = 0.001,
+            self_planarity_threshold     = 0.3,
         )
 
-        instance.custom_domain_data["coplanar_group_id"] = computed_data
+        # instance.custom_domain_data["coplanar_group_id"] = computed_data
         return computed_data
 
     def _cb_planarity_boundaries(instance):
-        group_ids = instance.custom_domain_data.get("coplanar_group_id")
-        if group_ids is None:
-            return
-        instance.custom_domain_data["coplanar_boundaries"] = compute_coplanar_boundaries(
+        group_ids = instance.custom_attribute_arrays["aaa"]
+
+        data = compute_coplanar_boundaries(
             group_ids                    = group_ids,
             face_face_neighbor_indices   = instance.face_face_neighbor_indices,
             face_face_neighbor_offsets   = instance.face_face_neighbor_offsets,
@@ -96,37 +95,37 @@ def hook_get_mesh_extract_targets():
             corner_vertex_index          = instance.corner_vertex_index,
             n_faces                      = instance.face_normal.shape[0],
         )
+        return data
 
 
+    # _PLANARITY_GROUPS_CB = Mesh_Extract_Callback(
+    #     uid                 = "FLT_COPLANAR_GROUPS",
+    #     callback            = _cb_planarity_groups,
+    #     required_attributes = [
+    #         MET.FACE.NORMAL, MET.FACE.AREA,
+    #         MET.FACE.FACE_NEIGHBORS,
+    #         MET.VERTEX.CO,
+    #         MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
+    #         MET.CORNER.VERTEX_INDEX,
+    #     ],
+    #     params = {
+    #         "tolerance_deg":            1.0,
+    #         "min_area":                 0.0001,
+    #         "self_planarity_threshold": 0.001,
+    #     },
+    # )
 
-    _PLANARITY_GROUPS_CB = Mesh_Extract_Callback(
-        uid                 = "FLT_COPLANAR_GROUPS",
-        callback            = _cb_planarity_groups,
-        required_attributes = [
-            MET.FACE.NORMAL, MET.FACE.AREA,
-            MET.FACE.FACE_NEIGHBORS,
-            MET.VERTEX.CO,
-            MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
-            MET.CORNER.VERTEX_INDEX,
-        ],
-        params = {
-            "tolerance_deg":            1.0,
-            "min_area":                 0.0001,
-            "self_planarity_threshold": 0.001,
-        },
-    )
+    # _PLANARITY_BOUNDARIES_CB = Mesh_Extract_Callback(
+    #     uid                 = "FLT_COPLANAR_BOUNDARIES",
+    #     callback            = _cb_planarity_boundaries,
+    #     required_attributes = [
+    #         MET.FACE.FACE_NEIGHBORS,
+    #         MET.EDGE.VERTICES,
+    #         MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
+    #         MET.CORNER.VERTEX_INDEX,
+    #     ],
 
-    _PLANARITY_BOUNDARIES_CB = Mesh_Extract_Callback(
-        uid                 = "FLT_COPLANAR_BOUNDARIES",
-        callback            = _cb_planarity_boundaries,
-        required_attributes = [
-            MET.FACE.FACE_NEIGHBORS,
-            MET.EDGE.VERTICES,
-            MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
-            MET.CORNER.VERTEX_INDEX,
-        ],
-
-    )
+    # )
 
     
     return [
@@ -138,8 +137,9 @@ def hook_get_mesh_extract_targets():
             #     (MET.FACE, "Custom-attr-VEC") 
             # ],
             callbacks = [
-                _PLANARITY_GROUPS_CB,
-                _PLANARITY_BOUNDARIES_CB,   # must run after groups
+                ("aaa", _cb_planarity_groups),
+                ("bbb", _cb_planarity_boundaries)
+                # _PLANARITY_BOUNDARIES_CB,   # must run after groups
             ],
         ),
     ]

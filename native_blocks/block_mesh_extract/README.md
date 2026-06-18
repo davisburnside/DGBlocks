@@ -31,7 +31,8 @@ and then fires `hook_mesh_extract_ready` to notify downstream blocks that data i
 2. `hook_get_mesh_extract_targets` is broadcast — each subscribed block returns a
    `list[Mesh_Extract_Target]`.
 3. All METs are merged by `object_name` (silent union).
-4. Merged targets are validated — dependency errors raise `ValueError` before any bpy access.
+4. Merged targets are validated — computed attribute dependency errors raise `ValueError`
+   before any bpy access.
 5. Each object is extracted via `evaluated_get(depsgraph)` → `to_mesh()` — no mode switching.
 6. Results are written to `RTC_Mesh_Extract_Instance` objects.
 7. The BL `extract_mirror` CollectionProperty is synced.
@@ -86,16 +87,36 @@ Mesh_Extract_Target(
 
 ### Callbacks
 
-`Mesh_Extract_Callback` objects attached to a MET run after all standard reads/computes.
-They are timed individually and their results are stored in `instance.custom_domain_data`.
-Callbacks do not abort extraction on exception — errors are logged and the next callback continues.
+Callbacks run after all standard reads/computes. Each callback is a **2-tuple**:
 
 ```python
-Mesh_Extract_Callback(
-    uid                 = "MY_CALLBACK",
-    callback            = _my_fn,      # (instance, **params) -> None
-    required_attributes = [MET.FACE.NORMAL, MET.FACE.AREA],
-    params              = {"threshold": 0.01},
+(attr_name: str, func: Callable)
+```
+
+- `attr_name` — key under which the result array is stored in `instance.custom_attribute_arrays`;
+  also used as the metadata timing key (`cb:<attr_name>`).
+- `func` — called as `func(instance) -> np.ndarray`. Must return exactly one numpy array.
+  The function accesses whatever it needs directly from the instance (or via closure).
+
+Callbacks that raise an exception **abort extraction for that object** — `is_valid` is set
+to `False` and `error_str` is populated. No pre-flight validation of callback inputs is
+performed; errors surface at runtime and are displayed in the UI panel.
+
+```python
+def _my_planarity(instance):
+    return compute_coplanar_groups(
+        instance.face_normal,
+        instance.face_face_neighbor_indices,
+        instance.face_face_neighbor_offsets,
+        tolerance_deg=1.0,
+    )
+
+Mesh_Extract_Target(
+    object_name     = "Cube",
+    read_attributes = [MET.FACE.NORMAL, MET.FACE.FACE_NEIGHBORS, ...],
+    callbacks       = [
+        ("coplanar_group_id", _my_planarity),
+    ],
 )
 ```
 
@@ -129,7 +150,7 @@ Mesh_Extract_Callback(
 | Field | Shape | dtype | Description |
 |---|---|---|---|
 | `object_name` | — | str | UID |
-| `is_valid` | — | bool | False if extraction failed |
+| `is_valid` | — | bool | False if extraction failed (includes callback failures) |
 | `error_str` | — | str\|None | Error detail if is_valid=False |
 | `vertex_co` | (n_verts, 3) | float32 | Vertex positions |
 | `vertex_normal` | (n_verts, 3) | float32 | Vertex normals |
@@ -149,9 +170,8 @@ Mesh_Extract_Callback(
 | `vert_face_neighbor_offsets` | (n_verts+1,) | int32 | CSR offsets for V-F neighbors |
 | `face_face_neighbor_indices` | (n_shared×2,) | int32 | CSR data for F-F neighbors |
 | `face_face_neighbor_offsets` | (n_faces+1,) | int32 | CSR offsets for F-F neighbors |
-| `custom_attribute_arrays` | dict | — | Named mesh attr arrays |
-| `custom_domain_data` | dict | — | Callback output storage |
-| `extract_metadata` | dict | — | Per-attr + `_total` timing & read_count |
+| `custom_attribute_arrays` | dict | — | Named mesh attr arrays **and** callback result arrays |
+| `extract_metadata` | dict | — | Per-attr + `_total` timing, shape & read_count |
 
 ---
 
@@ -197,9 +217,23 @@ processed_names = Wrapper_Mesh_Extract.run_extract()
 # my_block/__init__.py
 
 from ...native_blocks.block_mesh_extract.data_structures import (
-    MET, Mesh_Extract_Target, Mesh_Extract_Callback
+    MET, Mesh_Extract_Target,
 )
 from ...native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
+from ...native_blocks.block_mesh_extract.helpers_computed import (
+    compute_coplanar_groups,
+)
+
+
+def _compute_planarity(instance):
+    """Callback: receives the full RTC instance, returns one np.ndarray."""
+    return compute_coplanar_groups(
+        instance.face_normal,
+        instance.face_face_neighbor_indices,
+        instance.face_face_neighbor_offsets,
+        tolerance_deg=1.0,
+    )
+
 
 def hook_get_mesh_extract_targets():
     return [
@@ -217,21 +251,17 @@ def hook_get_mesh_extract_targets():
             ],
             custom_attributes = [(MET.VERTEX, "my_float_attr")],
             callbacks         = [
-                Mesh_Extract_Callback(
-                    uid                 = "MY_PLANARITY",
-                    callback            = _compute_planarity,
-                    required_attributes = [MET.FACE.NORMAL, MET.FACE.AREA],
-                    params              = {"tolerance_deg": 1.0},
-                )
+                ("coplanar_group_id", _compute_planarity),
             ],
         )
     ]
+
 
 def hook_mesh_extract_ready(object_names: list):
     instance = Wrapper_Mesh_Extract.get_instance("Cube")
     if instance:
         print(f"Cube has {instance.vertex_co.shape[0]} vertices")
-        print(f"Planarity groups: {instance.custom_domain_data.get('coplanar_group_id')}")
+        print(f"Planarity groups: {instance.custom_attribute_arrays.get('coplanar_group_id')}")
 ```
 
 ---
@@ -280,8 +310,11 @@ explaining the conversion path (replace dict/set with CSR integer arrays).
 `validate_mesh_extract_targets()` in `helpers.py` runs before any bpy access:
 
 1. Every computed attribute's `first_level_deps` must be present in `read_attributes`.
-2. Every callback's `required_attributes` must be present in `read_attributes`.
-3. No duplicate callback UIDs within a single merged target.
+
+Callback inputs are **not** pre-validated. If a callback accesses an array that is `None`
+(because the corresponding attribute was not requested), the resulting exception aborts
+extraction for that object (`is_valid=False`, `error_str` set), and the error is displayed
+in the UI panel details pane.
 
 ---
 
@@ -291,16 +324,19 @@ explaining the conversion path (replace dict/set with CSR integer arrays).
 
 ```python
 {
-    "VERTEX.co":        {"duration_ms": 0.31, "read_count": 3},
-    "FACE.normal":      {"duration_ms": 0.18, "read_count": 3},
-    "EDGE.(computed)":  {"duration_ms": 0.05, "read_count": 3},
-    "custom:my_attr":   {"duration_ms": 0.12, "read_count": 3},
-    "MY_CALLBACK":      {"duration_ms": 4.20, "read_count": 3},
-    "_total":           {"duration_ms": 5.10, "read_count": 3},
+    "VERTEX.co":           {"duration_ms": 0.31, "read_count": 3, "shape": (1024, 3)},
+    "FACE.normal":         {"duration_ms": 0.18, "read_count": 3, "shape": (512, 3)},
+    "EDGE.(computed)":     {"duration_ms": 0.05, "read_count": 3, "shape": ""},
+    "custom:my_attr":      {"duration_ms": 0.12, "read_count": 3, "shape": (1024,)},
+    "cb:coplanar_group_id":{"duration_ms": 4.20, "read_count": 3, "shape": (512,)},
+    "_total":              {"duration_ms": 5.10, "read_count": 3},
 }
 ```
 
-`_total.read_count` increments on every extraction run for that object.
+- Attribute rows include `"shape"` (the numpy `.shape` tuple, or `""` for CSR computed attrs).
+- Callback rows are prefixed `cb:` and always have a shape (the returned array's shape).
+- `_total.read_count` increments on every extraction run for that object.
+- The UI details pane renders attribute rows and the total summary separately.
 
 ---
 
@@ -322,7 +358,7 @@ block_mesh_extract/
 ├── common_declarations.py   # Block_Hook_Sources, Block_Loggers, Block_RTC_Members,
 │                            # Block_Data_Mirrors, Block_UIList_Configs
 ├── data_structures.py       # MET, MET_Attr_Declaration, Mesh_Extract_Target,
-│                            # Mesh_Extract_Callback, RTC_Mesh_Extract_Instance
+│                            # RTC_Mesh_Extract_Instance
 ├── feature_mesh_extract.py  # Wrapper_Mesh_Extract (FWC)
 ├── helpers.py               # run_mesh_extract, merge, validate, _extract_single_object,
 │                            # _foreach_get_attr, _read_custom_attribute

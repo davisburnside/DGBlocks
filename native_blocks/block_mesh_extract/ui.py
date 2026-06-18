@@ -1,6 +1,4 @@
 
-from ...addon_helpers.ui import ui_draw_generic_instance_data
-
 # ==============================================================================================================================
 # UILIST ROW DRAW
 # ==============================================================================================================================
@@ -43,48 +41,67 @@ def _uilist_draw_row(context, container, uilist_config_instance, BL_item, RTC_it
 # DETAILS SECTION
 # ==============================================================================================================================
 
-_ui_structure_for_extract_instance = {
-    "Object Info": [
-        ("Object",    "object_name"),
-        ("Valid",     "is_valid"),
-        ("Error",     "error_str"),
-    ],
-}
+def _format_shape(shape) -> str:
+    """Return a tidy shape string: '(1024, 3)' or '-' for missing/empty."""
+    if not shape:
+        return "-"
+    return str(shape)
 
 
 def _uilist_draw_selection_details(context, container, uilist_config_instance, BL_item, RTC_item, list_idx):
     """
     Draws the details pane below the UIList for the currently selected row.
-    Shows per-attribute timing metadata and error info.
+    Shows validity, error info, and per-attribute timing/shape metadata.
     """
     if RTC_item is None:
         return
 
     box = container.box()
 
-    # Object header info
-    ui_draw_generic_instance_data(context, box, RTC_item, _ui_structure_for_extract_instance)
+    # ---- Header: object name + validity ----
+    header = box.row()
+    icon = "CHECKMARK" if RTC_item.is_valid else "ERROR"
+    header.label(text=RTC_item.object_name, icon=icon)
 
-    # Per-attribute metadata table
+    # ---- Error string (shown prominently when invalid) ----
+    if not RTC_item.is_valid and RTC_item.error_str:
+        err_box = box.box()
+        err_box.alert = True
+        for line in RTC_item.error_str.splitlines():
+            err_box.label(text=line, icon="ERROR" if line == RTC_item.error_str.splitlines()[0] else "NONE")
+
+    # ---- Per-attribute metadata table ----
     metadata = RTC_item.extract_metadata
     if not metadata:
         box.label(text="No metadata available", icon="INFO")
         return
 
-    col = box.column(align=True)
-    col.label(text="Attribute Timing:", icon="TIME")
+    # Separate the _total summary row from per-attribute rows
+    attr_rows = {k: v for k, v in metadata.items() if k != "_total"}
+    total_meta = metadata.get("_total", {})
 
-    header_row = col.row()
-    header_row.label(text="Attribute")
-    header_row.label(text="Time (ms)")
-    header_row.label(text="Shape")
-    header_row.label(text="Reads")
+    if attr_rows:
+        col = box.column(align=True)
+        col.label(text="Attributes:", icon="TIME")
 
-    col.separator(factor=0.5)
+        header_row = col.row()
+        header_row.label(text="Attribute")
+        header_row.label(text="ms")
+        header_row.label(text="Shape")
+        header_row.label(text="Reads")
 
-    for label, meta in metadata.items():
-        row = col.row()
-        row.label(text=label)
-        row.label(text=f"{meta.get('duration_ms', 0.0):.3f}")
-        row.label(text=str(meta.get("shape", 0)))
-        row.label(text=str(meta.get("read_count", 0)))
+        col.separator(factor=0.3)
+
+        for label, meta in attr_rows.items():
+            row = col.row()
+            row.label(text=label)
+            row.label(text=f"{meta.get('duration_ms', 0.0):.3f}")
+            row.label(text=_format_shape(meta.get("shape")))
+            row.label(text=str(meta.get("read_count", 0)))
+
+    # ---- Total summary ----
+    if total_meta:
+        box.separator(factor=0.5)
+        summary = box.row()
+        summary.label(text=f"Total: {total_meta.get('duration_ms', 0.0):.2f} ms", icon="SORTTIME")
+        summary.label(text=f"Run #{total_meta.get('read_count', 0)}")

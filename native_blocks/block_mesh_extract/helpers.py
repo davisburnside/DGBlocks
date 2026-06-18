@@ -51,15 +51,13 @@ def _object_has_mesh(obj: bpy.types.Object) -> bool:
 
 def validate_mesh_extract_targets(merged_targets: dict[str, Mesh_Extract_Target]) -> None:
     """
-    Run all pre-extraction validation checks.
+    Run pre-extraction validation checks.
     Raises ValueError with a descriptive message if any check fails.
     All checks complete before any bpy or RTC state is mutated.
 
     Checks:
         1. For every Nth-level (computed) attribute requested, all first_level_deps
            are also in read_attributes.
-        2. Callback required_attributes are all present in the merged read_attributes.
-        3. Duplicate callback UIDs within a single object's merged MET.
     """
     for object_name, target in merged_targets.items():
         attr_set = set(target.read_attributes)
@@ -76,27 +74,6 @@ def validate_mesh_extract_targets(merged_targets: dict[str, Mesh_Extract_Target]
                         f"but they are missing: {missing_labels}. "
                         f"Add them to the Mesh_Extract_Target submitted for this object."
                     )
-
-        # Check 2: callback required_attributes
-        for cb in target.callbacks:
-            missing_cb_attrs = [a for a in cb.required_attributes if a not in attr_set]
-            if missing_cb_attrs:
-                missing_labels = [met_attr_label(a) for a in missing_cb_attrs]
-                raise ValueError(
-                    f"Object '{object_name}': callback '{cb.uid}' requires attributes "
-                    f"{missing_labels} but they are not in read_attributes for this object."
-                )
-
-        # Check 3: duplicate callback UIDs
-        cb_uids = [cb.uid for cb in target.callbacks]
-        seen_uids = set()
-        for uid in cb_uids:
-            if uid in seen_uids:
-                raise ValueError(
-                    f"Object '{object_name}': duplicate callback UID '{uid}'. "
-                    f"Each Mesh_Extract_Callback uid must be unique within a merged target."
-                )
-            seen_uids.add(uid)
 
 
 # ==============================================================================================================================
@@ -145,7 +122,7 @@ def merge_mesh_extract_targets(
                     existing.custom_attributes.append((domain_cls, attr_name))
                     existing_custom_keys.add(key)
 
-            # Append callbacks in order (duplicate uid detection happens in validate)
+            # Append callbacks in order
             existing.callbacks.extend(target.callbacks)
 
     return merged
@@ -268,15 +245,6 @@ def _read_custom_attribute(
 # ==============================================================================================================================
 # COMPUTED ATTRIBUTE DISPATCH
 # ==============================================================================================================================
-
-# Maps a computed MET_Attr_Declaration → the function and the instance field names
-# to read its dependencies from.
-# Each entry: (instance_field_name_for_result, compute_func, [dep_field_names...])
-
-_COMPUTED_ATTR_MAP = {
-    # Keyed by identity (the MET_Attr_Declaration object itself)
-}
-
 
 def _apply_computed_attr(
     attr: MET_Attr_Declaration,
@@ -463,26 +431,23 @@ def _extract_single_object(
             _record_attr_meta(instance, None, met_attr_label(attr), t0, prev_count + 1)
 
         # ---- Callbacks ----
-        for cb in target.callbacks:
+        # Each callback is a 2-tuple: (attr_name: str, func: Callable)
+        # func signature: func(instance) -> np.ndarray
+        # Exceptions propagate — any failure marks the instance invalid.
+        for attr_name, callback_func in target.callbacks:
             t0 = time.perf_counter()
-            arr = None
-            try:
-                arr = cb.callback(instance, **cb.params)
-            except Exception as e:
-                logger.error(
-                    f"Mesh_Extract_Callback '{cb.uid}' raised on '{object_name}'",
-                    exc_info=True,
-                )
-                # Callbacks do not abort the extraction — log and continue
-            prev_count = instance.extract_metadata.get(cb.uid, {}).get("read_count", 0)
-            shape = arr.shape if arr is not None else None
-            _record_attr_meta(instance, shape, cb.uid, t0, prev_count + 1)
+            result_data = callback_func(instance) # May or may not be a numpy array
+            instance.custom_attribute_arrays[attr_name] = result_data
+            prev_count = instance.extract_metadata.get(f"cb:{attr_name}", {}).get("read_count", 0)
+            shape = arr.shape if hasattr(result_data, "shape") else "-"
+            _record_attr_meta(instance, shape, f"cb:{attr_name}", t0, prev_count + 1)
 
         instance.is_valid = True
 
     except Exception as e:
         instance.is_valid  = False
         instance.error_str = get_exception_last_n_lines(3, e)
+        logger.error("Attribute failed", exc_info=True)
 
     finally:
         evaluated_obj.to_mesh_clear()

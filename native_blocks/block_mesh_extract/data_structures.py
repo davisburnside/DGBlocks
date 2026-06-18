@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 # ==============================================================================================================================
 # MET ATTRIBUTE DECLARATIONS
@@ -274,32 +274,6 @@ def met_attr_label(attr: MET_Attr_Declaration) -> str:
 
 
 # ==============================================================================================================================
-# MESH EXTRACT CALLBACK
-# ==============================================================================================================================
-
-@dataclass
-class Mesh_Extract_Callback:
-    """
-    Descriptor for a custom post-extraction function.
-
-    uid                 : Unique string used as the metadata key for timing.
-    callback            : Called as callback(instance, **params) after standard reads.
-                          Must write its results to instance.custom_domain_data[key].
-    required_attributes : List of MET_Attr_Declaration items that must be present in the
-                          merged MET before this callback may execute.
-                          If any dep is missing, a ValueError is raised at validation time.
-    params              : Extra keyword arguments forwarded to callback on every call.
-
-    NJIT NOTE: callback implementations in helpers_computed.py should be structured as
-    thin wrappers around pure numpy/numba-compatible inner functions.
-    """
-    uid:                 str
-    callback:            Callable
-    required_attributes: list   # list[MET_Attr_Declaration]
-    params:              dict = field(default_factory=dict)
-
-
-# ==============================================================================================================================
 # MESH EXTRACT TARGET (MET DECLARATION)
 # ==============================================================================================================================
 
@@ -314,8 +288,10 @@ class Mesh_Extract_Target:
     custom_attributes   : Named mesh attributes to read from bpy mesh.attributes.
                           Each entry is a (domain_class, attr_name_str) tuple,
                           e.g. (MET.VERTEX, "my_vert_color").
-    callbacks           : Optional list of Mesh_Extract_Callback, executed after all
+    callbacks           : Optional list of 2-tuples (attr_name, func), executed after all
                           standard reads/computes, in MET submission order.
+                          func signature: func(instance) -> np.ndarray
+                          Result stored in instance.custom_attribute_arrays[attr_name].
 
     Example:
         Mesh_Extract_Target(
@@ -328,7 +304,8 @@ class Mesh_Extract_Target:
     object_name:       str
     read_attributes:   list   # list[MET_Attr_Declaration]
     custom_attributes: list = field(default_factory=list)   # list[tuple[domain_class, str]]
-    callbacks:         list = field(default_factory=list)   # list[Mesh_Extract_Callback]
+    callbacks:         list = field(default_factory=list)   # list[tuple[attr_name: str, func: Callable]]
+                                                            # func signature: func(instance) -> np.ndarray
 
 
 # ==============================================================================================================================
@@ -351,7 +328,8 @@ class RTC_Mesh_Extract_Instance:
                        indices[ offsets[i] : offsets[i+1] ]
 
     custom_attribute_arrays : dict[attr_name_str → np.ndarray]
-    custom_domain_data      : dict[str → Any]  — written by callbacks
+                              Holds both named BL mesh attributes and callback results.
+                              Callback keys are the attr_name from each callback 2-tuple.
     extract_metadata        : dict[label_str → {"duration_ms": float, "read_count": int}]
                               Special key "_total" holds object-level totals.
     """
@@ -406,9 +384,6 @@ class RTC_Mesh_Extract_Instance:
 
     # dict[attr_name_str → np.ndarray]
     custom_attribute_arrays: dict = field(default_factory=dict)
-
-    # dict[str → Any] — written by Mesh_Extract_Callbacks
-    custom_domain_data: dict = field(default_factory=dict)
 
     # ---- Metadata ----------------------------------------------------------------
     # dict[label_str → {"duration_ms": float, "read_count": int}]
