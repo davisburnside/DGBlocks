@@ -33,7 +33,7 @@ from ..external_blocks import block_flatypus_modes_manager
 _BLOCK_PACKAGES = [
     block_core,
     block_debug_console_print,
-    # block_onscreen_drawing,
+    block_onscreen_drawing,
     # block_timers,
     # block_animations,
     block_mesh_extract,

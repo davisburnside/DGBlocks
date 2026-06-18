@@ -30,46 +30,62 @@ and then fires `hook_mesh_extract_ready` to notify downstream blocks that data i
 1. `run_mesh_extract()` is called (via operator, scene property, or public API).
 2. `hook_get_mesh_extract_targets` is broadcast — each subscribed block returns a
    `list[Mesh_Extract_Target]`.
-3. All METs are merged by `object_name` (silent union).
-4. Merged targets are validated — computed attribute dependency errors raise `ValueError`
-   before any bpy access.
-5. Each object is extracted via `evaluated_get(depsgraph)` → `to_mesh()` — no mode switching.
+3. All METs are merged by `object_name` (silent union for attrs; last-writer-wins for callbacks).
+4. Each object is extracted via `evaluated_get(depsgraph)` → `to_mesh()` — no mode switching.
+5. First-level reads run, then custom attribute reads, then callbacks in insertion order.
 6. Results are written to `RTC_Mesh_Extract_Instance` objects.
 7. The BL `extract_mirror` CollectionProperty is synced.
 8. `hook_mesh_extract_ready` fires with `object_names: list[str]`.
 
 ### Attribute Levels
 
-**First-level** — direct `foreach_get` calls:
-- `MET.VERTEX.CO`, `MET.VERTEX.NORMAL`
-- `MET.EDGE.VERTICES`, `MET.EDGE.CREASE`, `MET.EDGE.SHARP`
-- `MET.FACE.NORMAL`, `MET.FACE.AREA`, `MET.FACE.LOOP_START`, `MET.FACE.LOOP_TOTAL`
-- `MET.CORNER.VERTEX_INDEX`
+**All MET attributes are first-level** — read directly via `foreach_get`:
 
-**Nth-level (computed)** — derived from first-level data, validated at MET submission time:
+| Attribute | Domain | dtype | Shape |
+|---|---|---|---|
+| `MET.VERTEX.CO` | VERTEX | float32 | (n_verts, 3) |
+| `MET.VERTEX.NORMAL` | VERTEX | float32 | (n_verts, 3) |
+| `MET.EDGE.VERTICES` | EDGE | int32 | (n_edges, 2) |
+| `MET.EDGE.CREASE` | EDGE | float32 | (n_edges,) |
+| `MET.EDGE.SHARP` | EDGE | bool | (n_edges,) |
+| `MET.FACE.NORMAL` | FACE | float32 | (n_faces, 3) |
+| `MET.FACE.AREA` | FACE | float32 | (n_faces,) |
+| `MET.FACE.LOOP_START` | FACE | int32 | (n_faces,) |
+| `MET.FACE.LOOP_TOTAL` | FACE | int32 | (n_faces,) |
+| `MET.CORNER.VERTEX_INDEX` | CORNER | int32 | (n_corners,) |
 
-| Attribute | Dependencies |
-|---|---|
-| `MET.EDGE.LENGTH` | `VERTEX.CO`, `EDGE.VERTICES` |
-| `MET.FACE.CENTER` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
-| `MET.VERTEX.VERT_NEIGHBORS` | `EDGE.VERTICES` |
-| `MET.VERTEX.FACE_NEIGHBORS` | `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
-| `MET.FACE.FACE_NEIGHBORS` | `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+**Derived data** (edge length, face center, neighbor CSR arrays, etc.) is produced by
+callbacks and stored in `instance.custom_attribute_arrays`. Use the pre-built callbacks
+in `block_mesh_extract.callbacks` — see the **Pre-built Callbacks** section below.
 
-### Ragged Array Storage (CSR Format)
+### Pre-built Callbacks (`callbacks.py`)
 
-Neighbor data (vert-vert, vert-face, face-face) is stored in **Compressed Sparse Row**
-format — two parallel numpy arrays:
+Import and use in `Mesh_Extract_Target.callbacks` dict:
 
 ```python
-# Get neighbors of vertex i:
-neighbors = instance.vert_vert_neighbor_indices[
-    instance.vert_vert_neighbor_offsets[i] : instance.vert_vert_neighbor_offsets[i+1]
-]
+from native_blocks.block_mesh_extract.callbacks import (
+    cb_edge_length,          # np.ndarray (n_edges,)     float32
+    cb_face_center,          # np.ndarray (n_faces, 3)   float32
+    cb_vert_vert_neighbors,  # (indices, offsets) CSR tuple
+    cb_vert_face_neighbors,  # (indices, offsets) CSR tuple
+    cb_face_face_neighbors,  # (indices, offsets) CSR tuple
+)
 ```
 
-This enables fully vectorized downstream math via `np.add.reduceat` and scipy's
-`csgraph` functions.
+| Callback | Key | Returns | Required attrs |
+|---|---|---|---|
+| `cb_edge_length` | `"edge_length"` | `np.ndarray (n_edges,)` | `VERTEX.CO`, `EDGE.VERTICES` |
+| `cb_face_center` | `"face_center"` | `np.ndarray (n_faces, 3)` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| `cb_vert_vert_neighbors` | `"vert_vert_neighbors"` | `(idx, off)` | `VERTEX.CO`, `EDGE.VERTICES` |
+| `cb_vert_face_neighbors` | `"vert_face_neighbors"` | `(idx, off)` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| `cb_face_face_neighbors` | `"face_face_neighbors"` | `(idx, off)` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+
+**Accessing CSR data:**
+```python
+idx, off = instance.custom_attribute_arrays["face_face_neighbors"]
+# Neighbors of face i:
+neighbors = idx[off[i] : off[i+1]]
+```
 
 ### Custom Attributes
 
@@ -87,36 +103,42 @@ Mesh_Extract_Target(
 
 ### Callbacks
 
-Callbacks run after all standard reads/computes. Each callback is a **2-tuple**:
+Callbacks run after all standard reads and custom attribute reads. The `callbacks` field is
+a **dict mapping a string key to a callable**:
 
 ```python
-(attr_name: str, func: Callable)
+callbacks: dict[str, Callable]  # attr_name → func(instance) → any
 ```
 
-- `attr_name` — key under which the result array is stored in `instance.custom_attribute_arrays`;
-  also used as the metadata timing key (`cb:<attr_name>`).
-- `func` — called as `func(instance) -> np.ndarray`. Must return exactly one numpy array.
-  The function accesses whatever it needs directly from the instance (or via closure).
+- Keys are insertion-ordered (Python 3.7+) — callbacks run in the order they appear in the dict.
+- Each result is stored in `instance.custom_attribute_arrays[attr_name]`.
+- The key is also used as the metadata timing key (`cb:<attr_name>`).
+- A callback may return any value (numpy array, tuple, dict, etc.).
 
 Callbacks that raise an exception **abort extraction for that object** — `is_valid` is set
 to `False` and `error_str` is populated. No pre-flight validation of callback inputs is
-performed; errors surface at runtime and are displayed in the UI panel.
+performed; errors surface at runtime and are displayed in the UI panel details pane.
 
 ```python
+from native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
+
 def _my_planarity(instance):
+    ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
     return compute_coplanar_groups(
         instance.face_normal,
-        instance.face_face_neighbor_indices,
-        instance.face_face_neighbor_offsets,
+        ffi, ffo,
         tolerance_deg=1.0,
     )
 
 Mesh_Extract_Target(
     object_name     = "Cube",
-    read_attributes = [MET.FACE.NORMAL, MET.FACE.FACE_NEIGHBORS, ...],
-    callbacks       = [
-        ("coplanar_group_id", _my_planarity),
-    ],
+    read_attributes = [MET.FACE.NORMAL, MET.EDGE.VERTICES,
+                       MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
+                       MET.CORNER.VERTEX_INDEX],
+    callbacks       = {
+        "face_face_neighbors": cb_face_face_neighbors,  # must run before planarity
+        "coplanar_group_id":   _my_planarity,
+    },
 )
 ```
 
@@ -145,7 +167,7 @@ Mesh_Extract_Target(
 |---|---|---|
 | `MESH_EXTRACT_INSTANCES` | `list[RTC_Mesh_Extract_Instance]` | All extracted object instances |
 
-### `RTC_Mesh_Extract_Instance` Key Fields
+### `RTC_Mesh_Extract_Instance` Fields
 
 | Field | Shape | dtype | Description |
 |---|---|---|---|
@@ -162,16 +184,11 @@ Mesh_Extract_Target(
 | `face_loop_start` | (n_faces,) | int32 | Loop start indices |
 | `face_loop_total` | (n_faces,) | int32 | Loop counts per face |
 | `corner_vertex_index` | (n_corners,) | int32 | Per-corner vertex index |
-| `edge_length` | (n_edges,) | float32 | Computed edge lengths |
-| `face_center` | (n_faces, 3) | float32 | Computed face centroids |
-| `vert_vert_neighbor_indices` | (n_edges×2,) | int32 | CSR data for V-V neighbors |
-| `vert_vert_neighbor_offsets` | (n_verts+1,) | int32 | CSR offsets for V-V neighbors |
-| `vert_face_neighbor_indices` | (n_corners,) | int32 | CSR data for V-F neighbors |
-| `vert_face_neighbor_offsets` | (n_verts+1,) | int32 | CSR offsets for V-F neighbors |
-| `face_face_neighbor_indices` | (n_shared×2,) | int32 | CSR data for F-F neighbors |
-| `face_face_neighbor_offsets` | (n_faces+1,) | int32 | CSR offsets for F-F neighbors |
-| `custom_attribute_arrays` | dict | — | Named mesh attr arrays **and** callback result arrays |
+| `custom_attribute_arrays` | dict | — | Named mesh attr arrays, CSR tuples, and all callback results |
 | `extract_metadata` | dict | — | Per-attr + `_total` timing, shape & read_count |
+
+All derived data (edge length, face centers, neighbor CSR arrays, etc.) lives in
+`custom_attribute_arrays`, keyed by the callback's dict key.
 
 ---
 
@@ -216,21 +233,18 @@ processed_names = Wrapper_Mesh_Extract.run_extract()
 ```python
 # my_block/__init__.py
 
-from ...native_blocks.block_mesh_extract.data_structures import (
-    MET, Mesh_Extract_Target,
-)
+from ...native_blocks.block_mesh_extract.data_structures import MET, Mesh_Extract_Target
 from ...native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
-from ...native_blocks.block_mesh_extract.helpers_computed import (
-    compute_coplanar_groups,
-)
+from ...native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
+from ...native_blocks.block_mesh_extract.helpers_computed import compute_coplanar_groups
 
 
 def _compute_planarity(instance):
     """Callback: receives the full RTC instance, returns one np.ndarray."""
+    ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
     return compute_coplanar_groups(
         instance.face_normal,
-        instance.face_face_neighbor_indices,
-        instance.face_face_neighbor_offsets,
+        ffi, ffo,
         tolerance_deg=1.0,
     )
 
@@ -238,8 +252,8 @@ def _compute_planarity(instance):
 def hook_get_mesh_extract_targets():
     return [
         Mesh_Extract_Target(
-            object_name       = "Cube",
-            read_attributes   = [
+            object_name     = "Cube",
+            read_attributes = [
                 MET.VERTEX.CO,
                 MET.FACE.NORMAL,
                 MET.FACE.AREA,
@@ -247,12 +261,12 @@ def hook_get_mesh_extract_targets():
                 MET.FACE.LOOP_TOTAL,
                 MET.EDGE.VERTICES,
                 MET.CORNER.VERTEX_INDEX,
-                MET.FACE.FACE_NEIGHBORS,   # Nth-level; deps above satisfy it
             ],
             custom_attributes = [(MET.VERTEX, "my_float_attr")],
-            callbacks         = [
-                ("coplanar_group_id", _compute_planarity),
-            ],
+            callbacks = {
+                "face_face_neighbors": cb_face_face_neighbors,  # CSR — runs first
+                "coplanar_group_id":   _compute_planarity,      # reads CSR result above
+            },
         )
     ]
 
@@ -262,6 +276,8 @@ def hook_mesh_extract_ready(object_names: list):
     if instance:
         print(f"Cube has {instance.vertex_co.shape[0]} vertices")
         print(f"Planarity groups: {instance.custom_attribute_arrays.get('coplanar_group_id')}")
+        ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
+        print(f"Face-face neighbor data: {ffi.shape[0]} adjacency entries")
 ```
 
 ---
@@ -307,13 +323,9 @@ explaining the conversion path (replace dict/set with CSR integer arrays).
 
 ## Validation
 
-`validate_mesh_extract_targets()` in `helpers.py` runs before any bpy access:
-
-1. Every computed attribute's `first_level_deps` must be present in `read_attributes`.
-
-Callback inputs are **not** pre-validated. If a callback accesses an array that is `None`
-(because the corresponding attribute was not requested), the resulting exception aborts
-extraction for that object (`is_valid=False`, `error_str` set), and the error is displayed
+No pre-flight validation is performed. Callbacks that access arrays which are `None`
+(because the corresponding attribute was not requested) will raise at runtime, which
+marks `is_valid=False` and populates `error_str` on the instance. The error is displayed
 in the UI panel details pane.
 
 ---
@@ -324,17 +336,17 @@ in the UI panel details pane.
 
 ```python
 {
-    "VERTEX.co":           {"duration_ms": 0.31, "read_count": 3, "shape": (1024, 3)},
-    "FACE.normal":         {"duration_ms": 0.18, "read_count": 3, "shape": (512, 3)},
-    "EDGE.(computed)":     {"duration_ms": 0.05, "read_count": 3, "shape": ""},
-    "custom:my_attr":      {"duration_ms": 0.12, "read_count": 3, "shape": (1024,)},
-    "cb:coplanar_group_id":{"duration_ms": 4.20, "read_count": 3, "shape": (512,)},
-    "_total":              {"duration_ms": 5.10, "read_count": 3},
+    "VERTEX.co":                  {"duration_ms": 0.31, "read_count": 3, "shape": (1024, 3)},
+    "FACE.normal":                {"duration_ms": 0.18, "read_count": 3, "shape": (512, 3)},
+    "custom:my_attr":             {"duration_ms": 0.12, "read_count": 3, "shape": (1024,)},
+    "cb:face_face_neighbors":     {"duration_ms": 0.80, "read_count": 3, "shape": "-"},
+    "cb:coplanar_group_id":       {"duration_ms": 4.20, "read_count": 3, "shape": (512,)},
+    "_total":                     {"duration_ms": 5.10, "read_count": 3},
 }
 ```
 
-- Attribute rows include `"shape"` (the numpy `.shape` tuple, or `""` for CSR computed attrs).
-- Callback rows are prefixed `cb:` and always have a shape (the returned array's shape).
+- Attribute rows include `"shape"` (the numpy `.shape` tuple, or `"-"` for non-array results).
+- Callback rows are prefixed `cb:` and show the shape of the returned value (if it has `.shape`).
 - `_total.read_count` increments on every extraction run for that object.
 - The UI details pane renders attribute rows and the total summary separately.
 
@@ -358,9 +370,13 @@ block_mesh_extract/
 ├── common_declarations.py   # Block_Hook_Sources, Block_Loggers, Block_RTC_Members,
 │                            # Block_Data_Mirrors, Block_UIList_Configs
 ├── data_structures.py       # MET, MET_Attr_Declaration, Mesh_Extract_Target,
-│                            # RTC_Mesh_Extract_Instance
+│                            # RTC_Mesh_Extract_Instance, ALL_MET_ATTRS
+├── callbacks.py             # Pre-built callback functions:
+│                            # cb_edge_length, cb_face_center,
+│                            # cb_vert_vert_neighbors, cb_vert_face_neighbors,
+│                            # cb_face_face_neighbors
 ├── feature_mesh_extract.py  # Wrapper_Mesh_Extract (FWC)
-├── helpers.py               # run_mesh_extract, merge, validate, _extract_single_object,
+├── helpers.py               # run_mesh_extract, merge, _extract_single_object,
 │                            # _foreach_get_attr, _read_custom_attribute
 ├── helpers_computed.py      # Pure numpy computed functions (NJIT-ready):
 │                            # compute_edge_length, compute_face_center,

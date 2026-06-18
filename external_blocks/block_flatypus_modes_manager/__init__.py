@@ -2,7 +2,7 @@
 import random
 import sys
 import bpy
-from .custom_shaders.helpers import populate_points  # type: ignore
+from .custom_shaders.helpers import populate_points, populate_boundary_edges  # type: ignore
 
 # --------------------------------------------------------------
 # Addon-level imports
@@ -10,9 +10,12 @@ from .custom_shaders.helpers import populate_points  # type: ignore
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_helpers.ui import ui_draw_block_panel_header
+from ...addon_helpers.generic_tools import force_redraw_ui
 
 from ...native_blocks.block_timers.data_structures import Timer_Definition
 from ...native_blocks.block_mesh_extract.data_structures import ALL_MET_ATTRS, MET, Mesh_Extract_Target
+from ...native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
+from ...native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -20,6 +23,47 @@ from ...native_blocks.block_mesh_extract.data_structures import ALL_MET_ATTRS, M
 from .common_declarations import Block_Loggers
 from .shader_declarations import FLATYPUS_SHADER_DEFS
 from .mesh_extract_helpers import compute_coplanar_boundaries, compute_coplanar_groups
+
+# ==============================================================================================================================
+# BL PROPERTY UPDATE CALLBACKS
+# ==============================================================================================================================
+
+def _cb_show_boundary_edges_changed(self, context):
+    """
+    Fired when the user toggles 'show_boundary_edges'.
+    If turned on: push geometry from the most recent extract (if available) and redraw.
+    If turned off: clear the shader geometry and redraw.
+    """
+    from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
+
+    shader = Wrapper_Shader_Manager.get_shader("FLATYPUS_BOUNDARY_EDGES")
+    if shader is None:
+        return  # Drawing not enabled; nothing to do.
+
+    if self.show_boundary_edges:
+        instance = Wrapper_Mesh_Extract.get_instance("Cube")
+        if instance:
+            populate_boundary_edges(instance)
+    else:
+        shader.set_points([])
+        shader.set_colors([])
+
+    force_redraw_ui(context)
+
+
+# ==============================================================================================================================
+# BL PROPERTY GROUPS
+# ==============================================================================================================================
+
+class DGBLOCKS_PG_Flatypus_Props(bpy.types.PropertyGroup):
+    """Scene-level property group for block_flatypus_modes_manager."""
+    show_boundary_edges: bpy.props.BoolProperty(  # type: ignore
+        name="Show Boundary Edges",
+        description="Draw coplanar-group boundary edges in the viewport",
+        default=False,
+        update=_cb_show_boundary_edges_changed,
+    )
+
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
@@ -37,39 +81,28 @@ def timer_call(aa):
         raise Exception(f"Exception_{num}")
     print(aa)
 
-# def hook_get_timer_definitions():
-
-#     return [
-#         Timer_Definition(
-#             timer_uid = "A-timer",
-#             frequency = 0.5,
-#             callback = timer_call,
-#         ),
-#         Timer_Definition(
-#             timer_uid = "B-timer",
-#             frequency = 0.5,
-#             callback = timer_call,
-#         ),
-#         Timer_Definition(
-#             timer_uid = "C-timer",
-#             frequency = 0.3,
-#             callback = timer_call,
-#         )
-#     ]
-
 
 def hook_before_first_draw():
 
     populate_points()
 
+    # If the toggle is already on when drawing is first enabled, push boundary data
+    props = bpy.context.scene.dgblocks_flatypus_props
+    if props.show_boundary_edges:
+        instance = Wrapper_Mesh_Extract.get_instance("Cube")
+        if instance:
+            populate_boundary_edges(instance)
+
+
 def hook_get_mesh_extract_targets():
 
     def _cb_planarity_groups(instance):
+        ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
         computed_data = compute_coplanar_groups(
             face_normals                 = instance.face_normal,
             face_areas                   = instance.face_area,
-            face_face_neighbor_indices   = instance.face_face_neighbor_indices,
-            face_face_neighbor_offsets   = instance.face_face_neighbor_offsets,
+            face_face_neighbor_indices   = ffi,
+            face_face_neighbor_offsets   = ffo,
             vertex_co                    = instance.vertex_co,
             face_loop_start              = instance.face_loop_start,
             face_loop_total              = instance.face_loop_total,
@@ -78,17 +111,16 @@ def hook_get_mesh_extract_targets():
             min_area                     = 0.001,
             self_planarity_threshold     = 0.3,
         )
-
-        # instance.custom_domain_data["coplanar_group_id"] = computed_data
         return computed_data
 
     def _cb_planarity_boundaries(instance):
-        group_ids = instance.custom_attribute_arrays["aaa"]
+        group_ids = instance.custom_attribute_arrays["face_planar_groups"]
+        ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
 
         data = compute_coplanar_boundaries(
             group_ids                    = group_ids,
-            face_face_neighbor_indices   = instance.face_face_neighbor_indices,
-            face_face_neighbor_offsets   = instance.face_face_neighbor_offsets,
+            face_face_neighbor_indices   = ffi,
+            face_face_neighbor_offsets   = ffo,
             edge_vertices                = instance.edge_vertices,
             face_loop_start              = instance.face_loop_start,
             face_loop_total              = instance.face_loop_total,
@@ -97,55 +129,35 @@ def hook_get_mesh_extract_targets():
         )
         return data
 
-
-    # _PLANARITY_GROUPS_CB = Mesh_Extract_Callback(
-    #     uid                 = "FLT_COPLANAR_GROUPS",
-    #     callback            = _cb_planarity_groups,
-    #     required_attributes = [
-    #         MET.FACE.NORMAL, MET.FACE.AREA,
-    #         MET.FACE.FACE_NEIGHBORS,
-    #         MET.VERTEX.CO,
-    #         MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
-    #         MET.CORNER.VERTEX_INDEX,
-    #     ],
-    #     params = {
-    #         "tolerance_deg":            1.0,
-    #         "min_area":                 0.0001,
-    #         "self_planarity_threshold": 0.001,
-    #     },
-    # )
-
-    # _PLANARITY_BOUNDARIES_CB = Mesh_Extract_Callback(
-    #     uid                 = "FLT_COPLANAR_BOUNDARIES",
-    #     callback            = _cb_planarity_boundaries,
-    #     required_attributes = [
-    #         MET.FACE.FACE_NEIGHBORS,
-    #         MET.EDGE.VERTICES,
-    #         MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
-    #         MET.CORNER.VERTEX_INDEX,
-    #     ],
-
-    # )
-
-    
     return [
         Mesh_Extract_Target(
             object_name = "Cube",
             read_attributes = ALL_MET_ATTRS,
-            # custom_attributes = [
-            #     (MET.VERTEX, "custom-Attr-FL"),
-            #     (MET.FACE, "Custom-attr-VEC") 
-            # ],
-            callbacks = [
-                ("aaa", _cb_planarity_groups),
-                ("bbb", _cb_planarity_boundaries)
-                # _PLANARITY_BOUNDARIES_CB,   # must run after groups
-            ],
+            callbacks = {
+                "face_face_neighbors":         cb_face_face_neighbors,
+                "face_planar_groups":          _cb_planarity_groups,
+                "planar_group_boundary_edges": _cb_planarity_boundaries,
+            },
         ),
     ]
 
 def hook_mesh_extract_ready(object_names):
-    print("ready", object_names)
+    """
+    Called after mesh extraction completes.
+    If the boundary-edge overlay is toggled on, push updated geometry to the shader
+    and force the viewport to redraw.
+    """
+    props = bpy.context.scene.dgblocks_flatypus_props
+    if not props.show_boundary_edges:
+        return
+
+    if "Cube" not in object_names:
+        return
+
+    instance = Wrapper_Mesh_Extract.get_instance("Cube")
+    if instance:
+        populate_boundary_edges(instance)
+        force_redraw_ui(bpy.context)
 
 
 # ==============================================================================================================================
@@ -171,11 +183,35 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        drawing_props = context.scene.dgblocks_onscreen_drawing_props
+        flatypus_props = context.scene.dgblocks_flatypus_props
+
         layout.prop(
-            context.scene.dgblocks_onscreen_drawing_props,
+            drawing_props,
             "enable_drawing",
             toggle=True,
         )
+
+        row = layout.row()
+        row.enabled = drawing_props.enable_drawing
+        row.prop(
+            flatypus_props,
+            "show_boundary_edges",
+            toggle=True,
+        )
+
+
+# ==============================================================================================================================
+# BLOCK REGISTRATION HELPERS
+# ==============================================================================================================================
+
+def register_block_props():
+    bpy.types.Scene.dgblocks_flatypus_props = bpy.props.PointerProperty(type=DGBLOCKS_PG_Flatypus_Props)
+
+
+def unregister_block_props():
+    if hasattr(bpy.types.Scene, "dgblocks_flatypus_props"):
+        del bpy.types.Scene.dgblocks_flatypus_props
 
 
 # ==============================================================================================================================
@@ -189,8 +225,10 @@ _BLOCK_DECLARATION = Block_Declaration(
         "block-core",
         "block-onscreen-draw",
         "block-timers",
+        "block-mesh-extract",
     ],
     block_bpy_classes=[
+        DGBLOCKS_PG_Flatypus_Props,
         DGBLOCKS_PT_Assembly_Mode_Panel,
     ],
     block_loggers=Block_Loggers,

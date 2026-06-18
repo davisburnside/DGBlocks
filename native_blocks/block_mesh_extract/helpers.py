@@ -23,13 +23,6 @@ from .data_structures import (
     RTC_Mesh_Extract_Instance,
     met_attr_label,
 )
-from .helpers_computed import (
-    build_face_face_neighbors_csr,
-    build_vert_face_neighbors_csr,
-    build_vert_vert_neighbors_csr,
-    compute_edge_length,
-    compute_face_center,
-)
 
 # ==============================================================================================================================
 # OBJECT COMPATIBILITY CHECK
@@ -46,37 +39,6 @@ def _object_has_mesh(obj: bpy.types.Object) -> bool:
 
 
 # ==============================================================================================================================
-# VALIDATION
-# ==============================================================================================================================
-
-def validate_mesh_extract_targets(merged_targets: dict[str, Mesh_Extract_Target]) -> None:
-    """
-    Run pre-extraction validation checks.
-    Raises ValueError with a descriptive message if any check fails.
-    All checks complete before any bpy or RTC state is mutated.
-
-    Checks:
-        1. For every Nth-level (computed) attribute requested, all first_level_deps
-           are also in read_attributes.
-    """
-    for object_name, target in merged_targets.items():
-        attr_set = set(target.read_attributes)
-
-        # Check 1: computed attribute dependencies
-        for attr in target.read_attributes:
-            if attr.is_computed:
-                missing_deps = [dep for dep in attr.first_level_deps if dep not in attr_set]
-                if missing_deps:
-                    missing_labels = [met_attr_label(d) for d in missing_deps]
-                    raise ValueError(
-                        f"Object '{object_name}': computed attribute '{met_attr_label(attr)}' "
-                        f"requires the following attributes to also be in read_attributes, "
-                        f"but they are missing: {missing_labels}. "
-                        f"Add them to the Mesh_Extract_Target submitted for this object."
-                    )
-
-
-# ==============================================================================================================================
 # MET MERGE LOGIC
 # ==============================================================================================================================
 
@@ -88,9 +50,9 @@ def merge_mesh_extract_targets(
 
     - read_attributes: union (order preserved, duplicates removed)
     - custom_attributes: union by (domain, name) key
-    - callbacks: concatenated in block registration order (preserves deterministic ordering)
+    - callbacks: dict update in block registration order (last submission wins on key collision)
 
-    Conflicts are resolved silently — no exceptions for duplicates in standard attrs.
+    Conflicts are resolved silently — no exceptions for duplicates.
     """
     merged: dict[str, Mesh_Extract_Target] = {}
 
@@ -102,7 +64,7 @@ def merge_mesh_extract_targets(
                     object_name       = name,
                     read_attributes   = [],
                     custom_attributes = [],
-                    callbacks         = [],
+                    callbacks         = {},
                 )
 
             existing = merged[name]
@@ -122,8 +84,8 @@ def merge_mesh_extract_targets(
                     existing.custom_attributes.append((domain_cls, attr_name))
                     existing_custom_keys.add(key)
 
-            # Append callbacks in order
-            existing.callbacks.extend(target.callbacks)
+            # Merge callbacks dict (last submission wins on collision)
+            existing.callbacks.update(target.callbacks)
 
     return merged
 
@@ -176,7 +138,7 @@ def _foreach_get_attr(
     else:
         raise ValueError(
             f"_foreach_get_attr: unhandled attribute '{met_attr_label(attr)}'. "
-            f"Add it to the dispatch block or mark it is_computed=True."
+            f"Add it to the dispatch block or define a callback for it."
         )
 
     if attr.components > 1:
@@ -240,66 +202,6 @@ def _read_custom_attribute(
     if components > 1:
         return buf.reshape(n, components)
     return buf
-
-
-# ==============================================================================================================================
-# COMPUTED ATTRIBUTE DISPATCH
-# ==============================================================================================================================
-
-def _apply_computed_attr(
-    attr: MET_Attr_Declaration,
-    instance: RTC_Mesh_Extract_Instance,
-    n_verts: int,
-    n_faces: int,
-) -> None:
-    """
-    Dispatch to the appropriate helpers_computed function, read deps from instance,
-    and write result back to instance.
-    """
-    if attr is MET.EDGE.LENGTH:
-        instance.edge_length = compute_edge_length(
-            instance.vertex_co, instance.edge_vertices
-        )
-
-    elif attr is MET.FACE.CENTER:
-        instance.face_center = compute_face_center(
-            instance.vertex_co,
-            instance.face_loop_start,
-            instance.face_loop_total,
-            instance.corner_vertex_index,
-        )
-
-    elif attr is MET.VERTEX.VERT_NEIGHBORS:
-        idx, off = build_vert_vert_neighbors_csr(instance.edge_vertices, n_verts)
-        instance.vert_vert_neighbor_indices = idx
-        instance.vert_vert_neighbor_offsets = off
-
-    elif attr is MET.VERTEX.FACE_NEIGHBORS:
-        idx, off = build_vert_face_neighbors_csr(
-            instance.face_loop_start,
-            instance.face_loop_total,
-            instance.corner_vertex_index,
-            n_verts,
-        )
-        instance.vert_face_neighbor_indices = idx
-        instance.vert_face_neighbor_offsets = off
-
-    elif attr is MET.FACE.FACE_NEIGHBORS:
-        idx, off = build_face_face_neighbors_csr(
-            instance.edge_vertices,
-            instance.face_loop_start,
-            instance.face_loop_total,
-            instance.corner_vertex_index,
-            n_faces,
-        )
-        instance.face_face_neighbor_indices = idx
-        instance.face_face_neighbor_offsets = off
-
-    else:
-        raise ValueError(
-            f"_apply_computed_attr: no dispatch for computed attr '{met_attr_label(attr)}'. "
-            f"Add it to _apply_computed_attr in helpers.py."
-        )
 
 
 # Map each first-level MET_Attr_Declaration to the RTC_Mesh_Extract_Instance field name
@@ -381,14 +283,8 @@ def _extract_single_object(
         return instance
 
     try:
-        n_verts   = len(mesh.vertices)
-        n_edges   = len(mesh.edges)
-        n_faces   = len(mesh.polygons)
-        n_corners = len(mesh.loops)
-
         # ---- First-level reads ----
-        first_level_attrs = [a for a in target.read_attributes if not a.is_computed]
-        for attr in first_level_attrs:
+        for attr in target.read_attributes:
             t0 = time.perf_counter()
             try:
                 arr = _foreach_get_attr(mesh, attr)
@@ -412,34 +308,18 @@ def _extract_single_object(
             else:
                 logger.warning(f"Custom attribute '{attr_name}' not found on mesh '{object_name}' — skipping.")
             prev_count = instance.extract_metadata.get(f"custom:{attr_name}", {}).get("read_count", 0)
-            _record_attr_meta(instance, arr.shape, f"custom:{attr_name}", t0, prev_count + 1)
-
-        # ---- Computed attribute reads (in dependency-safe order) ----
-        # Sort: first-level first, then computed (deps are guaranteed to be read already by validate)
-        computed_attrs = [a for a in target.read_attributes if a.is_computed]
-        for attr in computed_attrs:
-            t0 = time.perf_counter()
-            try:
-                _apply_computed_attr(attr, instance, n_verts, n_faces)
-            except Exception as e:
-                logger.error(
-                    f"Computed attr '{met_attr_label(attr)}' failed for '{object_name}'",
-                    exc_info=True,
-                )
-                raise
-            prev_count = instance.extract_metadata.get(met_attr_label(attr), {}).get("read_count", 0)
-            _record_attr_meta(instance, None, met_attr_label(attr), t0, prev_count + 1)
+            _record_attr_meta(instance, arr.shape if arr is not None else None, f"custom:{attr_name}", t0, prev_count + 1)
 
         # ---- Callbacks ----
-        # Each callback is a 2-tuple: (attr_name: str, func: Callable)
-        # func signature: func(instance) -> np.ndarray
+        # Each entry is a dict item: (attr_name: str, func: Callable)
+        # func signature: func(instance) -> any
         # Exceptions propagate — any failure marks the instance invalid.
-        for attr_name, callback_func in target.callbacks:
+        for attr_name, callback_func in target.callbacks.items():
             t0 = time.perf_counter()
-            result_data = callback_func(instance) # May or may not be a numpy array
+            result_data = callback_func(instance)
             instance.custom_attribute_arrays[attr_name] = result_data
             prev_count = instance.extract_metadata.get(f"cb:{attr_name}", {}).get("read_count", 0)
-            shape = arr.shape if hasattr(result_data, "shape") else "-"
+            shape = result_data.shape if hasattr(result_data, "shape") else "-"
             _record_attr_meta(instance, shape, f"cb:{attr_name}", t0, prev_count + 1)
 
         instance.is_valid = True
@@ -501,13 +381,12 @@ def run_mesh_extract() -> list[str]:
     """
     Full extraction cycle:
         1. Fire hook_get_mesh_extract_targets — collect Mesh_Extract_Target lists from all blocks.
-        2. Merge targets by object_name (silent union).
-        3. Validate merged targets — raise ValueError on any dependency/callback violation.
-        4. Get the current depsgraph.
-        5. For each object: call _extract_single_object, reusing or creating an RTC instance.
-        6. Push updated list to RTC.
-        7. Sync BL data mirror.
-        8. Fire hook_mesh_extract_ready with the list of processed object names.
+        2. Merge targets by object_name (silent union for attrs; last-writer-wins for callbacks).
+        3. Get the current depsgraph.
+        4. For each object: call _extract_single_object, reusing or creating an RTC instance.
+        5. Push updated list to RTC.
+        6. Sync BL data mirror.
+        7. Fire hook_mesh_extract_ready with the list of processed object names.
 
     Returns list of object names that were processed (regardless of is_valid).
     """
@@ -537,21 +416,14 @@ def run_mesh_extract() -> list[str]:
     merged_targets = merge_mesh_extract_targets(targets_by_block)
     logger.debug(f"run_mesh_extract: merged into {len(merged_targets)} object target(s)")
 
-    # Step 3: Validate (raises on error — aborts the whole cycle cleanly)
-    try:
-        validate_mesh_extract_targets(merged_targets)
-    except ValueError as e:
-        logger.error(f"run_mesh_extract: validation failed — {e}", exc_info=True)
-        raise
-
-    # Step 4: Get depsgraph
+    # Step 3: Get depsgraph
     try:
         depsgraph = bpy.context.evaluated_depsgraph_get()
     except Exception as e:
         logger.error("run_mesh_extract: could not get depsgraph", exc_info=True)
         raise
 
-    # Step 5: Extract each object
+    # Step 4: Extract each object
     existing_instances: dict[str, RTC_Mesh_Extract_Instance] = {
         inst.object_name: inst
         for inst in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
@@ -566,10 +438,10 @@ def run_mesh_extract() -> list[str]:
         new_instances.append(instance)
         processed_names.append(object_name)
 
-    # Step 6: Push to RTC
+    # Step 5: Push to RTC
     Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, new_instances)
 
-    # Step 7: Sync BL mirror
+    # Step 6: Sync BL mirror
     cache_key = Block_RTC_Members.MESH_EXTRACT_INSTANCES
     try:
         FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key)
@@ -585,7 +457,7 @@ def run_mesh_extract() -> list[str]:
     except Exception as e:
         logger.error("run_mesh_extract: BL mirror sync failed", exc_info=True)
 
-    # Step 8: Fire ready hook
+    # Step 7: Fire ready hook
     Wrapper_Hooks.run_hooked_funcs(
         hook_func_name           = Block_Hook_Sources.hook_mesh_extract_ready,
         should_halt_on_exception = False,
