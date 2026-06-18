@@ -25,6 +25,33 @@ from .shader_declarations import FLATYPUS_SHADER_DEFS
 from .mesh_extract_helpers import compute_coplanar_boundaries, compute_coplanar_groups
 
 # ==============================================================================================================================
+# HELPERS
+# ==============================================================================================================================
+
+def _clear_boundary_shaders():
+    """Clear geometry from both boundary shaders. Safe to call even if shaders are absent."""
+    from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
+    for uid in ("FLATYPUS_BOUNDARY_EXTERIOR", "FLATYPUS_BOUNDARY_INTERIOR"):
+        shader = Wrapper_Shader_Manager.get_shader(uid)
+        if shader:
+            shader.set_points([])
+            shader.set_colors([])
+
+
+def _push_boundary_edges_from_scene(context):
+    """
+    Convenience: read the current props, fetch the Cube instance, and push geometry
+    with the current offset value. Respects the show_boundary_edges toggle.
+    """
+    props = context.scene.dgblocks_flatypus_props
+    if not props.show_boundary_edges:
+        return
+    instance = Wrapper_Mesh_Extract.get_instance("Cube")
+    if instance:
+        populate_boundary_edges(instance, offset=props.boundary_edge_offset)
+
+
+# ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
 # ==============================================================================================================================
 
@@ -32,23 +59,30 @@ def _cb_show_boundary_edges_changed(self, context):
     """
     Fired when the user toggles 'show_boundary_edges'.
     If turned on: push geometry from the most recent extract (if available) and redraw.
-    If turned off: clear the shader geometry and redraw.
+    If turned off: clear both boundary shader geometries and redraw.
     """
-    from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
-
-    shader = Wrapper_Shader_Manager.get_shader("FLATYPUS_BOUNDARY_EDGES")
-    if shader is None:
-        return  # Drawing not enabled; nothing to do.
-
     if self.show_boundary_edges:
         instance = Wrapper_Mesh_Extract.get_instance("Cube")
         if instance:
-            populate_boundary_edges(instance)
+            populate_boundary_edges(instance, offset=self.boundary_edge_offset)
     else:
-        shader.set_points([])
-        shader.set_colors([])
+        _clear_boundary_shaders()
 
     force_redraw_ui(context)
+
+
+def _cb_boundary_edge_offset_changed(self, context):
+    """
+    Fired when the offset slider moves.
+    Re-pushes boundary geometry with the updated offset and forces a redraw.
+    Only acts when show_boundary_edges is on and an extract instance exists.
+    """
+    if not self.show_boundary_edges:
+        return
+    instance = Wrapper_Mesh_Extract.get_instance("Cube")
+    if instance:
+        populate_boundary_edges(instance, offset=self.boundary_edge_offset)
+        force_redraw_ui(context)
 
 
 # ==============================================================================================================================
@@ -63,6 +97,19 @@ class DGBLOCKS_PG_Flatypus_Props(bpy.types.PropertyGroup):
         default=False,
         update=_cb_show_boundary_edges_changed,
     )
+    boundary_edge_offset: bpy.props.FloatProperty(  # type: ignore
+        name="Boundary Offset",
+        description=(
+            "Shift each group's boundary lines along its face normal by this distance. "
+            "Use to separate overlapping edges from adjacent coplanar groups."
+        ),
+        default=0.0,
+        min=-1.0,
+        max=1.0,
+        step=1,
+        precision=4,
+        update=_cb_boundary_edge_offset_changed,
+    )
 
 
 # ==============================================================================================================================
@@ -73,6 +120,7 @@ class DGBLOCKS_PG_Flatypus_Props(bpy.types.PropertyGroup):
 def hook_get_shader_definitions():
 
     return FLATYPUS_SHADER_DEFS
+
 
 def timer_call(aa):
 
@@ -91,7 +139,7 @@ def hook_before_first_draw():
     if props.show_boundary_edges:
         instance = Wrapper_Mesh_Extract.get_instance("Cube")
         if instance:
-            populate_boundary_edges(instance)
+            populate_boundary_edges(instance, offset=props.boundary_edge_offset)
 
 
 def hook_get_mesh_extract_targets():
@@ -141,11 +189,12 @@ def hook_get_mesh_extract_targets():
         ),
     ]
 
+
 def hook_mesh_extract_ready(object_names):
     """
     Called after mesh extraction completes.
-    If the boundary-edge overlay is toggled on, push updated geometry to the shader
-    and force the viewport to redraw.
+    If the boundary-edge overlay is toggled on, push updated geometry to both shaders
+    with the current offset and force the viewport to redraw.
     """
     props = bpy.context.scene.dgblocks_flatypus_props
     if not props.show_boundary_edges:
@@ -156,7 +205,7 @@ def hook_mesh_extract_ready(object_names):
 
     instance = Wrapper_Mesh_Extract.get_instance("Cube")
     if instance:
-        populate_boundary_edges(instance)
+        populate_boundary_edges(instance, offset=props.boundary_edge_offset)
         force_redraw_ui(bpy.context)
 
 
@@ -183,22 +232,21 @@ class DGBLOCKS_PT_Assembly_Mode_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        drawing_props = context.scene.dgblocks_onscreen_drawing_props
+        drawing_props  = context.scene.dgblocks_onscreen_drawing_props
         flatypus_props = context.scene.dgblocks_flatypus_props
 
-        layout.prop(
-            drawing_props,
-            "enable_drawing",
-            toggle=True,
-        )
+        # Master drawing enable/disable
+        layout.prop(drawing_props, "enable_drawing", toggle=True)
 
-        row = layout.row()
-        row.enabled = drawing_props.enable_drawing
-        row.prop(
-            flatypus_props,
-            "show_boundary_edges",
-            toggle=True,
-        )
+        # Boundary-edge overlay toggle (disabled when drawing is off)
+        col = layout.column()
+        col.enabled = drawing_props.enable_drawing
+        col.prop(flatypus_props, "show_boundary_edges", toggle=True)
+
+        # Offset slider (disabled unless the overlay is active)
+        offset_row = col.row()
+        offset_row.enabled = flatypus_props.show_boundary_edges
+        offset_row.prop(flatypus_props, "boundary_edge_offset", slider=True)
 
 
 # ==============================================================================================================================
