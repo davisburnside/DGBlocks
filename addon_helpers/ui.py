@@ -198,8 +198,11 @@ def draw_shared_uilist(context, container, scene_data_path):
 
 class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
     """
-    Generic UIList for debug panels. Uses a (non-hook) callback to draw each row
-    This allows multiple UILists, with differing structures, to share this class
+    Generic UIList for debug panels. Uses a (non-hook) callback to draw each row.
+    This allows multiple UILists, with differing structures, to share this class.
+
+    Optional filtering: if the Shared_UIList_Declaration has a `callback_filter_items`
+    callable set, it will be called during filter_items to show/hide rows.
     """
 
     def draw_item(self, context, container, data, BL_item, icon, active_data, active_propname, selected_list_index):
@@ -221,3 +224,27 @@ class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
 
         # instance-specific draw callback
         uillist_config_instance.callback_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, selected_list_index)
+
+    def filter_items(self, context, data, propname):
+        """
+        If the matching Shared_UIList_Declaration has a `callback_filter_items`,
+        call it to get per-item show/hide booleans and translate to Blender bitflags.
+        Otherwise return empty lists (no filtering — Blender default behaviour).
+        """
+        try:
+            _dirty_wrapper_RTC = get_Wrapper_Runtime_Cache()
+            _, uillist_config_instance, _ = _dirty_wrapper_RTC.get_unique_instance_from_registry_list(
+                "SHARED_UILIST_CONFIGS",
+                "scene_colprop_path",
+                propname,
+            )
+            if uillist_config_instance is None or not uillist_config_instance.callback_filter_items:
+                return [], []
+
+            BL_colprop = getattr(data, propname)
+            show_list = uillist_config_instance.callback_filter_items(context, uillist_config_instance, BL_colprop)
+            SHOW = bpy.types.UI_UL_list.bitflag_filter_item
+            flt_flags = [SHOW if show else 0 for show in show_list]
+            return flt_flags, []
+        except Exception:
+            return [], []

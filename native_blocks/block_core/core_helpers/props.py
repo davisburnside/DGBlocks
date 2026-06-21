@@ -21,6 +21,12 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     # Empties all CollectionProps created by this addon eveyr startup
     debug_clear_BL_data_on_startup: bpy.props.BoolProperty(default = False)# type: ignore
 
+    # Hooks subpanel filter: hide hook sources that have no subscribers
+    hooks_hide_unsub: bpy.props.BoolProperty(  # type: ignore
+        default = True,
+        name    = "Hide hooks with no subscribers",
+    )
+
     # --------------------------------------------------------------
     # Persistent, undo/redo-enabled Scene data for each feature-wrapper's mirrored  RTC data
     # More info for structure/metadata is found inside each DGBLOCKS_* class

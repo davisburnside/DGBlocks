@@ -38,6 +38,43 @@ def _uilist_blocks_draw_selection_details(context, container, uillist_config_ins
     box.label(text = f"Location: {block_instance.block_package_name}")
     box.label(text = f"TODO: button op to open folder")
 
+# ==============================================================================================================================
+# HOOKS UILIST FILTER
+# ==============================================================================================================================
+
+def _hooks_filter_items(context, uilist_config_instance, BL_colprop):
+    """
+    Filter callback for the Hooks UIList.
+    When core_props.hooks_hide_unsub is True, hides hook sources with no subscribers.
+    Returns list[bool], one entry per BL collection item (True = show, False = hide).
+    """
+    try:
+        hide_unsub = context.scene.dgblocks_core_props.hooks_hide_unsub
+    except AttributeError:
+        return [True] * len(BL_colprop)
+
+    if not hide_unsub:
+        return [True] * len(BL_colprop)
+
+    # Fetch RTC hook sources list (same order as the BL collection)
+    _dirty_wrapper_RTC = get_Wrapper_Runtime_Cache()
+    RTC_hook_sources = _dirty_wrapper_RTC.get_cache(uilist_config_instance.RTC_key)
+    if not RTC_hook_sources:
+        return [True] * len(BL_colprop)
+
+    result = []
+    for i in range(len(BL_colprop)):
+        if i < len(RTC_hook_sources):
+            result.append(RTC_hook_sources[i].subscriber_count > 0)
+        else:
+            result.append(True)
+    return result
+
+
+# ==============================================================================================================================
+# HOOKS UILIST ROW + DETAILS
+# ==============================================================================================================================
+
 # Hooks-mngr UIList funcs
 ui_structure_for_hook_sub_instance = {
     "Run Counts": [
@@ -150,6 +187,13 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         grid.label(text = "TODO: Addon Data Folder path")
 
 
+    def _draw_hooks_subpanel_body(self, context, container):
+        """Draw body of the Hooks subpanel, including the hide-unsub filter checkbox."""
+        core_scene_props = context.scene.dgblocks_core_props
+        row = container.row()
+        row.prop(core_scene_props, "hooks_hide_unsub", text="Hide hooks with no subscribers")
+        draw_shared_uilist(context, container, "managed_hooks")
+
     def draw(self, context):
         
         layout = self.layout
@@ -158,14 +202,17 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         # General settings
         ui_draw_subpanel(context, layout, "general", "General Settings", self.draw_subpanel_body)
 
-        # Draw management subpanels for blocks, hooks, & loggers
-        core_feature_drawing = [
-            ("Blocks", core_scene_props.managed_hooks, "managed_blocks"),
-            ("Hooks", core_scene_props.managed_hooks, "managed_hooks"),
-            ("Loggers", core_scene_props.managed_loggers, "managed_loggers")
-        ]
-        for label_str, BL_colprop, colprop_name in core_feature_drawing:
-            label_str = f"All {label_str} ({len(BL_colprop)})"
-            kwargs = {"scene_data_path": colprop_name}
-            ui_draw_subpanel(context, layout, colprop_name, label_str, draw_shared_uilist, **kwargs)
+        # Blocks subpanel
+        blocks_label = f"All Blocks ({len(core_scene_props.managed_blocks)})"
+        ui_draw_subpanel(context, layout, "managed_blocks", blocks_label, draw_shared_uilist,
+                         scene_data_path="managed_blocks")
+
+        # Hooks subpanel (uses custom body to include the filter checkbox)
+        hooks_label = f"All Hooks ({len(core_scene_props.managed_hooks)})"
+        ui_draw_subpanel(context, layout, "managed_hooks", hooks_label, self._draw_hooks_subpanel_body)
+
+        # Loggers subpanel
+        loggers_label = f"All Loggers ({len(core_scene_props.managed_loggers)})"
+        ui_draw_subpanel(context, layout, "managed_loggers", loggers_label, draw_shared_uilist,
+                         scene_data_path="managed_loggers")
             

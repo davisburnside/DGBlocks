@@ -1,6 +1,13 @@
 
 from ....addon_helpers.data_structures import Global_Addon_State, Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, Shared_UIList_Declaration, String_Comparable_Mixin
-from ..core_helpers.ui import _uilist_blocks_draw_row, _uilist_blocks_draw_selection_details, _uilist_hooks_draw_row, _uilist_hooks_draw_selection_details, _uilist_loggers_draw_row
+from ..core_helpers.ui import (
+    _uilist_blocks_draw_row,
+    _uilist_blocks_draw_selection_details,
+    _uilist_hooks_draw_row,
+    _uilist_hooks_draw_selection_details,
+    _uilist_loggers_draw_row,
+    _hooks_filter_items,
+)
 
 _BLOCK_ID = "block-core"
 
@@ -20,23 +27,18 @@ class Core_Block_Loggers(String_Comparable_Mixin):
 class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_core_event_undo = Hook_Source_Declaration({})
     hook_core_event_redo = Hook_Source_Declaration({})
-    hook_post_startup = Hook_Source_Declaration()
-    # SCENE_MONITOR_SCENE_CHANGED = Hook_Source_Declaration({"old_scene": str, "new_scene": str})
-    # SCENE_MONITOR_ACTIVE_SCENE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
-    # SCENE_MONITOR_ACTIVE_WORKSPACE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
-    # SCENE_MONITOR_ACTIVE_MODE_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
-    # SCENE_MONITOR_ACTIVE_OBJ_CHANGED = Hook_Source_Declaration({"old_id": tuple, "new_id": tuple})
+    hook_post_startup    = Hook_Source_Declaration()
 
 class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty list as default
-    ADDON_METADATA = RTC_Member_Declaration(Global_Addon_State())
-    REGISTRY_ALL_BLOCKS = RTC_Member_Declaration()
-    REGISTRY_ALL_FWCS = RTC_Member_Declaration()
-    REGISTRY_ALL_HOOK_SOURCES = RTC_Member_Declaration()
-    REGISTRY_ALL_HOOK_SUBSCRIBERS = RTC_Member_Declaration({}) # dict, not list
-    REGISTRY_ALL_LOGGERS = RTC_Member_Declaration()
-    REGISTRY_ALL_DATA_MIRRORS = RTC_Member_Declaration()
-    META_REGISTRIES_BEING_SYNCED = RTC_Member_Declaration()
-    SHARED_UILIST_CONFIGS = RTC_Member_Declaration()
+    ADDON_METADATA                 = RTC_Member_Declaration(Global_Addon_State())
+    REGISTRY_ALL_BLOCKS            = RTC_Member_Declaration()
+    REGISTRY_ALL_FWCS              = RTC_Member_Declaration()
+    REGISTRY_ALL_HOOK_SOURCES      = RTC_Member_Declaration()
+    REGISTRY_ALL_HOOK_SUBSCRIBERS  = RTC_Member_Declaration({}) # dict, not list
+    REGISTRY_ALL_LOGGERS           = RTC_Member_Declaration()
+    REGISTRY_ALL_DATA_MIRRORS      = RTC_Member_Declaration()
+    META_REGISTRIES_BEING_SYNCED   = RTC_Member_Declaration()
+    SHARED_UILIST_CONFIGS          = RTC_Member_Declaration()
 
 class Core_Data_Mirrors(String_Comparable_Mixin):
     BLOCKS_LIST = RTC_Member_Data_Mirror_Declaration(
@@ -81,7 +83,8 @@ class Core_UIList_Configs(String_Comparable_Mixin):
         scene_colprop_path_UIList_selection_idx_path = "managed_hooks_selected_idx",
         RTC_key = "REGISTRY_ALL_HOOK_SOURCES",
         callback_draw_row = _uilist_hooks_draw_row,
-        callback_draw_details_section = _uilist_hooks_draw_selection_details
+        callback_draw_details_section = _uilist_hooks_draw_selection_details,
+        callback_filter_items = _hooks_filter_items,
     )
     BLOCKS_UILIST = Shared_UIList_Declaration(
         col_names = ["Status", "Block Name", "Version",],

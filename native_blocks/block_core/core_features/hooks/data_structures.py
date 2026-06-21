@@ -24,7 +24,7 @@ from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 # --------------------------------------------------------------
 # Aliases
 # --------------------------------------------------------------
-cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCRIBERS
+cache_key_hook_sources = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SOURCES
 
 # ==============================================================================================================================
 # BLENDER DATA (PropertyGroup + update callback)
@@ -33,7 +33,7 @@ cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCR
 def _callback_update_hook_sub_enabled(self, context):
 
     # Skip further action if a sync is already in progress
-    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_hook_subscribers):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(cache_key_hook_sources):
         return
 
     # Sync 'is_hook_enabled' property to RTC

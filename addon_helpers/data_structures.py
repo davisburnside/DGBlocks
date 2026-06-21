@@ -160,7 +160,7 @@ class Abstract_Shared_UIList_Draw(ABC):
 class Shared_UIList_Declaration:
     col_names: list[str]
     col_widths: list[int]
-    
+
     scene_parent_path: str
     scene_colprop_path: str
     scene_colprop_path_UIList_selection_idx_path: str
@@ -169,6 +169,12 @@ class Shared_UIList_Declaration:
     callback_draw_details_section: Callable
 
     RTC_key: Optional[str] = field(default = None)
+
+    # Optional: called in filter_items to hide/show rows.
+    # Signature: callback_filter_items(context, uilist_config_instance, BL_colprop) -> list[bool]
+    # Return a list of bool (True = show, False = hide), one entry per BL collection item.
+    # If None, all items are shown (default Blender behaviour).
+    callback_filter_items: Optional[Callable] = field(default = None)
 
 @dataclass
 class Shared_UIList_Instance(Shared_UIList_Declaration):
