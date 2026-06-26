@@ -58,8 +58,7 @@ block_core/
 Central lifecycle manager for the entire addon. Drives block registration, FWC orchestration,
 data mirror sync, and fires lifecycle hooks.
 
-- `_init_wrapper()` — Installs `bpy.app.handlers` (load_post, undo_post, redo_post,
-  depsgraph_update_post) and schedules deferred `init_post_bpy()` via `bpy.app.timers`.
+- `_init_wrapper()` — Installs `bpy.app.handlers` (load_post, undo_post, redo_post) and schedules deferred `init_post_bpy()` via `bpy.app.timers`.
 - `init_post_bpy()` — Called once bpy context is ready. Calls `_init_wrapper()` on all
   other FWCs, runs the two-pass BL↔RTC data mirror sync, fires `hook_post_startup`.
 - `_create_instance(event, block_module)` — Reads `block_module._BLOCK_DECLARATION` and

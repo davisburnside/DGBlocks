@@ -84,7 +84,7 @@ def get_actual_id(input):
     if isinstance(input, Enum):
         return input.name
     elif isinstance(input, str):
-        return input.name
+        return input
     else:
         raise Exception("Expecting 'Enum' or 'str'")
 

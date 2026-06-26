@@ -120,6 +120,13 @@ def _cb_load_pre(*args):
     _fire_handler("load_pre")
 
 
+@persistent
+def _cb_depsgraph_update_pre(scene, depsgraph, *args):
+    _fire_handler("depsgraph_update_pre", scene=scene, depsgraph=depsgraph)
+@persistent
+def _cb_depsgraph_update_post(scene, depsgraph, *args):
+    _fire_handler("depsgraph_update_post", scene=scene, depsgraph=depsgraph)
+
 # ==============================================================================================================================
 # @PERSISTENT BLENDER CALLBACKS — Render
 # ==============================================================================================================================
@@ -239,6 +246,8 @@ def _cb_xr_session_end(*args):
 _CALLBACK_MAP: dict[str, object] = {
     "save_pre":              _cb_save_pre,
     "save_post":             _cb_save_post,
+    "depsgraph_update_pre":  _cb_depsgraph_update_pre,
+    "depsgraph_update_post":  _cb_depsgraph_update_post,
     "load_pre":              _cb_load_pre,
     "render_init":           _cb_render_init,
     "render_pre":            _cb_render_pre,

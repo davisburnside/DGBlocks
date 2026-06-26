@@ -20,7 +20,6 @@ from .common_declarations import (
     Block_UIList_Configs,
 )
 from .feature_app_handlers import Wrapper_App_Handlers
-from .data_structures import App_Handler_Type, App_Handler_Subscription_Declaration
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
@@ -58,24 +57,18 @@ class DGBLOCKS_PG_App_Handler_Status_Row(bpy.types.PropertyGroup):
     Rebuilt from RTC on every refresh_subscriptions() call.
     is_enabled is the only user-editable field; all others are read-only display.
     """
-    handler_type_name: bpy.props.StringProperty(name="Handler Type")           # type: ignore
-    is_enabled:        bpy.props.BoolProperty(                                  # type: ignore
-        name   = "Enabled",
-        default = True,
-        update  = _cb_is_enabled_changed,
-    )
-    is_registered:           bpy.props.BoolProperty(default=False)              # type: ignore
-    subscriber_count:        bpy.props.IntProperty(default=0)                   # type: ignore
-    frequency_filter_seconds: bpy.props.FloatProperty(default=0.0)             # type: ignore
+    handler_type_name: bpy.props.StringProperty(name="Handler Type") # type: ignore
+    is_enabled: bpy.props.BoolProperty(default = True, update  = _cb_is_enabled_changed) # type: ignore
+    is_registered: bpy.props.BoolProperty(default=False) # type: ignore
+    subscriber_count: bpy.props.IntProperty(default=0) # type: ignore
+    frequency_filter_seconds: bpy.props.FloatProperty(default=0.0) # type: ignore
 
 
 class DGBLOCKS_PG_App_Handlers_Props(bpy.types.PropertyGroup):
     """Scene-level property group for block_app_handlers."""
 
-    handler_status_mirror: bpy.props.CollectionProperty(                        # type: ignore
-        type = DGBLOCKS_PG_App_Handler_Status_Row,
-    )
-    handler_status_mirror_selected_idx: bpy.props.IntProperty()                 # type: ignore
+    handler_status_mirror: bpy.props.CollectionProperty(type = DGBLOCKS_PG_App_Handler_Status_Row) # type: ignore
+    handler_status_mirror_selected_idx: bpy.props.IntProperty() # type: ignore
 
 
 # ==============================================================================================================================

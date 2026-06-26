@@ -362,7 +362,7 @@ def unregister_block_props():
 
 1. **`_init_wrapper()`** (called during addon `register()`):
    - Writes initial `Global_Addon_State` to RTC
-   - Installs all `bpy.app.handlers` (load_post, undo_post, redo_post, depsgraph_update_post)
+   - Installs all `bpy.app.handlers` (load_post, undo_post, redo_post)
    - Schedules deferred `init_post_bpy()` via `bpy.app.timers`
 
 2. **`init_post_bpy()`** (deferred, called once bpy context is ready):

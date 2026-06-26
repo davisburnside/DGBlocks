@@ -41,15 +41,19 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
     # Public API
 
     @classmethod
-    def run_extract(cls) -> list[str]:
+    def run_extract(cls, depsgraph = None, target_mesh = None) -> list[str]:
         """
         Trigger a full mesh extraction cycle from any downstream block.
         Returns the list of object names that were processed.
         Raises ValueError if MET validation fails.
         """
+
+        if True:
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
         logger.debug("Wrapper_Mesh_Extract.run_extract: triggered via public API")
-        return run_mesh_extract()
+        return run_mesh_extract(depsgraph, target_mesh)
 
     @classmethod
     def get_instance(cls, object_name: str) -> Optional[RTC_Mesh_Extract_Instance]:

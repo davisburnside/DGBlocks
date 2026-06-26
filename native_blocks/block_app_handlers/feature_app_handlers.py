@@ -51,10 +51,7 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         logger.debug("refresh_subscriptions: polling downstream blocks")
 
         # 1. Poll all subscribers
-        raw_results = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name           = Block_Hook_Sources.hook_get_app_handler_subscriptions,
-            should_halt_on_exception = False,
-        ) or {}
+        raw_results = Wrapper_Hooks.run_hooked_funcs(Block_Hook_Sources.hook_get_app_handler_subscriptions) 
 
         # 2. Merge subscriptions per handler type
         #    Key: handler_type_name, Value: {"subscriber_count": int, "min_freq": float}

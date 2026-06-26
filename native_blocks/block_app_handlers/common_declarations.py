@@ -26,11 +26,15 @@ class Block_Hook_Sources(String_Comparable_Mixin):
         and frequency filter all pass.
 
     NOT available (owned by block_core structural handlers):
-        load_post, undo_post, redo_post, depsgraph_update_post
+        load_post, undo_post, redo_post
     """
 
     # --- Poll ---
     hook_get_app_handler_subscriptions   = Hook_Source_Declaration({})
+
+    # Depsgraph
+    hook_app_handler_depsgraph_update_pre            = Hook_Source_Declaration({"scene": object, "depsgraph": object})
+    hook_app_handler_depsgraph_update_post           = Hook_Source_Declaration({"scene": object, "depsgraph": object})
 
     # --- File I/O ---
     hook_app_handler_save_pre            = Hook_Source_Declaration({"scene": object})

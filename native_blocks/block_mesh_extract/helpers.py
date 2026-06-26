@@ -250,7 +250,12 @@ def _extract_single_object(
     instance.extract_metadata = {}
 
     # --- Get evaluated object ---
-    obj = depsgraph.scene.objects.get(object_name)
+    # obj = depsgraph.objects.get(object_name) # depsgraph.scene.objects.get(object_name)
+    obj = bpy.context.scene.objects.get(object_name)
+
+    # evaluated_obj = original_obj.evaluated_get(depsgraph)
+    # mesh = evaluated_obj.to_mesh()
+
     if obj is None:
         instance.error_str = f"Object '{object_name}' not found in depsgraph scene."
         logger.warning(instance.error_str)
@@ -377,7 +382,7 @@ def _write_total_meta(
 # FULL EXTRACTION CYCLE — called by Wrapper_Mesh_Extract and the scene property trigger
 # ==============================================================================================================================
 
-def run_mesh_extract() -> list[str]:
+def run_mesh_extract(depsgraph = None, target_mesh = None) -> list[str]:
     """
     Full extraction cycle:
         1. Fire hook_get_mesh_extract_targets — collect Mesh_Extract_Target lists from all blocks.
@@ -416,13 +421,6 @@ def run_mesh_extract() -> list[str]:
     merged_targets = merge_mesh_extract_targets(targets_by_block)
     logger.debug(f"run_mesh_extract: merged into {len(merged_targets)} object target(s)")
 
-    # Step 3: Get depsgraph
-    try:
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-    except Exception as e:
-        logger.error("run_mesh_extract: could not get depsgraph", exc_info=True)
-        raise
-
     # Step 4: Extract each object
     existing_instances: dict[str, RTC_Mesh_Extract_Instance] = {
         inst.object_name: inst
@@ -440,7 +438,6 @@ def run_mesh_extract() -> list[str]:
 
     # Step 5: Push to RTC
     Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, new_instances)
-
     # Step 6: Sync BL mirror
     cache_key = Block_RTC_Members.MESH_EXTRACT_INSTANCES
     try:

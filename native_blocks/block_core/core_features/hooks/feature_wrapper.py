@@ -47,7 +47,7 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         cls,
         hook_func_name: any,
         subscriber_block_id: Optional[str] = None,
-        should_halt_on_exception: bool = True,
+        should_halt_on_exception: bool = False,
         **kwargs,
     ) -> Any:
         """

@@ -21,12 +21,15 @@ class App_Handler_Type(String_Comparable_Mixin):
         App_Handler_Type.save_pre  →  hook_app_handler_save_pre
 
     NOT managed by this block (block_core structural handlers):
-        load_post, undo_post, redo_post, depsgraph_update_post
+        load_post, undo_post, redo_post
     """
     # File I/O
     save_pre              = auto()
     save_post             = auto()
     load_pre              = auto()
+    # Depsgraph
+    depsgraph_update_post = auto()
+    depsgraph_update_pre  = auto()
     # Render
     render_init           = auto()
     render_pre            = auto()
