@@ -382,7 +382,7 @@ def _write_total_meta(
 # FULL EXTRACTION CYCLE — called by Wrapper_Mesh_Extract and the scene property trigger
 # ==============================================================================================================================
 
-def run_mesh_extract(depsgraph = None, target_mesh = None) -> list[str]:
+def run_mesh_extract(depsgraph = None) -> list[str]:
     """
     Full extraction cycle:
         1. Fire hook_get_mesh_extract_targets — collect Mesh_Extract_Target lists from all blocks.
