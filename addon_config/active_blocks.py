@@ -6,7 +6,18 @@
 # --------------------------------------------------------------
 # Builtin blocks with actual usecases
 # --------------------------------------------------------------
-from ..native_blocks import block_core, block_debug_console_print, block_onscreen_drawing, block_app_handlers, block_timers, block_animations, block_mesh_extract #, block_pip_library_manager
+from ..native_blocks import (
+    block_core, 
+    block_debug_console_print, 
+    block_onscreen_drawing, 
+    block_app_handlers, 
+    block_timers, 
+    block_animations,
+    block_mesh_extract, 
+    block_modal_events,
+    #, block_pip_library_manager
+)
+
 
 # --------------------------------------------------------------
 # Builtin blocks for demos / learning
@@ -38,7 +49,9 @@ _BLOCK_PACKAGES = [
     # block_timers,
     # block_animations,
     block_mesh_extract,
+    block_modal_events,
     block_flatypus_modes_manager,
+
     # block_pip_library_manager,
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,
