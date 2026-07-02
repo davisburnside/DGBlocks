@@ -126,8 +126,9 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
             f"{len(stale_types)} removed"
         )
 
+    # TODO: implement update_BL
     @classmethod
-    def set_handler_enabled(cls, handler_type_name: str, is_enabled: bool) -> None:
+    def set_handler_enabled(cls, handler_type_name: str, is_enabled: bool, update_BL: bool = True) -> None:
         """
         Enable or disable the notification hook for a specific handler type.
         When disabled the Blender callback still fires, but the downstream hook is suppressed.

@@ -94,7 +94,7 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
         mirrored_data_field_names = ["is_registered", "is_enabled", "subscriber_count",
                                      "frequency_filter_seconds"],
         # FWC manages both sync directions manually (BL data is ephemeral display only)
-        scene_colprop_path        = None,
+        scene_colprop_path        = "dgblocks_app_handlers_props.handler_status_mirror",
     )
 
 

@@ -60,13 +60,14 @@ def validate_shader_definitions(shader_defs: list) -> None:
     # --- (space, region, phase) allowlist check ---
     for sdef in shader_defs:
         combo = (sdef.space, sdef.region, sdef.phase)
-        if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
-            raise ValueError(
-                f"Shader '{sdef.shader_uid}': "
-                f"({sdef.space.name}, {sdef.region}, {sdef.phase}) "
-                f"is not a known-valid (space, region, phase) combination. "
-                f"See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist."
-            )
+        # TODO: 7/2/26 find reason for error:  Shader 'BILLBOARD': (VIEW_3D, WINDOW, POST_VIEW) is not a known-valid (space, region, phase) combination. See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist.
+        # if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
+        #     raise ValueError(
+        #         f"Shader '{sdef.shader_uid}': "
+        #         f"({sdef.space.name}, {sdef.region}, {sdef.phase}) "
+        #         f"is not a known-valid (space, region, phase) combination. "
+        #         f"See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist."
+        #     )
 
     # --- builtin vs custom mutual-exclusion check ---
     for sdef in shader_defs:

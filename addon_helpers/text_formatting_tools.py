@@ -656,9 +656,12 @@ def make_pretty_json_string_from_data(
         if item.ndim > 1:
             lines.append(f"{next_spaces}rows: {item.shape[0]},")
             lines.append(f"{next_spaces}cols: {item.shape[1] if item.ndim > 1 else 'N/A'},")
-        lines.append(f"{next_spaces}min: {item.min()},")
-        lines.append(f"{next_spaces}max: {item.max()},")
-        lines.append(f"{next_spaces}mean: {item.mean():.4f},")
+        if item.size > 0:
+            lines.append(f"{next_spaces}min: {item.min()},")
+            lines.append(f"{next_spaces}max: {item.max()},")
+            lines.append(f"{next_spaces}mean: {item.mean():.4f},")
+        else:
+            lines.append(f"{next_spaces}(empty),")
         lines.append(f"{spaces}}}")
         return '\n'.join(lines)
 

@@ -34,7 +34,7 @@ cache_key_hook_subscribers = Core_Runtime_Cache_Members.REGISTRY_ALL_HOOK_SUBSCR
 # MAIN MODULE FEATURE WRAPPER CLASS
 # ==============================================================================================================================
 
-class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager, Abstract_BL_RTC_List_Syncronizer):
+class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager):
     # Manager — classmethods only, no instance state
     # Manages hook registrations and src->subscriber propagation between blocks
     # All data managed by this wrapper is stored in RTC

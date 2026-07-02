@@ -107,14 +107,14 @@ class Abstract_BL_RTC_List_Syncronizer(ABC):
 
     @classmethod
     @abstractmethod
-    def _update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events):
+    def _update_RTC_with_mirrored_BL_data(cls, event: Enum_Sync_Events, FWC_instance, data_mirror_instance):
         # Used by Wrapper_Control_Plane on undo/redo/load, and by certain property update callbacks
         # Rebuild an RTC list from a mirrored collectionproperty. Data should be moved/reused/modified instead of recreated, when possible
         raise NotImplementedError("Child class must implement this function")
 
     @classmethod
     @abstractmethod
-    def _update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events):
+    def _update_BL_with_mirrored_RTC_data(cls, event: Enum_Sync_Events, FWC_instance, data_mirror_instance):
         # Used when RTC data need to be persisted into Blender
         # RTC data overwrites a mirrored collectionproperty. Data should be moved/reused/modified instead of recreated, when possible
         raise NotImplementedError("Child class must implement this function")

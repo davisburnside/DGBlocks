@@ -10,7 +10,7 @@ from typing import Any, Optional
 # --------------------------------------------------------------
 # Addon-level imports
 from .....addon_helpers.data_tools import fast_deepcopy_with_fallback
-from .....addon_helpers.data_structures import Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_Feature_Wrapper
+from .....addon_helpers.data_structures import Abstract_BL_RTC_List_Syncronizer, Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Abstract_Feature_Wrapper
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -302,8 +302,14 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
         # cache_key = data_mirror_instance.RTC_key
         source_type = "Blender" if BL_is_truth_source else "RTC"
         target_type = "RTC" if BL_is_truth_source else "Blender"
-        use_default_sync_logic = data_mirror_instance.scene_colprop_path is not None
+        has_default_scene_data_path = data_mirror_instance.scene_colprop_path is not None
+
+        # Check child, not parent, for func impl
+        has_default_BL_update_logic = Abstract_BL_RTC_List_Syncronizer._update_BL_with_mirrored_RTC_data.__name__ not in vars(FWC_instance.actual_class)
+        has_default_RTC_update_logic = Abstract_BL_RTC_List_Syncronizer._update_RTC_with_mirrored_BL_data.__name__ not in vars(FWC_instance.actual_class)
         cached_RTC_list = cls.get_cache(cache_key)
+
+        use_default_sync_logic = (BL_is_truth_source and has_default_RTC_update_logic) or (not BL_is_truth_source and has_default_BL_update_logic)
 
         # Data-mirror has custom sync functions inside the FWC
         if use_default_sync_logic:

@@ -275,28 +275,31 @@ def apply_dataclasses_to_match_collectionprop(
     source_list = list(source)
     target_list = list(target)
     all_fields = key_fields + data_fields
-    for action in actions:
-        if isinstance(action, Remove):
-            src_item = target_list[action.from_idx]
-            kwargs = {n: getattr(src_item, n) for n in key_fields}
-            actual_FWC._remove_instance(
-                event, 
-                **kwargs)
-        elif isinstance(action, Noop):
-            pass
-        elif isinstance(action, Edit):
-            _copy_fields(source_list[action.source_idx],
-                         target[action.idx],
-                         data_fields)
-        elif isinstance(action, Move):
-            item = target.pop(action.from_idx)
-            target.insert(action.to_idx, item)
-        elif isinstance(action, Create):
-            src_item = source_list[action.source_idx]
-            kwargs = {n: getattr(src_item, n) for n in all_fields}
-            actual_FWC._create_instance(
-                event, 
-                **kwargs)
+    try:# TODO: temp update 7/2/26
+        for action in actions:
+            if isinstance(action, Remove):
+                src_item = target_list[action.from_idx]
+                kwargs = {n: getattr(src_item, n) for n in key_fields}
+                actual_FWC._remove_instance(
+                    event, 
+                    **kwargs)
+            elif isinstance(action, Noop):
+                pass
+            elif isinstance(action, Edit):
+                _copy_fields(source_list[action.source_idx],
+                            target[action.idx],
+                            data_fields)
+            elif isinstance(action, Move):
+                item = target.pop(action.from_idx)
+                target.insert(action.to_idx, item)
+            elif isinstance(action, Create):
+                src_item = source_list[action.source_idx]
+                kwargs = {n: getattr(src_item, n) for n in all_fields}
+                actual_FWC._create_instance(
+                    event, 
+                    **kwargs)
+    except Exception as e:
+        raise e
 
 # --------------------------------------------------------------
 # Convenience funcs, secondary layer
@@ -320,7 +323,7 @@ def default_data_mirror_RTC_list_update_logic(
 
     # Validate inputs and get source & target data
     if BL_data_path is None:
-        raise Exception("Data path for mirror is missing '{RTC_key}' is missing")
+        raise Exception(f"Data path for mirror is missing '{RTC_key}' is missing")
     BL_colprop = bpy.context.scene.path_resolve(BL_data_path)
     if BL_colprop is None:
         raise Exception("CollectionProperty does not exist in Blender: 'scene.{BL_data_path}'")
@@ -361,7 +364,7 @@ def default_data_mirror_BL_colprop_update_logic(
 
     # Validate inputs and get source & target data
     if BL_data_path is None:
-        raise Exception("Data path for mirror is missing '{RTC_key}' is missing")
+        raise Exception(f"Data path for mirror is missing '{RTC_key}' is missing")
     BL_colprop = bpy.context.scene.path_resolve(BL_data_path)
     if BL_colprop is None:
         raise Exception("CollectionProperty does not exist in Blender: 'scene.{BL_data_path}'")
