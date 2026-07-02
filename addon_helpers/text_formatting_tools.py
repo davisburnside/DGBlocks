@@ -291,6 +291,15 @@ def make_table_string_from_data(
 #                 filters, depth truncation, max-row limits). All "how many were filtered"
 #                 counting lives here.
 # Pass 2 (render): walk the `_Node` tree into a string. Pure formatting, no filter logic.
+#
+# NOTE — interaction between the include key filter and `max_depth_of_container_search`:
+#   * When NO include key filter is active, `max_depth_of_container_search` behaves
+#     as a plain absolute depth cap measured from the root (depth 0).
+#   * When an include key filter IS active, the search for matching keys is NOT
+#     depth-limited (matches are found at ANY depth, with the full ancestor path
+#     retained). Instead, `max_depth_of_container_search` limits how deep records
+#     are retained *below* each matching key. The depth counter resets to 0 at every
+#     new matching key, so a deeper match re-opens a fresh retention window.
 # ==============================================================================================================================
 
 class _Node:
@@ -503,7 +512,7 @@ def make_pretty_json_string_from_data(
             base = any(STRING_OPS[op](low, str(t).lower()) for op, t in applicable)  # OR-combined
         return (not base) if string_filter_mode == "EXCLUDE" else base
 
-    def leaf_passes_data_filter(value: Any) -> bool:
+    def leaf_passes_data_filter(value: Any, under_match: bool = False) -> bool:
         """Leaf-only number/string data filter with the agreed join semantics.
 
         - No active data filter => everything passes.
@@ -512,10 +521,22 @@ def make_pretty_json_string_from_data(
         - A leaf whose type has no active filter is dropped (e.g. strings when only
           the numeric filter is on); 'other' leaves (objects that can't be printed)
           are always dropped while any data filter is active.
+
+        under_match: True when this leaf lives underneath a matched include key
+          (see the include-filter retention rules in `prune`). In that mode we
+          "retain ALL records", so only EXCLUDE-mode data filters can still drop a
+          leaf; INCLUDE-mode filters do not count, and leaves whose type has no
+          active filter (or 'other' leaves) are always kept.
         """
         if not data_filter_active:
             return True
         kind, val = classify_leaf(value)
+        if under_match:
+            if kind == "numeric" and numeric_on and numeric_filter_mode == "EXCLUDE":
+                return numeric_set_pass(val)
+            if kind == "string" and string_on and string_filter_mode == "EXCLUDE":
+                return string_set_pass(val)
+            return True
         if kind == "numeric" and numeric_on:
             return numeric_set_pass(val)
         if kind == "string" and string_on:
@@ -772,9 +793,13 @@ def make_pretty_json_string_from_data(
     # ------------------------------------------------------------------
     prune_seen = set()
 
-    def shallow_filtered_count(item, kind) -> int:
+    def shallow_filtered_count(item, kind, under_match: bool = False) -> int:
         """Count direct members a one-level filter pass would drop. Used to annotate
-        depth-truncated containers; never recurses below the truncation point."""
+        depth-truncated containers; never recurses below the truncation point.
+
+        When `under_match` is True the container sits beneath a matched include key,
+        so the include whitelist no longer drops non-matching keys and only
+        EXCLUDE-mode data filters count (mirrors `leaf_passes_data_filter`)."""
         cnt = 0
         keyed = is_keyed_kind(kind)
         for k, v in iter_items(item, kind):
@@ -782,26 +807,46 @@ def make_pretty_json_string_from_data(
                 cnt += 1
                 continue
             if node_kind(v) is None:  # leaf-like only — no recursion
-                if data_filter_active and not leaf_passes_data_filter(v):
+                if data_filter_active and not leaf_passes_data_filter(v, under_match):
                     cnt += 1
                     continue
-                if key_include_active and keyed and not key_matches_include(k):
+                if (not under_match) and key_include_active and keyed and not key_matches_include(k):
                     cnt += 1
                     continue
         return cnt
 
-    def prune(item, depth, key):
+    def prune(item, depth, key, match_depth=None):
+        """Prune `item` into a filtered _Node.
+
+        match_depth:
+            None -> we are still SEARCHING for include-matching keys (or the include
+                    filter is inactive). Depth truncation uses the absolute `depth`.
+            int  -> number of levels BELOW the nearest matched include key
+                    (the matched node itself is 0, its children 1, ...). While under
+                    a match we retain ALL records down to `max_depth_of_container_search`
+                    levels; the counter resets to 0 whenever a new key matches.
+        """
         # Key-level blacklist drops the whole entry (and its subtree).
         if key_excluded(key):
             return None
 
         self_inc = key_matches_include(key)
+
+        # Relative match depth for THIS node. A fresh match resets the window to 0.
+        if self_inc:
+            cur_match_depth = 0
+        elif match_depth is not None:
+            cur_match_depth = match_depth
+        else:
+            cur_match_depth = None
+        under_match = cur_match_depth is not None
+
         track_address(item)
         kind = node_kind(item)
 
         # --- leaf-like value / unprintable object ---
         if kind is None:
-            if data_filter_active and not leaf_passes_data_filter(item):
+            if data_filter_active and not leaf_passes_data_filter(item, under_match):
                 return None
             if is_native_type(item) or is_mathutils_vector(item) or is_numpy_array(item):
                 node = _Node("leaf", item)
@@ -818,12 +863,24 @@ def make_pretty_json_string_from_data(
             node.subtree_has_include = self_inc
             return node
 
-        # Depth truncation: summarise, count one shallow level, do not recurse.
-        if max_depth_of_container_search > 0 and depth >= max_depth_of_container_search:
+        # Depth truncation.
+        #   * Under a match: cap retention `max_depth` levels below the match.
+        #   * No include filter active: plain absolute cap from the root.
+        #   * Include filter active but still searching: DO NOT truncate — matches
+        #     may live at any depth, so we must keep recursing to find them.
+        depth_cap = max_depth_of_container_search
+        if under_match:
+            truncate_here = depth_cap > 0 and cur_match_depth >= depth_cap
+        elif not key_include_active:
+            truncate_here = depth_cap > 0 and depth >= depth_cap
+        else:
+            truncate_here = False
+
+        if truncate_here:
             node = _Node("summary", item)
             node.is_truncated = True
             node.total_count = container_len(item, kind)
-            node.filtered_count = shallow_filtered_count(item, kind)
+            node.filtered_count = shallow_filtered_count(item, kind, under_match)
             node.subtree_has_include = self_inc
             return node
 
@@ -831,11 +888,19 @@ def make_pretty_json_string_from_data(
         node = _Node(kind, item)
         keyed = is_keyed_kind(kind)
         total = container_len(item, kind)
+
+        # Depth passed to children: increment while under a match, else stay searching.
+        child_match_depth = (cur_match_depth + 1) if under_match else None
+
+        # Are we in "retain everything" mode (at/under a match, inside the window)?
+        # Otherwise we are in "path" mode: keep only branches leading to a match.
+        retain_all = under_match
+
         kept = []
         filtered = 0
         any_child_inc = False
         for orig_index, (k, v) in enumerate(iter_items(item, kind)):
-            child = prune(v, depth + 1, k if keyed else None)
+            child = prune(v, depth + 1, k if keyed else None, child_match_depth)
             if child is None:
                 filtered += 1
                 continue
@@ -845,9 +910,10 @@ def make_pretty_json_string_from_data(
 
         node_inc = self_inc or any_child_inc
 
-        # Include whitelist drops keyed children that have no match anywhere in their
-        # subtree (ancestor retention: a branch survives if any descendant key matched).
-        if key_include_active and keyed:
+        # Include whitelist. In "path" mode (still searching, above every match) we
+        # drop keyed children that have no match anywhere in their subtree
+        # (ancestor retention). Under a match we keep ALL children.
+        if key_include_active and keyed and not retain_all:
             retained = []
             for entry in kept:
                 if entry[2].subtree_has_include:
@@ -1026,5 +1092,3 @@ def make_pretty_json_string_from_data(
                 string_lines += f"\n@{hex(addr)}  {type_name}  x{count}"
 
     return string_lines
-
-
