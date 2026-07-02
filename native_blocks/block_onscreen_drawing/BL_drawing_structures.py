@@ -105,7 +105,7 @@ class Shader_Types(StrEnum):
 # draw_handler_add will silently fail or crash for invalid combinations, so we validate upfront.
 _VALID_SPACE_REGION_PHASE_COMBOS: frozenset = frozenset({
     # VIEW_3D
-    (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.WINDOW,        Draw_Phase_type.PRE_VIEW),
+    (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_VIEW),
     (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_VIEW),
     (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_PIXEL),
     (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.HEADER,        Draw_Phase_type.POST_PIXEL),
@@ -114,12 +114,12 @@ _VALID_SPACE_REGION_PHASE_COMBOS: frozenset = frozenset({
     (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.HUD,           Draw_Phase_type.POST_PIXEL),
     (Draw_Space_Types.VIEW_3D,          Draw_Region_Type.XR,            Draw_Phase_type.POST_VIEW),
     # IMAGE_EDITOR
-    (Draw_Space_Types.IMAGE_EDITOR,     Draw_Region_Type.WINDOW,        Draw_Phase_type.PRE_VIEW),
+    (Draw_Space_Types.IMAGE_EDITOR,     Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_VIEW),
     (Draw_Space_Types.IMAGE_EDITOR,     Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_VIEW),
     (Draw_Space_Types.IMAGE_EDITOR,     Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_PIXEL),
     (Draw_Space_Types.IMAGE_EDITOR,     Draw_Region_Type.HEADER,        Draw_Phase_type.POST_PIXEL),
     # NODE_EDITOR
-    (Draw_Space_Types.NODE_EDITOR,      Draw_Region_Type.WINDOW,        Draw_Phase_type.PRE_VIEW),
+    (Draw_Space_Types.NODE_EDITOR,      Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_VIEW),
     (Draw_Space_Types.NODE_EDITOR,      Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_VIEW),
     (Draw_Space_Types.NODE_EDITOR,      Draw_Region_Type.WINDOW,        Draw_Phase_type.POST_PIXEL),
     (Draw_Space_Types.NODE_EDITOR,      Draw_Region_Type.WINDOW,        Draw_Phase_type.BACKDROP),

@@ -32,7 +32,7 @@ from ..native_blocks import (
 # --------------------------------------------------------------
 # Your blocks, used in your addon
 # --------------------------------------------------------------
-from ..external_blocks import block_flatypus_modes_manager
+from ..external_blocks.block_flatypus_modes_manager import block_flatypus_modes_manager
 
 # ==============================================================================================================================
 # Blocks registered at startup

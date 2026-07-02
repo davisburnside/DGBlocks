@@ -19,7 +19,7 @@ from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Me
 from .data_structures import (
     MET,
     MET_Attr_Declaration,
-    Mesh_Extract_Target,
+    Numpy_Mesh_Extract_Declaration,
     RTC_Mesh_Extract_Instance,
     met_attr_label,
 )
@@ -43,10 +43,10 @@ def _object_has_mesh(obj: bpy.types.Object) -> bool:
 # ==============================================================================================================================
 
 def merge_mesh_extract_targets(
-    targets_by_block: dict[str, list[Mesh_Extract_Target]]
-) -> dict[str, Mesh_Extract_Target]:
+    targets_by_block: dict[str, list[Numpy_Mesh_Extract_Declaration]]
+) -> dict[str, Numpy_Mesh_Extract_Declaration]:
     """
-    Merge all Mesh_Extract_Target submissions from all blocks into one target per object.
+    Merge all Numpy_Mesh_Extract_Declaration submissions from all blocks into one mesh_extract_dec per object.
 
     - read_attributes: union (order preserved, duplicates removed)
     - custom_attributes: union by (domain, name) key
@@ -54,13 +54,13 @@ def merge_mesh_extract_targets(
 
     Conflicts are resolved silently — no exceptions for duplicates.
     """
-    merged: dict[str, Mesh_Extract_Target] = {}
+    merged: dict[str, Numpy_Mesh_Extract_Declaration] = {}
 
     for block_id, target_list in targets_by_block.items():
-        for target in target_list:
-            name = target.object_name
+        for mesh_extract_dec in target_list:
+            name = mesh_extract_dec.object_name
             if name not in merged:
-                merged[name] = Mesh_Extract_Target(
+                merged[name] = Numpy_Mesh_Extract_Declaration(
                     object_name       = name,
                     read_attributes   = [],
                     custom_attributes = [],
@@ -71,21 +71,21 @@ def merge_mesh_extract_targets(
 
             # Union read_attributes (preserve insertion order)
             existing_attr_set = set(existing.read_attributes)
-            for attr in target.read_attributes:
+            for attr in mesh_extract_dec.read_attributes:
                 if attr not in existing_attr_set:
                     existing.read_attributes.append(attr)
                     existing_attr_set.add(attr)
 
             # Union custom_attributes by (domain_class, name) key
             existing_custom_keys = {(d, n) for d, n in existing.custom_attributes}
-            for domain_cls, attr_name in target.custom_attributes:
+            for domain_cls, attr_name in mesh_extract_dec.custom_attributes:
                 key = (domain_cls, attr_name)
                 if key not in existing_custom_keys:
                     existing.custom_attributes.append((domain_cls, attr_name))
                     existing_custom_keys.add(key)
 
             # Merge callbacks dict (last submission wins on collision)
-            existing.callbacks.update(target.callbacks)
+            existing.callbacks.update(mesh_extract_dec.callbacks)
 
     return merged
 
@@ -223,11 +223,11 @@ _FIRST_LEVEL_FIELD_MAP: dict[MET_Attr_Declaration, str] = {
 # PER-OBJECT EXTRACTION
 # ==============================================================================================================================
 
-def _extract_single_object(
+def _new_mesh_extract_instance_from_mesh(
     object_name: str,
-    target: Mesh_Extract_Target,
+    mesh_extract_dec: Numpy_Mesh_Extract_Declaration,
     depsgraph: bpy.types.Depsgraph,
-    existing_instance: Optional[RTC_Mesh_Extract_Instance],
+    existing_instance: Optional[RTC_Mesh_Extract_Instance] = None,
 ) -> RTC_Mesh_Extract_Instance:
     """
     Extract all requested mesh data from a single evaluated object.
@@ -277,7 +277,7 @@ def _extract_single_object(
         mesh = evaluated_obj.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     except Exception as e:
         instance.error_str = f"to_mesh() failed: {get_exception_last_n_lines(2, e)}"
-        logger.error(f"_extract_single_object: to_mesh() failed for '{object_name}'", exc_info=True)
+        logger.error(f"_new_mesh_extract_instance_from_mesh: to_mesh() failed for '{object_name}'", exc_info=True)
         _write_total_meta(instance, total_start, previous_read_count + 1)
         return instance
 
@@ -289,7 +289,7 @@ def _extract_single_object(
 
     try:
         # ---- First-level reads ----
-        for attr in target.read_attributes:
+        for attr in mesh_extract_dec.read_attributes:
             t0 = time.perf_counter()
             try:
                 arr = _foreach_get_attr(mesh, attr)
@@ -305,7 +305,7 @@ def _extract_single_object(
                               instance.extract_metadata.get(met_attr_label(attr), {}).get("read_count", 0) + 1)
 
         # ---- Custom attribute reads ----
-        for domain_cls, attr_name in target.custom_attributes:
+        for domain_cls, attr_name in mesh_extract_dec.custom_attributes:
             t0 = time.perf_counter()
             arr = _read_custom_attribute(mesh, domain_cls, attr_name)
             if arr is not None:
@@ -319,7 +319,7 @@ def _extract_single_object(
         # Each entry is a dict item: (attr_name: str, func: Callable)
         # func signature: func(instance) -> any
         # Exceptions propagate — any failure marks the instance invalid.
-        for attr_name, callback_func in target.callbacks.items():
+        for attr_name, callback_func in mesh_extract_dec.callbacks.items():
             t0 = time.perf_counter()
             result_data = callback_func(instance)
             instance.custom_attribute_arrays[attr_name] = result_data
@@ -339,7 +339,7 @@ def _extract_single_object(
 
     _write_total_meta(instance, total_start, previous_read_count + 1)
     logger.debug(
-        f"_extract_single_object: '{object_name}' valid={instance.is_valid} "
+        f"_new_mesh_extract_instance_from_mesh: '{object_name}' valid={instance.is_valid} "
         f"total={instance.extract_metadata.get('_total', {}).get('duration_ms', 0.0):.2f}ms"
     )
     return instance
@@ -385,10 +385,10 @@ def _write_total_meta(
 def run_mesh_extract(depsgraph = None) -> list[str]:
     """
     Full extraction cycle:
-        1. Fire hook_get_mesh_extract_targets — collect Mesh_Extract_Target lists from all blocks.
+        1. Fire hook_get_mesh_extract_targets — collect Numpy_Mesh_Extract_Declaration lists from all blocks.
         2. Merge targets by object_name (silent union for attrs; last-writer-wins for callbacks).
         3. Get the current depsgraph.
-        4. For each object: call _extract_single_object, reusing or creating an RTC instance.
+        4. For each object: call _new_mesh_extract_instance_from_mesh, reusing or creating an RTC instance.
         5. Push updated list to RTC.
         6. Sync BL data mirror.
         7. Fire hook_mesh_extract_ready with the list of processed object names.
@@ -400,17 +400,17 @@ def run_mesh_extract(depsgraph = None) -> list[str]:
 
     # Step 1: Collect
     raw_results = Wrapper_Hooks.run_hooked_funcs(
-        hook_func_name         = Block_Hook_Sources.hook_get_mesh_extract_targets,
+        hook_func_name = Block_Hook_Sources.hook_get_mesh_extract_targets,
         should_halt_on_exception = False,
     )
-    targets_by_block: dict[str, list[Mesh_Extract_Target]] = {}
+    targets_by_block: dict[str, list[Numpy_Mesh_Extract_Declaration]] = {}
     for block_id, result in raw_results.items():
         if isinstance(result, list):
             targets_by_block[block_id] = result
         else:
             logger.warning(
                 f"run_mesh_extract: block '{block_id}' returned {type(result)!r} "
-                f"from hook_get_mesh_extract_targets — expected list[Mesh_Extract_Target], skipping."
+                f"from hook_get_mesh_extract_targets — expected list[Numpy_Mesh_Extract_Declaration], skipping."
             )
 
     if not targets_by_block:
@@ -419,47 +419,55 @@ def run_mesh_extract(depsgraph = None) -> list[str]:
 
     # Step 2: Merge
     merged_targets = merge_mesh_extract_targets(targets_by_block)
-    logger.debug(f"run_mesh_extract: merged into {len(merged_targets)} object target(s)")
+    logger.debug(f"run_mesh_extract: merged into {len(merged_targets)} object mesh_extract_dec(s)")
 
     # Step 4: Extract each object
     existing_instances: dict[str, RTC_Mesh_Extract_Instance] = {
         inst.object_name: inst
         for inst in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
     }
-
     new_instances: list[RTC_Mesh_Extract_Instance] = []
     processed_names: list[str] = []
-
-    for object_name, target in merged_targets.items():
+    for object_name, mesh_extract_dec in merged_targets.items():
         existing = existing_instances.get(object_name)
-        instance = _extract_single_object(object_name, target, depsgraph, existing)
+        instance = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_dec, depsgraph, existing)
         new_instances.append(instance)
         processed_names.append(object_name)
 
     # Step 5: Push to RTC
     Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, new_instances)
+
     # Step 6: Sync BL mirror
     cache_key = Block_RTC_Members.MESH_EXTRACT_INSTANCES
-    try:
-        FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key)
-        Wrapper_Runtime_Cache.resync_single_data_mirror(
-            event                = Enum_Sync_Events.PROPERTY_UPDATE,
-            BL_is_truth_source   = False,
-            cache_key            = cache_key,
-            FWC_instance         = FWC_instance,
-            data_mirror_instance = data_mirror_instance,
-            actions_denied       = set(),
-            logger               = logger,
-        )
-    except Exception as e:
-        logger.error("run_mesh_extract: BL mirror sync failed", exc_info=True)
+    # try:
+    #     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key)
+    #     Wrapper_Runtime_Cache.resync_single_data_mirror(
+    #         event                = Enum_Sync_Events.PROPERTY_UPDATE,
+    #         BL_is_truth_source   = False,
+    #         cache_key            = cache_key,
+    #         FWC_instance         = FWC_instance,
+    #         data_mirror_instance = data_mirror_instance,
+    #         actions_denied       = set(),
+    #         logger               = logger,
+    #     )
+    # except Exception as e:
+    #     logger.error("run_mesh_extract: BL mirror sync failed", exc_info=True)
 
     # Step 7: Fire ready hook
     Wrapper_Hooks.run_hooked_funcs(
-        hook_func_name           = Block_Hook_Sources.hook_mesh_extract_ready,
+        hook_func_name = Block_Hook_Sources.hook_mesh_extract_ready,
         should_halt_on_exception = False,
-        object_names             = processed_names,
+        object_names = processed_names,
     )
 
     logger.info(f"run_mesh_extract: complete — {len(processed_names)} object(s) processed.")
-    return processed_names
+    return new_instances
+
+
+
+def run_mesh_extract_alt(mesh_extract_dec, object_name, depsgraph = None, prev_mesh_extract = None) -> list[str]:
+
+    # mesh_extract_dec = 
+    new_mesh_extract = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_dec, depsgraph, prev_mesh_extract)
+    return new_mesh_extract
+

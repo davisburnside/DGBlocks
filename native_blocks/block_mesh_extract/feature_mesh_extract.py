@@ -20,7 +20,7 @@ from ..block_core.core_features.runtime_cache.data_sync_tools import plan_datacl
 # Intra-block imports
 from .common_declarations import Block_Loggers, Block_RTC_Members
 from .data_structures import RTC_Mesh_Extract_Instance
-from .helpers import run_mesh_extract
+from .helpers import run_mesh_extract, run_mesh_extract_alt
 
 
 class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
@@ -41,19 +41,16 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
     # Public API
 
     @classmethod
-    def run_extract(cls, depsgraph = None) -> list[str]:
+    def run_extract(cls, mesh_extract_declaration, object_name, depsgraph, prev_mesh_extract = None) -> list[str]:
         """
         Trigger a full mesh extraction cycle from any downstream block.
         Returns the list of object names that were processed.
         Raises ValueError if MET validation fails.
         """
 
-        if True:
-            depsgraph = bpy.context.evaluated_depsgraph_get()
-
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
         logger.debug("Wrapper_Mesh_Extract.run_extract: triggered via public API")
-        return run_mesh_extract(depsgraph)
+        return run_mesh_extract_alt(mesh_extract_declaration, object_name, depsgraph, prev_mesh_extract)
 
     @classmethod
     def get_instance(cls, object_name: str) -> Optional[RTC_Mesh_Extract_Instance]:
@@ -114,6 +111,7 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         RTC list. The user must re-trigger extraction if they want fresh data.
         On edit-only changes (is_valid toggled — unusual but possible), no action needed.
         """
+        return
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
 
         try:
@@ -146,6 +144,7 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         Push current RTC instance list to the BL extract_mirror CollectionProperty.
         Called after run_mesh_extract() and on undo/redo.
         """
+        return
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
 
         try:

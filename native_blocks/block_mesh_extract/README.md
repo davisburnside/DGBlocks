@@ -9,7 +9,7 @@ depsgraph mesh. Works on any object that can produce a mesh (`MESH`, `CURVE`, `S
 `META`, `FONT`, `CURVES`, `POINTCLOUD`) in both Object mode and Edit mode without
 switching modes. Lights, Empties, and other non-mesh types are rejected gracefully.
 
-Downstream blocks declare what they need via `Mesh_Extract_Target` (MET) objects submitted
+Downstream blocks declare what they need via `Numpy_Mesh_Extract_Declaration` (MET) objects submitted
 through `hook_get_mesh_extract_targets`. This block merges, validates, extracts, caches,
 and then fires `hook_mesh_extract_ready` to notify downstream blocks that data is available.
 
@@ -29,7 +29,7 @@ and then fires `hook_mesh_extract_ready` to notify downstream blocks that data i
 
 1. `run_mesh_extract()` is called (via operator, scene property, or public API).
 2. `hook_get_mesh_extract_targets` is broadcast — each subscribed block returns a
-   `list[Mesh_Extract_Target]`.
+   `list[Numpy_Mesh_Extract_Declaration]`.
 3. All METs are merged by `object_name` (silent union for attrs; last-writer-wins for callbacks).
 4. Each object is extracted via `evaluated_get(depsgraph)` → `to_mesh()` — no mode switching.
 5. First-level reads run, then custom attribute reads, then callbacks in insertion order.
@@ -60,7 +60,7 @@ in `block_mesh_extract.callbacks` — see the **Pre-built Callbacks** section be
 
 ### Pre-built Callbacks (`callbacks.py`)
 
-Import and use in `Mesh_Extract_Target.callbacks` dict:
+Import and use in `Numpy_Mesh_Extract_Declaration.callbacks` dict:
 
 ```python
 from native_blocks.block_mesh_extract.callbacks import (
@@ -94,7 +94,7 @@ Named mesh attributes (e.g. Geometry Nodes outputs, vertex color layers) are rea
 `instance.custom_attribute_arrays[attr_name]`.
 
 ```python
-Mesh_Extract_Target(
+Numpy_Mesh_Extract_Declaration(
     object_name       = "Cube",
     read_attributes   = [MET.VERTEX.CO],
     custom_attributes = [(MET.VERTEX, "my_custom_float")],
@@ -130,7 +130,7 @@ def _my_planarity(instance):
         tolerance_deg=1.0,
     )
 
-Mesh_Extract_Target(
+Numpy_Mesh_Extract_Declaration(
     object_name     = "Cube",
     read_attributes = [MET.FACE.NORMAL, MET.EDGE.VERTICES,
                        MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
@@ -196,7 +196,7 @@ All derived data (edge length, face centers, neighbor CSR arrays, etc.) lives in
 
 | Member | Direction | Kwargs | Purpose |
 |---|---|---|---|
-| `hook_get_mesh_extract_targets` | block_mesh_extract → subscribers | `{}` | Collect `Mesh_Extract_Target` objects |
+| `hook_get_mesh_extract_targets` | block_mesh_extract → subscribers | `{}` | Collect `Numpy_Mesh_Extract_Declaration` objects |
 | `hook_mesh_extract_ready` | block_mesh_extract → subscribers | `object_names: list[str]` | Signal that extraction is complete |
 
 ---
@@ -233,7 +233,7 @@ processed_names = Wrapper_Mesh_Extract.run_extract()
 ```python
 # my_block/__init__.py
 
-from ...native_blocks.block_mesh_extract.data_structures import MET, Mesh_Extract_Target
+from ...native_blocks.block_mesh_extract.data_structures import MET, Numpy_Mesh_Extract_Declaration
 from ...native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
 from ...native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
 from ...native_blocks.block_mesh_extract.helpers_computed import compute_coplanar_groups
@@ -251,7 +251,7 @@ def _compute_planarity(instance):
 
 def hook_get_mesh_extract_targets():
     return [
-        Mesh_Extract_Target(
+        Numpy_Mesh_Extract_Declaration(
             object_name     = "Cube",
             read_attributes = [
                 MET.VERTEX.CO,
@@ -369,14 +369,14 @@ block_mesh_extract/
 ├── README.md                # This file
 ├── common_declarations.py   # Block_Hook_Sources, Block_Loggers, Block_RTC_Members,
 │                            # Block_Data_Mirrors, Block_UIList_Configs
-├── data_structures.py       # MET, MET_Attr_Declaration, Mesh_Extract_Target,
+├── data_structures.py       # MET, MET_Attr_Declaration, Numpy_Mesh_Extract_Declaration,
 │                            # RTC_Mesh_Extract_Instance, ALL_MET_ATTRS
 ├── callbacks.py             # Pre-built callback functions:
 │                            # cb_edge_length, cb_face_center,
 │                            # cb_vert_vert_neighbors, cb_vert_face_neighbors,
 │                            # cb_face_face_neighbors
 ├── feature_mesh_extract.py  # Wrapper_Mesh_Extract (FWC)
-├── helpers.py               # run_mesh_extract, merge, _extract_single_object,
+├── helpers.py               # run_mesh_extract, merge, _new_mesh_extract_instance_from_mesh,
 │                            # _foreach_get_attr, _read_custom_attribute
 ├── helpers_computed.py      # Pure numpy computed functions (NJIT-ready):
 │                            # compute_edge_length, compute_face_center,

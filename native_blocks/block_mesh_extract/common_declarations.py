@@ -7,7 +7,10 @@ from ...addon_helpers.data_structures import (
     Shared_UIList_Declaration,
     String_Comparable_Mixin,
 )
+
 from .ui import _uilist_draw_row, _uilist_draw_selection_details
+from .callbacks import cb_face_face_neighbors
+from .data_structures import ALL_MET_ATTRS, Numpy_Mesh_Extract_Declaration
 
 # ==============================================================================================================================
 # MAIN BLOCK COMPONENTS
@@ -15,7 +18,7 @@ from .ui import _uilist_draw_row, _uilist_draw_selection_details
 
 class Block_Hook_Sources(String_Comparable_Mixin):
     """
-    hook_get_mesh_extract_targets : Downstream blocks return list[Mesh_Extract_Target].
+    hook_get_mesh_extract_targets : Downstream blocks return list[Numpy_Mesh_Extract_Declaration].
                                     Called at the start of every extraction cycle.
     hook_mesh_extract_ready       : Fired after all objects have been extracted and cached.
                                     Kwargs: object_names (list[str]) — names that were processed.

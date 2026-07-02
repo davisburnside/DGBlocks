@@ -125,7 +125,7 @@ class MET:
 
     Derived data (edge length, face center, CSR neighbor arrays, etc.) is not part of MET.
     Use the pre-built callbacks in block_mesh_extract.callbacks, or write your own,
-    and add them to Mesh_Extract_Target.callbacks.
+    and add them to Numpy_Mesh_Extract_Declaration.callbacks.
 
     Usage:
         MET.VERTEX.CO
@@ -164,7 +164,7 @@ def met_attr_label(attr: MET_Attr_Declaration) -> str:
 # ==============================================================================================================================
 
 @dataclass
-class Mesh_Extract_Target:
+class Numpy_Mesh_Extract_Declaration:
     """
     Declaration submitted by downstream blocks inside hook_get_mesh_extract_targets.
 
@@ -184,7 +184,7 @@ class Mesh_Extract_Target:
     Example:
         from native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
 
-        Mesh_Extract_Target(
+        Numpy_Mesh_Extract_Declaration(
             object_name       = "Cube",
             read_attributes   = [MET.VERTEX.CO, MET.FACE.NORMAL, MET.EDGE.VERTICES,
                                   MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX],
@@ -214,7 +214,7 @@ class RTC_Mesh_Extract_Instance:
     Fully managed by Wrapper_Mesh_Extract — do not construct directly.
 
     Standard attribute arrays are None until their corresponding MET_Attr_Declaration
-    was included in the merged Mesh_Extract_Target for this object.
+    was included in the merged Numpy_Mesh_Extract_Declaration for this object.
 
     All derived/computed data (edge length, face center, CSR neighbor arrays, etc.)
     is stored in custom_attribute_arrays by the callback that produced it.
