@@ -52,11 +52,7 @@ class Wrapper_Timer_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         If already enabled, calls _rebuild_all_timers() directly.
         """
         logger = get_logger(Block_Loggers.TIMER_LIFECYCLE)
-        try:
-            timers_props = bpy.context.scene.dgblocks_timers_props
-        except AttributeError:
-            logger.warning("request_timer_rebuild: bpy.context.scene not available, skipping")
-            return
+        timers_props = bpy.context.scene.dgblocks_timers_props
         if not timers_props.enable_timers:
             logger.debug("request_timer_rebuild: timers not enabled — enabling now (triggers rebuild)")
             timers_props.enable_timers = True
