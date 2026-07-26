@@ -462,12 +462,3 @@ def run_mesh_extract(depsgraph = None) -> list[str]:
 
     logger.info(f"run_mesh_extract: complete — {len(processed_names)} object(s) processed.")
     return new_instances
-
-
-
-def run_mesh_extract_alt(mesh_extract_dec, object_name, depsgraph = None, prev_mesh_extract = None) -> list[str]:
-
-    # mesh_extract_dec = 
-    new_mesh_extract = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_dec, depsgraph, prev_mesh_extract)
-    return new_mesh_extract
-

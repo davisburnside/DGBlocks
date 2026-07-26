@@ -86,7 +86,7 @@ fast path and never touches GPU objects.
 
 ## Public API — `Wrapper_Shader_Manager`
 
-### `enable_and_poll_for_shaders()`
+### `repoll()`
 
 Sets `enable_drawing` to `True`, which triggers a full rebuild cycle.
 

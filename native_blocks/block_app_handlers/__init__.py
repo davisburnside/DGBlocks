@@ -30,7 +30,7 @@ def hook_post_startup():
     Called once after full addon init. Triggers the first subscription poll so that
     downstream blocks' subscriptions are active before any Blender events fire.
     """
-    Wrapper_App_Handlers.refresh_subscriptions()
+    Wrapper_App_Handlers.repoll()
 
 
 # ==============================================================================================================================
@@ -54,7 +54,7 @@ def _cb_is_enabled_changed(self, context):
 class DGBLOCKS_PG_App_Handler_Status_Row(bpy.types.PropertyGroup):
     """
     One persistent display row per active bpy.app.handler type.
-    Rebuilt from RTC on every refresh_subscriptions() call.
+    Rebuilt from RTC on every repoll() call.
     is_enabled is the only user-editable field; all others are read-only display.
     """
     handler_type_name: bpy.props.StringProperty(name="Handler Type") # type: ignore
@@ -83,7 +83,7 @@ class DGBLOCKS_OT_Refresh_App_Handler_Subscriptions(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            Wrapper_App_Handlers.refresh_subscriptions()
+            Wrapper_App_Handlers.repoll()
             status_list = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.APP_HANDLER_STATUS_LIST)
             self.report({"INFO"}, f"App Handlers refreshed — {len(status_list)} type(s) active.")
         except Exception as e:

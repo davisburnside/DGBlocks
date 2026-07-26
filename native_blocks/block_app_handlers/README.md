@@ -26,8 +26,8 @@ filtering, then fires per-type notification hooks when Blender triggers the even
 
 ### Lifecycle
 
-1. `hook_post_startup` subscriber fires `Wrapper_App_Handlers.refresh_subscriptions()`.
-2. `refresh_subscriptions()` fires `hook_get_app_handler_subscriptions` to all subscribers.
+1. `hook_post_startup` subscriber fires `Wrapper_App_Handlers.repoll()`.
+2. `repoll()` fires `hook_get_app_handler_subscriptions` to all subscribers.
 3. Each subscriber returns `list[App_Handler_Subscription_Declaration]`.
 4. Subscriptions are merged per handler type (minimum frequency filter wins).
 5. `bpy.app.handlers` callbacks are installed for all requested types.
@@ -59,7 +59,7 @@ Each handler type has a user-facing `is_enabled` checkbox in the UIList. When di
 - The Blender callback remains installed (no re-registration overhead).
 - The downstream notification hook is skipped.
 - A `DEBUG` log message is written.
-- `is_enabled` always resets to `True` on the next `refresh_subscriptions()` call.
+- `is_enabled` always resets to `True` on the next `repoll()` call.
 
 ---
 
@@ -181,7 +181,7 @@ def hook_app_handler_frame_change_post(scene, depsgraph):
 
 | Method | Returns | Description |
 |---|---|---|
-| `refresh_subscriptions()` | `None` | Re-poll subscribers; reconcile installed handlers |
+| `repoll()` | `None` | Re-poll subscribers; reconcile installed handlers |
 | `set_handler_enabled(type_name, is_enabled)` | `None` | Enable/disable notification for one handler type |
 
 ---
@@ -190,7 +190,7 @@ def hook_app_handler_frame_change_post(scene, depsgraph):
 
 | Logger | Level | Usage |
 |---|---|---|
-| `APP_HANDLERS_LIFECYCLE` | `INFO` | refresh_subscriptions, install/uninstall, init/remove |
+| `APP_HANDLERS_LIFECYCLE` | `INFO` | repoll, install/uninstall, init/remove |
 | `APP_HANDLERS_EVENTS` | `DEBUG` | Per-fire dispatch, re-entrancy warnings, freq-limit skips |
 
 ---
@@ -207,7 +207,7 @@ block_app_handlers/
 │                            # Block_UIList_Configs
 ├── data_structures.py       # App_Handler_Type (enum), App_Handler_Subscription_Declaration,
 │                            # RTC_App_Handler_Status_Instance
-├── feature_app_handlers.py  # Wrapper_App_Handlers (FWC) — refresh_subscriptions(),
+├── feature_app_handlers.py  # Wrapper_App_Handlers (FWC) — repoll(),
 │                            # set_handler_enabled(), _sync_status_to_BL()
 ├── handler_callbacks.py     # @persistent bpy.app.handlers callbacks, _fire_handler()
 │                            # central dispatch, install/uninstall helpers, _CALLBACK_MAP

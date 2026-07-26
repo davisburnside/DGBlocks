@@ -49,9 +49,7 @@ _BLOCK_PACKAGES = [
     block_timers,
     block_animations,
     block_mesh_extract,
-    block_modal_events,
     block_flatypus_modes_manager,
-
     # block_pip_library_manager,
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,

@@ -147,7 +147,7 @@ Sets `enable_modal` to `False`; the router self-terminates on its next event.
 ### `get_listener(src_block_id: str) -> RTC_Modal_Listener_Instance | None`
 Returns the live listener instance for a block id, or `None`.
 
-### `request_listener_rebuild(event)`
+### `repoll(event)`
 Re-polls all listener definitions and rebuilds the RTC registry + BL mirror. Does not
 start/stop the router; the running router picks up the new set immediately.
 

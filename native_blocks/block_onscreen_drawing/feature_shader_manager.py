@@ -28,7 +28,7 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     # Public API
 
     @classmethod
-    def enable_and_poll_for_shaders(cls):
+    def repoll(cls):
        bpy.context.scene.dgblocks_onscreen_drawing_props.enable_drawing = True
 
 

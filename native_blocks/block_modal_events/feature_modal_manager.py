@@ -53,7 +53,7 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         return listener
 
     @classmethod
-    def request_listener_rebuild(cls, event) -> None:
+    def repoll(cls, event) -> None:
         """
         Public API for dependent blocks to trigger a re-poll of all modal listener definitions.
         Rebuilds the RTC listener registry (and BL mirror). Does not start/stop the router;
@@ -63,9 +63,9 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         try:
             bpy.context.scene.dgblocks_modal_events_props
         except AttributeError:
-            logger.warning("request_listener_rebuild: bpy.context.scene not available, skipping")
+            logger.warning("repoll: bpy.context.scene not available, skipping")
             return
-        logger.debug("request_listener_rebuild: rebuilding listener registry")
+        logger.debug("repoll: rebuilding listener registry")
         _rebuild_all_listeners(event)
 
     # ----------------------------------------------------------

@@ -19,7 +19,7 @@ class Block_Hook_Sources(String_Comparable_Mixin):
     Poll hook (downstream → this block):
         hook_get_app_handler_subscriptions()
             Each subscriber returns list[App_Handler_Subscription_Declaration].
-            Called during refresh_subscriptions() to determine which handlers to install.
+            Called during repoll() to determine which handlers to install.
 
     Notification hooks (this block → downstream):
         One hook per handler type. Fired after the re-entrancy guard, is_enabled check,

@@ -38,7 +38,7 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
     # Public API
 
     @classmethod
-    def refresh_subscriptions(cls) -> None:
+    def repoll(cls) -> None:
         """
         Re-poll all downstream blocks for their handler subscriptions, then reconcile
         which bpy.app.handlers are installed.
@@ -48,7 +48,7 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         at runtime (e.g. when a tool activates / deactivates).
         """
         logger = get_logger(Block_Loggers.APP_HANDLERS_LIFECYCLE)
-        logger.debug("refresh_subscriptions: polling downstream blocks")
+        logger.debug("repoll: polling downstream blocks")
 
         # 1. Poll all subscribers
         raw_results = Wrapper_Hooks.run_hooked_funcs(Block_Hook_Sources.hook_get_app_handler_subscriptions) 
@@ -59,14 +59,14 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         for block_id, result in raw_results.items():
             if not isinstance(result, list):
                 logger.warning(
-                    f"refresh_subscriptions: block '{block_id}' returned "
+                    f"repoll: block '{block_id}' returned "
                     f"{type(result)!r} from poll hook — expected list, skipping"
                 )
                 continue
             for item in result:
                 if not isinstance(item, App_Handler_Subscription_Declaration):
                     logger.warning(
-                        f"refresh_subscriptions: block '{block_id}' returned "
+                        f"repoll: block '{block_id}' returned "
                         f"non-App_Handler_Subscription_Declaration item — skipping"
                     )
                     continue
@@ -122,7 +122,7 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         cls._sync_status_to_BL()
 
         logger.info(
-            f"refresh_subscriptions: {len(new_status_list)} handler type(s) active, "
+            f"repoll: {len(new_status_list)} handler type(s) active, "
             f"{len(stale_types)} removed"
         )
 

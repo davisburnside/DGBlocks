@@ -110,12 +110,12 @@ class RTC_App_Handler_Status_Instance:
 
     is_registered
         True when the Blender callback is currently appended to the corresponding
-        bpy.app.handlers list. Updated by Wrapper_App_Handlers.refresh_subscriptions().
+        bpy.app.handlers list. Updated by Wrapper_App_Handlers.repoll().
 
     is_enabled
         User-facing toggle. If False the Blender callback still fires, but the
         downstream notification hook is suppressed (a debug log message is written
-        instead). Resets to True on every refresh_subscriptions() call.
+        instead). Resets to True on every repoll() call.
 
     subscriber_count
         Number of downstream blocks that included this handler type in the most
@@ -123,12 +123,12 @@ class RTC_App_Handler_Status_Instance:
 
     frequency_filter_seconds
         Merged minimum-seconds between notification-hook fires (0.0 = no limit).
-        Recomputed on every refresh_subscriptions() call.
+        Recomputed on every repoll() call.
 
     fire_count
         Incremented each time the notification hook is successfully fired.
         Resets to 0 when the handler is unregistered and re-registered
-        (i.e. on refresh_subscriptions() or _remove_wrapper()).
+        (i.e. on repoll() or _remove_wrapper()).
 
     last_fired_timestamp
         time.monotonic() of the last successful notification-hook fire.

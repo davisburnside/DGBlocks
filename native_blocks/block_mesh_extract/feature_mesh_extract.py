@@ -20,7 +20,7 @@ from ..block_core.core_features.runtime_cache.data_sync_tools import plan_datacl
 # Intra-block imports
 from .common_declarations import Block_Loggers, Block_RTC_Members
 from .data_structures import RTC_Mesh_Extract_Instance
-from .helpers import run_mesh_extract, run_mesh_extract_alt
+from .helpers import _new_mesh_extract_instance_from_mesh, run_mesh_extract
 
 
 class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
@@ -50,7 +50,8 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
 
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
         logger.debug("Wrapper_Mesh_Extract.run_extract: triggered via public API")
-        return run_mesh_extract_alt(mesh_extract_declaration, object_name, depsgraph, prev_mesh_extract)
+        new_mesh_extract = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_declaration, depsgraph, prev_mesh_extract)
+        return new_mesh_extract
 
     @classmethod
     def get_instance(cls, object_name: str) -> Optional[RTC_Mesh_Extract_Instance]:
