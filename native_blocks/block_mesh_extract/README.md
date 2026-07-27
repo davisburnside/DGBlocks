@@ -212,7 +212,7 @@ bpy.context.scene.dgblocks_mesh_extract_props.run_mesh_extract = True
 ### Option 2 — Public API
 ```python
 from native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
-processed_names = Wrapper_Mesh_Extract.run_extract()
+processed_names = Wrapper_Mesh_Extract.run_mesh_extract_for_object()
 ```
 
 ---
@@ -221,7 +221,7 @@ processed_names = Wrapper_Mesh_Extract.run_extract()
 
 | Method | Returns | Description |
 |---|---|---|
-| `run_extract()` | `list[str]` | Trigger full extraction; returns processed object names |
+| `run_mesh_extract_for_object()` | `list[str]` | Trigger full extraction; returns processed object names |
 | `get_instance(name)` | `RTC_Mesh_Extract_Instance \| None` | Get valid instance by object name |
 | `get_instance_raw(name)` | `RTC_Mesh_Extract_Instance \| None` | Get instance regardless of is_valid |
 | `get_all_instances()` | `list[RTC_Mesh_Extract_Instance]` | All live instances |

@@ -9,7 +9,7 @@ from ...addon_helpers.data_structures import (
 )
 
 from .ui import _uilist_draw_row, _uilist_draw_selection_details
-from .callbacks import cb_face_face_neighbors
+from .builtin_custom_callbacks import cb_face_face_neighbors
 from .data_structures import ALL_MET_ATTRS, Numpy_Mesh_Extract_Declaration
 
 # ==============================================================================================================================

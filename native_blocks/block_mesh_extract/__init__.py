@@ -110,7 +110,7 @@ class DGBLOCKS_OT_Run_Mesh_Extract(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            processed = Wrapper_Mesh_Extract.run_extract()
+            processed = Wrapper_Mesh_Extract.repoll()
             self.report({"INFO"}, f"Mesh Extract complete — {len(processed)} object(s) processed.")
         except ValueError as e:
             self.report({"ERROR"}, f"Mesh Extract validation error: {e}")

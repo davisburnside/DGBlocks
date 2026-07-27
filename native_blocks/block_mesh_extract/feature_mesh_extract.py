@@ -16,11 +16,12 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.runtime_cache import data_sync_tools
 from ..block_core.core_features.runtime_cache.data_sync_tools import plan_dataclasses_to_match_collectionprop
+from ...native_blocks.block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # Intra-block imports
-from .common_declarations import Block_Loggers, Block_RTC_Members
+from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .data_structures import RTC_Mesh_Extract_Instance
-from .helpers import _new_mesh_extract_instance_from_mesh, run_mesh_extract
+from .helpers import _new_mesh_extract_instance_from_mesh, merge_mesh_extract_targets, run_mesh_extract
 
 
 class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
@@ -29,7 +30,7 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
 
     Manages the lifecycle of RTC_Mesh_Extract_Instance objects.
     Extraction is triggered by:
-        - Calling Wrapper_Mesh_Extract.run_extract() from any downstream block.
+        - Calling Wrapper_Mesh_Extract.run_mesh_extract_for_object() from any downstream block.
         - Setting bpy.context.scene.dgblocks_mesh_extract_props.run_mesh_extract = True
           (auto-resets to False after triggering).
 
@@ -41,7 +42,88 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
     # Public API
 
     @classmethod
-    def run_extract(cls, mesh_extract_declaration, object_name, depsgraph) -> list[str]:
+    def repoll(depsgraph):
+        """
+        Full extraction cycle:
+            1. Fire hook_get_mesh_extract_targets — collect Numpy_Mesh_Extract_Declaration lists from all blocks.
+            2. Merge targets by object_name (silent union for attrs; last-writer-wins for callbacks).
+            3. Get the current depsgraph.
+            4. For each object: call _new_mesh_extract_instance_from_mesh, reusing or creating an RTC instance.
+            5. Push updated list to RTC.
+            6. Sync BL data mirror.
+            7. Fire hook_mesh_extract_ready with the list of processed object names.
+    
+        Returns list of object names that were processed (regardless of is_valid).
+        """
+        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
+        logger.debug("run_mesh_extract: starting")
+    
+        # Step 1: Collect
+        raw_results = Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name = Block_Hook_Sources.hook_get_mesh_extract_targets,
+            should_halt_on_exception = False,
+        )
+        targets_by_block = {}
+        for block_id, result in raw_results.items():
+            if isinstance(result, list):
+                targets_by_block[block_id] = result
+            else:
+                logger.warning(
+                    f"run_mesh_extract: block '{block_id}' returned {type(result)!r} "
+                    f"from hook_get_mesh_extract_targets — expected list[Numpy_Mesh_Extract_Declaration], skipping."
+                )
+    
+        if not targets_by_block:
+            logger.info("run_mesh_extract: no Mesh_Extract_Targets returned — returning early.")
+            return []
+    
+        # Step 2: Merge
+        merged_targets = merge_mesh_extract_targets(targets_by_block)
+        logger.debug(f"run_mesh_extract: merged into {len(merged_targets)} object mesh_extract_dec(s)")
+    
+        # Step 4: Extract each object
+        # existing_instances: dict[str, RTC_Mesh_Extract_Instance] = {
+        #     inst.object_name: inst
+        #     for inst in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
+        # }
+        new_instances: list[RTC_Mesh_Extract_Instance] = []
+        processed_names: list[str] = []
+        for object_name, mesh_extract_dec in merged_targets.items():
+            instance = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_dec, depsgraph)
+            new_instances.append(instance)
+            processed_names.append(object_name)
+    
+        # Step 5: Push to RTC
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, new_instances)
+    
+        # Step 6: Sync BL mirror
+        cache_key = Block_RTC_Members.MESH_EXTRACT_INSTANCES
+        # try:
+        #     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key)
+        #     Wrapper_Runtime_Cache.resync_single_data_mirror(
+        #         event                = Enum_Sync_Events.PROPERTY_UPDATE,
+        #         BL_is_truth_source   = False,
+        #         cache_key            = cache_key,
+        #         FWC_instance         = FWC_instance,
+        #         data_mirror_instance = data_mirror_instance,
+        #         actions_denied       = set(),
+        #         logger               = logger,
+        #     )
+        # except Exception as e:
+        #     logger.error("run_mesh_extract: BL mirror sync failed", exc_info=True)
+    
+        # Step 7: Fire ready hook
+        Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name = Block_Hook_Sources.hook_mesh_extract_ready,
+            should_halt_on_exception = False,
+            object_names = processed_names,
+        )
+    
+        logger.info(f"run_mesh_extract: complete — {len(processed_names)} object(s) processed.")
+        return new_instances
+
+    @classmethod
+    def run_mesh_extract_for_object(cls, mesh_extract_declaration, object, depsgraph = None) -> list[str]:
         """
         Trigger a full mesh extraction cycle from any downstream block.
         Returns the list of object names that were processed.
@@ -49,8 +131,10 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         """
 
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-        logger.debug("Wrapper_Mesh_Extract.run_extract: triggered via public API")
-        new_mesh_extract = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_declaration, depsgraph)
+        logger.debug("Running Mesh extract for Object '{object.name}'")
+        if depsgraph is None:
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+        new_mesh_extract = _new_mesh_extract_instance_from_mesh(object, mesh_extract_declaration, depsgraph)
         return new_mesh_extract
 
     @classmethod
@@ -91,7 +175,7 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
         logger.debug("Wrapper_Mesh_Extract._init_wrapper")
         # No active initialization needed — extraction is demand-driven.
-        # RTC list starts empty; instances are created on first run_extract() call.
+        # RTC list starts empty; instances are created on first run_mesh_extract_for_object() call.
         return True
 
     @classmethod

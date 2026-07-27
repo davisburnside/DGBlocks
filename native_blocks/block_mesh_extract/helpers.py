@@ -227,7 +227,7 @@ _FIRST_LEVEL_FIELD_MAP: dict[MET_Attr_Declaration, str] = {
 # ==============================================================================================================================
 
 def _new_mesh_extract_instance_from_mesh(
-    object_name: str,
+    object: bpy.types.Object,
     mesh_extract_dec: Numpy_Mesh_Extract_Declaration,
     depsgraph: bpy.types.Depsgraph,
 ) -> RTC_Mesh_Extract_Instance:
@@ -240,7 +240,7 @@ def _new_mesh_extract_instance_from_mesh(
     total_start = time.perf_counter()
 
     # Resolve or create instance
-    instance = RTC_Mesh_Extract_Instance(object_name=object_name)
+    instance = RTC_Mesh_Extract_Instance(object_name=object.name)
 
     # Carry forward read_count from previous run
     existing_total_meta = instance.extract_metadata.get("_total", {})
@@ -253,38 +253,37 @@ def _new_mesh_extract_instance_from_mesh(
 
     # --- Get evaluated object ---
     # obj = depsgraph.objects.get(object_name) # depsgraph.scene.objects.get(object_name)
-    obj = bpy.context.scene.objects.get(object_name)
 
     # evaluated_obj = original_obj.evaluated_get(depsgraph)
     # mesh = evaluated_obj.to_mesh()
 
-    if obj is None:
-        instance.error_str = f"Object '{object_name}' not found in depsgraph scene."
+    if object is None:
+        instance.error_str = f"Object '{object.name}' not found in depsgraph scene."
         logger.warning(instance.error_str)
         _write_total_meta(instance, total_start, previous_read_count + 1)
         return instance
 
-    if not _object_has_mesh(obj):
+    if not _object_has_mesh(object):
         instance.error_str = (
-            f"Object '{object_name}' (type={obj.type!r}) cannot produce a mesh. "
+            f"Object '{object.name}' (type={object.type!r}) cannot produce a mesh. "
             f"Only types {sorted(_MESH_CAPABLE_TYPES)} are supported."
         )
         logger.warning(instance.error_str)
         _write_total_meta(instance, total_start, previous_read_count + 1)
         return instance
 
-    evaluated_obj = obj.evaluated_get(depsgraph)
+    evaluated_obj = object.evaluated_get(depsgraph)
 
     try:
         mesh = evaluated_obj.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
     except Exception as e:
         instance.error_str = f"to_mesh() failed: {get_exception_last_n_lines(2, e)}"
-        logger.error(f"_new_mesh_extract_instance_from_mesh: to_mesh() failed for '{object_name}'", exc_info=True)
+        logger.error(f"_new_mesh_extract_instance_from_mesh: to_mesh() failed for '{object.name}'", exc_info=True)
         _write_total_meta(instance, total_start, previous_read_count + 1)
         return instance
 
     if mesh is None:
-        instance.error_str = f"to_mesh() returned None for '{object_name}'."
+        instance.error_str = f"to_mesh() returned None for '{object.name}'."
         logger.warning(instance.error_str)
         _write_total_meta(instance, total_start, previous_read_count + 1)
         return instance
@@ -296,15 +295,12 @@ def _new_mesh_extract_instance_from_mesh(
             try:
                 arr = _foreach_get_attr(mesh, attr)
                 field_name = _FIRST_LEVEL_FIELD_MAP.get(attr)
-                keys = list(_FIRST_LEVEL_FIELD_MAP.keys())
                 if field_name:
                     setattr(instance, field_name, arr)
-                    print(keys[0], keys[0].__class__, attr.__class__, attr)
                 else:
-                    print(keys[0], keys[0].__class__, attr.__class__, attr)
                     logger.warning(f"No instance field for attr '{attr}' — skipping write.")
             except Exception as e:
-                logger.error(f"foreach_get failed for '{met_attr_label(attr)}' on '{object_name}'", exc_info=True)
+                logger.error(f"foreach_get failed for '{met_attr_label(attr)}' on '{object.name}'", exc_info=True)
                 raise
             _record_attr_meta(instance, arr.shape, met_attr_label(attr), t0,
                               instance.extract_metadata.get(met_attr_label(attr), {}).get("read_count", 0) + 1)
@@ -316,7 +312,7 @@ def _new_mesh_extract_instance_from_mesh(
             if arr is not None:
                 instance.custom_attribute_arrays[attr_name] = arr
             else:
-                logger.warning(f"Custom attribute '{attr_name}' not found on mesh '{object_name}' — skipping.")
+                logger.warning(f"Custom attribute '{attr_name}' not found on mesh of Object '{object.name}' — skipping.")
             prev_count = instance.extract_metadata.get(f"custom:{attr_name}", {}).get("read_count", 0)
             _record_attr_meta(instance, arr.shape if arr is not None else None, f"custom:{attr_name}", t0, prev_count + 1)
 
@@ -344,7 +340,7 @@ def _new_mesh_extract_instance_from_mesh(
 
     _write_total_meta(instance, total_start, previous_read_count + 1)
     logger.debug(
-        f"_new_mesh_extract_instance_from_mesh: '{object_name}' valid={instance.is_valid} "
+        f"_new_mesh_extract_instance_from_mesh: '{object.name}' valid={instance.is_valid} "
         f"total={instance.extract_metadata.get('_total', {}).get('duration_ms', 0.0):.2f}ms"
     )
     return instance
