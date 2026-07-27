@@ -50,7 +50,7 @@ def _cb_run_mesh_extract_changed(self, context):
     self.run_mesh_extract = False
 
     try:
-        run_mesh_extract()
+        Wrapper_Mesh_Extract.repoll() #TODO fix or remove this
     except Exception:
         from ..block_core.core_features.loggers.feature_wrapper import get_logger
         get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE).error(

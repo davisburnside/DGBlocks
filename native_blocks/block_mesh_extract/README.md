@@ -225,6 +225,8 @@ processed_names = Wrapper_Mesh_Extract.run_mesh_extract_for_object()
 | `get_instance(name)` | `RTC_Mesh_Extract_Instance \| None` | Get valid instance by object name |
 | `get_instance_raw(name)` | `RTC_Mesh_Extract_Instance \| None` | Get instance regardless of is_valid |
 | `get_all_instances()` | `list[RTC_Mesh_Extract_Instance]` | All live instances |
+| `combine_instances(a, b)` | `RTC_Mesh_Extract_Instance` | Merge two same-object instances; raises `ValueError` on any field/key collision |
+| `diff_instances(old, new)` | `list[str]` | Return names of all shared fields that differ between two instances; empty = unchanged |
 
 ---
 

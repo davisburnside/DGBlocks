@@ -230,6 +230,7 @@ def _new_mesh_extract_instance_from_mesh(
     object: bpy.types.Object,
     mesh_extract_dec: Numpy_Mesh_Extract_Declaration,
     depsgraph: bpy.types.Depsgraph,
+    existing_instance = None
 ) -> RTC_Mesh_Extract_Instance:
     """
     Extract all requested mesh data from a single evaluated object.
@@ -240,7 +241,7 @@ def _new_mesh_extract_instance_from_mesh(
     total_start = time.perf_counter()
 
     # Resolve or create instance
-    instance = RTC_Mesh_Extract_Instance(object_name=object.name)
+    instance = existing_instance if existing_instance else RTC_Mesh_Extract_Instance(object_name=object.name)
 
     # Carry forward read_count from previous run
     existing_total_meta = instance.extract_metadata.get("_total", {})
