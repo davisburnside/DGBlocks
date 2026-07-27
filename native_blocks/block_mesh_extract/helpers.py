@@ -112,8 +112,8 @@ def _foreach_get_attr(
     total = n * attr.components
     buf = np.empty(total, dtype=attr.dtype)
 
-    # CREASE and SHARP in Blender 5.0 are named mesh attributes, not direct properties
-    if attr.blender_attr in ("crease_edge", "sharp_edge"):
+    # Named mesh attributes in Blender 5.0 — read via mesh.attributes with graceful fallback
+    if attr.blender_attr in ("crease_edge", "sharp_edge", "crease_vert", "bevel_weight_vert", "seam_edge"):
         bl_attr = mesh.attributes.get(attr.blender_attr)
         if bl_attr is None:
             # Attribute doesn't exist on this mesh — return zeros/False
@@ -208,9 +208,12 @@ def _read_custom_attribute(
 _FIRST_LEVEL_FIELD_MAP: dict[MET_Attr_Declaration, str] = {
     MET.VERTEX.CO:            "vertex_co",
     MET.VERTEX.NORMAL:        "vertex_normal",
+    MET.VERTEX.CREASE:        "vertex_crease",
+    MET.VERTEX.BEVEL_WEIGHT:  "vertex_bevel_weight",
     MET.EDGE.VERTICES:        "edge_vertices",
     MET.EDGE.CREASE:          "edge_crease",
     MET.EDGE.SHARP:           "edge_sharp",
+    MET.EDGE.SEAM:            "edge_seam",
     MET.FACE.NORMAL:          "face_normal",
     MET.FACE.AREA:            "face_area",
     MET.FACE.LOOP_START:      "face_loop_start",
@@ -227,7 +230,6 @@ def _new_mesh_extract_instance_from_mesh(
     object_name: str,
     mesh_extract_dec: Numpy_Mesh_Extract_Declaration,
     depsgraph: bpy.types.Depsgraph,
-    existing_instance: Optional[RTC_Mesh_Extract_Instance] = None,
 ) -> RTC_Mesh_Extract_Instance:
     """
     Extract all requested mesh data from a single evaluated object.
@@ -238,7 +240,7 @@ def _new_mesh_extract_instance_from_mesh(
     total_start = time.perf_counter()
 
     # Resolve or create instance
-    instance = existing_instance or RTC_Mesh_Extract_Instance(object_name=object_name)
+    instance = RTC_Mesh_Extract_Instance(object_name=object_name)
 
     # Carry forward read_count from previous run
     existing_total_meta = instance.extract_metadata.get("_total", {})

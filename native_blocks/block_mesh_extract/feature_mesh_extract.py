@@ -41,7 +41,7 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
     # Public API
 
     @classmethod
-    def run_extract(cls, mesh_extract_declaration, object_name, depsgraph, prev_mesh_extract = None) -> list[str]:
+    def run_extract(cls, mesh_extract_declaration, object_name, depsgraph) -> list[str]:
         """
         Trigger a full mesh extraction cycle from any downstream block.
         Returns the list of object names that were processed.
@@ -50,7 +50,7 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
 
         logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
         logger.debug("Wrapper_Mesh_Extract.run_extract: triggered via public API")
-        new_mesh_extract = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_declaration, depsgraph, prev_mesh_extract)
+        new_mesh_extract = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_declaration, depsgraph)
         return new_mesh_extract
 
     @classmethod

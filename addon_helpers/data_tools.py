@@ -8,6 +8,8 @@ from types import ModuleType
 from dataclasses import is_dataclass, replace, asdict
 from typing import Any, Callable, Collection, List, Optional
 import numpy as np
+import dataclasses
+import json
 import bpy  # type: ignore
 import mathutils # type: ignore
 
@@ -87,6 +89,31 @@ def get_actual_id(input):
         return input
     else:
         raise Exception("Expecting 'Enum' or 'str'")
+
+def simple_truncate_dict(d, max_str=160, max_array_items=8, max_depth=7, _depth=0):
+    # Handles Dataclasses too
+    if _depth >= max_depth:
+        return "..."
+    if dataclasses.is_dataclass(d) and not isinstance(d, type):
+        return {
+            f"@{type(d).__name__}": {
+                k: simple_truncate_dict(v, max_str, max_array_items, max_depth, _depth + 1)
+                for k, v in dataclasses.asdict(d).items()
+            }
+        }
+    if isinstance(d, dict):
+        return {k: simple_truncate_dict(v, max_str, max_array_items, max_depth, _depth + 1) for k, v in d.items()}
+    if isinstance(d, np.ndarray):
+        flat = d.flat[:max_array_items].tolist()
+        return f"ndarray{d.shape} dtype={d.dtype} [{', '.join(f'{x:.4g}' for x in flat)}, ...]"
+    if isinstance(d, str) and len(d) > max_str:
+        return d[:max_str] + "..."
+    if isinstance(d, (list, tuple)):
+        truncated = [simple_truncate_dict(x, max_str, max_array_items, max_depth, _depth + 1) for x in d[:max_array_items]]
+        if len(d) > max_array_items:
+            truncated.append(f"... ({len(d)} total)")
+        return truncated
+    return d
 
 # ==============================================================================================================================
 # BLENDER DATA TOOLS

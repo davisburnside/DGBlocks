@@ -59,6 +59,18 @@ class _MET_VERTEX:
         dtype        = "float32",
         components   = 3,
     )
+    CREASE = MET_Attr_Declaration(
+        domain       = "VERTEX",
+        blender_attr = "crease_vert",
+        dtype        = "float32",
+        components   = 1,
+    )
+    BEVEL_WEIGHT = MET_Attr_Declaration(
+        domain       = "VERTEX",
+        blender_attr = "bevel_weight_vert",
+        dtype        = "float32",
+        components   = 1,
+    )
 
 
 # ----------------------------------------------------------
@@ -80,6 +92,12 @@ class _MET_EDGE:
     SHARP = MET_Attr_Declaration(
         domain       = "EDGE",
         blender_attr = "sharp_edge",
+        dtype        = "bool",
+        components   = 1,
+    )
+    SEAM = MET_Attr_Declaration(
+        domain       = "EDGE",
+        blender_attr = "seam_edge",
         dtype        = "bool",
         components   = 1,
     )
@@ -143,9 +161,12 @@ class MET:
 ALL_MET_ATTRS: tuple[MET_Attr_Declaration, ...] = (
     MET.VERTEX.CO,
     MET.VERTEX.NORMAL,
+    MET.VERTEX.CREASE,
+    MET.VERTEX.BEVEL_WEIGHT,
     MET.EDGE.VERTICES,
     MET.EDGE.CREASE,
     MET.EDGE.SHARP,
+    MET.EDGE.SEAM,
     MET.FACE.NORMAL,
     MET.FACE.AREA,
     MET.FACE.LOOP_START,
@@ -239,11 +260,14 @@ class RTC_Mesh_Extract_Instance:
     # VERTEX
     vertex_co:           Optional[np.ndarray] = None   # (n_verts, 3)  float32
     vertex_normal:       Optional[np.ndarray] = None   # (n_verts, 3)  float32
+    vertex_crease:       Optional[np.ndarray] = None   # (n_verts,)    float32
+    vertex_bevel_weight: Optional[np.ndarray] = None   # (n_verts,)    float32
 
     # EDGE
     edge_vertices:       Optional[np.ndarray] = None   # (n_edges, 2)  int32
     edge_crease:         Optional[np.ndarray] = None   # (n_edges,)    float32
     edge_sharp:          Optional[np.ndarray] = None   # (n_edges,)    bool
+    edge_seam:           Optional[np.ndarray] = None   # (n_edges,)    bool
 
     # FACE
     face_normal:         Optional[np.ndarray] = None   # (n_faces, 3)  float32
