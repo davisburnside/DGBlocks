@@ -12,7 +12,7 @@ from typing import Callable, Optional
 # Derived data (edge length, face center, neighbor CSR, etc.) is obtained via callbacks.
 # ==============================================================================================================================
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class MET_Attr_Declaration:
     """
     Descriptor for a single readable mesh attribute.
@@ -27,8 +27,12 @@ class MET_Attr_Declaration:
     dtype:        str
     components:   int
 
-    def __repr__(self):
-        return f"MET.{self.domain}.{self.blender_attr}"
+    @property
+    def key(self): return f"{self.domain}.{self.blender_attr}"
+    def __hash__(self): return hash(self.key)
+    def __eq__(self, other):
+        other_key = getattr(other, "key", None)
+        return NotImplemented if other_key is None else other_key == self.key
 
 
 # ----------------------------------------------------------

@@ -296,10 +296,13 @@ def _new_mesh_extract_instance_from_mesh(
             try:
                 arr = _foreach_get_attr(mesh, attr)
                 field_name = _FIRST_LEVEL_FIELD_MAP.get(attr)
+                keys = list(_FIRST_LEVEL_FIELD_MAP.keys())
                 if field_name:
                     setattr(instance, field_name, arr)
+                    print(keys[0], keys[0].__class__, attr.__class__, attr)
                 else:
-                    logger.warning(f"No instance field for attr '{met_attr_label(attr)}' — skipping write.")
+                    print(keys[0], keys[0].__class__, attr.__class__, attr)
+                    logger.warning(f"No instance field for attr '{attr}' — skipping write.")
             except Exception as e:
                 logger.error(f"foreach_get failed for '{met_attr_label(attr)}' on '{object_name}'", exc_info=True)
                 raise
