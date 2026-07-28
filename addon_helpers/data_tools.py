@@ -116,6 +116,62 @@ def simple_truncate_dict(d, max_str=160, max_array_items=8, max_depth=7, _depth=
     return d
 
 # ==============================================================================================================================
+# COLOR TOOLS
+# ==============================================================================================================================
+
+def generate_n_distinct_colors(n: int, alpha: float = 1.0) -> list[tuple[float, float, float, float]]:
+    """
+    Generate N visually distinct RGBA colors using the golden-angle HSV method.
+
+    Distributes hues evenly using the golden ratio conjugate (≈0.618), which
+    maximises perceptual separation between adjacent hues. Saturation and value
+    are fixed at levels that read well in a 3D viewport.
+
+    Returns a list of (r, g, b, a) tuples in float [0..1] range.
+    """
+    if n <= 0:
+        return []
+
+    GOLDEN_RATIO_CONJUGATE = 0.6180339887498949
+    colors = []
+    hue = 0.0
+    saturation = 0.82
+    value = 0.92
+
+    for _ in range(n):
+        r, g, b = hsv_to_rgb(hue, saturation, value)
+        colors.append((r, g, b, alpha))
+        hue = (hue + GOLDEN_RATIO_CONJUGATE) % 1.0
+
+    return colors
+
+
+def hsv_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
+    """Convert HSV (all in [0..1]) to RGB (all in [0..1])."""
+    if s == 0.0:
+        return (v, v, v)
+    i = int(h * 6.0)
+    f = h * 6.0 - i
+    p = v * (1.0 - s)
+    q = v * (1.0 - s * f)
+    t = v * (1.0 - s * (1.0 - f))
+    i = i % 6
+    if i == 0: return (v, t, p)
+    if i == 1: return (q, v, p)
+    if i == 2: return (p, v, t)
+    if i == 3: return (p, q, v)
+    if i == 4: return (t, p, v)
+    return (v, p, q)
+
+
+def lighten_color(color, factor: float = 0.3):
+    r, g, b, a = color[0], color[1], color[2], color[3]
+    return (r + (1.0 - r) * factor, g + (1.0 - g) * factor, b + (1.0 - b) * factor, 0.3)
+
+
+
+
+# ==============================================================================================================================
 # BLENDER DATA TOOLS
 # ==============================================================================================================================
 
