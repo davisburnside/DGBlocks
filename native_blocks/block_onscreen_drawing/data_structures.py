@@ -164,7 +164,8 @@ class Shader_Instance:
 
     def _shader_update_batch(self):
         """Rebuilds the GPU batch from numpy data."""
-        if self._points is None:
+        if self._points is None or len(self._points) == 0:
+            self._needs_new_batch = False
             return
 
         content = {"pos": self._points}

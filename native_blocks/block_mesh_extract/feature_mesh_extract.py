@@ -20,7 +20,7 @@ from ...native_blocks.block_core.core_features.hooks.feature_wrapper import Wrap
 
 # Intra-block imports
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .data_structures import RTC_Mesh_Extract_Instance
+from .data_structures import RTC_Mesh_Extract_Instance, default_mesh_extract_field_names
 from .helpers import _new_mesh_extract_instance_from_mesh, merge_mesh_extract_targets, run_mesh_extract
 
 
@@ -197,24 +197,8 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         # ── Merge first-level array fields ─────────────────────────────────────────
         # Each field is None when it was not requested during extraction.
         # A conflict means both instances have a non-None value for the same field.
-        first_level_fields = [
-            "vertex_co",
-            "vertex_normal",
-            "vertex_crease",
-            "vertex_bevel_weight",
-            "edge_vertices",
-            "edge_crease",
-            "edge_sharp",
-            "edge_seam",
-            "face_normal",
-            "face_area",
-            "face_loop_start",
-            "face_loop_total",
-            "corner_vertex_index",
-        ]
-
         merged_fields: dict = {}
-        for field_name in first_level_fields:
+        for field_name in default_mesh_extract_field_names:
             val_a = getattr(instance_a, field_name)
             val_b = getattr(instance_b, field_name)
             if val_a is not None and val_b is not None:
@@ -263,19 +247,119 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
             **merged_fields,
         )
 
+    # @classmethod
+    # def diff_instances(
+    #     cls,
+    #     old: RTC_Mesh_Extract_Instance,
+    #     new: RTC_Mesh_Extract_Instance,
+    # ) -> list[str]:
+    #     """
+    #     Compare two RTC_Mesh_Extract_Instance objects for the same object and return
+    #     the names of all fields/keys that have changed.
+
+    #     Only fields present (non-None) in **both** instances are compared — fields
+    #     present in only one instance are skipped.  custom_attribute_arrays keys
+    #     present in only one instance are likewise skipped.
+
+    #     Comparison strategy:
+    #       - Different shapes                → changed immediately (no element scan).
+    #       - Same-shape numpy arrays         → np.any(old != new)  (strict bitwise).
+    #       - CSR tuples (idx, off)           → each component array compared the same way.
+    #       - Non-numpy values                → old != new  (try/except → True on error).
+
+    #     Returns a list[str] of changed field names.  An empty list means all shared
+    #     data is identical (mesh is unchanged for the compared attributes).
+    #     """
+    #     changed: list[str] = []
+
+    #     # ── Helper: compare two numpy arrays ──────────────────────────────────────
+    #     def _arrays_differ(a: np.ndarray, b: np.ndarray) -> bool:
+    #         if a.shape != b.shape:
+    #             return True
+    #         return bool(np.any(a != b))
+
+    #     # ── Helper: compare an arbitrary value (array, CSR tuple, or other) ───────
+    #     def _values_differ(a, b) -> bool:
+    #         # CSR tuple: (indices_array, offsets_array)
+    #         if (
+    #             isinstance(a, tuple) and isinstance(b, tuple)
+    #             and len(a) == 2 and len(b) == 2
+    #             and isinstance(a[0], np.ndarray)
+    #         ):
+    #             return _arrays_differ(a[0], b[0]) or _arrays_differ(a[1], b[1])
+    #         # Plain numpy array
+    #         if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+    #             return _arrays_differ(a, b)
+    #         # Fallback — use Python equality; treat comparison errors as changed
+    #         try:
+    #             return bool(a != b)
+    #         except Exception:
+    #             return True
+
+    #     # ── First-level array fields ───────────────────────────────────────────────
+    #     for field_name in default_mesh_extract_field_names:
+    #         val_old = getattr(old, field_name)
+    #         val_new = getattr(new, field_name)
+    #         if val_old is None or val_new is None:
+    #             continue  # not shared — skip
+    #         if _arrays_differ(val_old, val_new):
+    #             changed.append(field_name)
+
+    #     # ── custom_attribute_arrays — shared keys only ─────────────────────────────
+    #     for key in old.custom_attribute_arrays:
+    #         if key not in new.custom_attribute_arrays:
+    #             continue  # not shared — skip
+    #         if _values_differ(old.custom_attribute_arrays[key], new.custom_attribute_arrays[key]):
+    #             changed.append(key)
+
+    #     return changed
+
+
+    # ── Helper: compare two numpy arrays ──────────────────────────────────────────
+    @classmethod
+    def _arrays_differ(cls, a: np.ndarray, b: np.ndarray) -> bool:
+        if a.shape != b.shape:
+            return True
+        return bool(np.any(a != b))
+
+    # ── Helper: compare an arbitrary value (array, CSR tuple, or other) ───────────
+    @classmethod
+    def _values_differ(cls, a, b) -> bool:
+        # CSR tuple: (indices_array, offsets_array)
+        if (
+            isinstance(a, tuple) and isinstance(b, tuple)
+            and len(a) == 2 and len(b) == 2
+            and isinstance(a[0], np.ndarray)
+        ):
+            return (
+                cls._arrays_differ(a[0], b[0])
+                or cls._arrays_differ(a[1], b[1])
+            )
+        # Plain numpy array
+        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
+            return cls._arrays_differ(a, b)
+        # Fallback — use Python equality; treat comparison errors as changed
+        try:
+            return bool(a != b)
+        except Exception:
+            return True
+
     @classmethod
     def diff_instances(
         cls,
         old: RTC_Mesh_Extract_Instance,
         new: RTC_Mesh_Extract_Instance,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str], list[str]]:
         """
-        Compare two RTC_Mesh_Extract_Instance objects for the same object and return
-        the names of all fields/keys that have changed.
+        Compare two RTC_Mesh_Extract_Instance objects for the same object and
+        classify every attribute name into one of three buckets:
 
-        Only fields present (non-None) in **both** instances are compared — fields
-        present in only one instance are skipped.  custom_attribute_arrays keys
-        present in only one instance are likewise skipped.
+          added   — None/absent in **old**, present in **new**
+          removed — present in **old**, None/absent in **new**
+          edited  — present in both, but the data differs
+
+        Attributes that are None/absent in both instances are omitted entirely.
+        custom_attribute_arrays is diffed over the union of both key sets.
 
         Comparison strategy:
           - Different shapes                → changed immediately (no element scan).
@@ -283,34 +367,12 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
           - CSR tuples (idx, off)           → each component array compared the same way.
           - Non-numpy values                → old != new  (try/except → True on error).
 
-        Returns a list[str] of changed field names.  An empty list means all shared
-        data is identical (mesh is unchanged for the compared attributes).
+        Returns (added, removed, edited).  All three empty means the two instances
+        carry identical data (mesh is unchanged for the compared attributes).
         """
-        changed: list[str] = []
-
-        # ── Helper: compare two numpy arrays ──────────────────────────────────────
-        def _arrays_differ(a: np.ndarray, b: np.ndarray) -> bool:
-            if a.shape != b.shape:
-                return True
-            return bool(np.any(a != b))
-
-        # ── Helper: compare an arbitrary value (array, CSR tuple, or other) ───────
-        def _values_differ(a, b) -> bool:
-            # CSR tuple: (indices_array, offsets_array)
-            if (
-                isinstance(a, tuple) and isinstance(b, tuple)
-                and len(a) == 2 and len(b) == 2
-                and isinstance(a[0], np.ndarray)
-            ):
-                return _arrays_differ(a[0], b[0]) or _arrays_differ(a[1], b[1])
-            # Plain numpy array
-            if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
-                return _arrays_differ(a, b)
-            # Fallback — use Python equality; treat comparison errors as changed
-            try:
-                return bool(a != b)
-            except Exception:
-                return True
+        added: list[str] = []
+        removed: list[str] = []
+        edited: list[str] = []
 
         # ── First-level array fields ───────────────────────────────────────────────
         first_level_fields = [
@@ -332,19 +394,33 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         for field_name in first_level_fields:
             val_old = getattr(old, field_name)
             val_new = getattr(new, field_name)
-            if val_old is None or val_new is None:
-                continue  # not shared — skip
-            if _arrays_differ(val_old, val_new):
-                changed.append(field_name)
+            if val_old is None and val_new is None:
+                continue  # absent from both — skip
+            if val_old is None:
+                added.append(field_name)
+            elif val_new is None:
+                removed.append(field_name)
+            elif cls._values_differ(val_old, val_new):
+                edited.append(field_name)
 
-        # ── custom_attribute_arrays — shared keys only ─────────────────────────────
-        for key in old.custom_attribute_arrays:
-            if key not in new.custom_attribute_arrays:
-                continue  # not shared — skip
-            if _values_differ(old.custom_attribute_arrays[key], new.custom_attribute_arrays[key]):
-                changed.append(key)
+        # ── custom_attribute_arrays — union of keys ────────────────────────────────
+        old_attrs = old.custom_attribute_arrays or {}
+        new_attrs = new.custom_attribute_arrays or {}
 
-        return changed
+        for key in sorted(old_attrs.keys() | new_attrs.keys()):
+            val_old = old_attrs.get(key)
+            val_new = new_attrs.get(key)
+            if val_old is None and val_new is None:
+                continue  # absent from both — skip
+            if val_old is None:
+                added.append(key)
+            elif val_new is None:
+                removed.append(key)
+            elif cls._values_differ(val_old, val_new):
+                edited.append(key)
+
+        return added, removed, edited
+
 
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation

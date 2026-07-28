@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Callable, Optional
 
 # ==============================================================================================================================
@@ -291,3 +291,10 @@ class RTC_Mesh_Extract_Instance:
     # dict[label_str → {"duration_ms": float, "read_count": int}]
     # "_total" key holds object-level totals
     extract_metadata: dict = field(default_factory=dict)
+
+# For convenient looping over attributes
+_ignored_fields = {"object_name", "is_valid", "error_str", "custom_attribute_arrays", "extract_metadata"}
+default_mesh_extract_field_names = [
+    f.name for f in fields(RTC_Mesh_Extract_Instance) 
+    if f.name not in _ignored_fields
+]

@@ -313,7 +313,7 @@ def _new_mesh_extract_instance_from_mesh(
             if arr is not None:
                 instance.custom_attribute_arrays[attr_name] = arr
             else:
-                logger.warning(f"Custom attribute '{attr_name}' not found on mesh of Object '{object.name}' — skipping.")
+                logger.debug(f"Custom attribute '{attr_name}' not found on mesh of Object '{object.name}' — skipping.")
             prev_count = instance.extract_metadata.get(f"custom:{attr_name}", {}).get("read_count", 0)
             _record_attr_meta(instance, arr.shape if arr is not None else None, f"custom:{attr_name}", t0, prev_count + 1)
 
