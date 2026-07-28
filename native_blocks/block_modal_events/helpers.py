@@ -162,6 +162,7 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> Non
 
     if not defs_by_block or sum(len(v) for v in defs_by_block.values()) == 0:
         logger.info("_rebuild_all_listeners: no Modal_Listener_Definitions returned, returning early")
+        modal_props.enable_modal = False
         return
 
     validate_listener_definitions(defs_by_block)
@@ -209,6 +210,9 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> Non
             actions_denied=set(),
             logger=logger,
         )
+        
+    if not modal_props.enable_modal:
+        modal_props.enable_modal = True
 
 # ==============================================================================================================================
 # ROUTER START / STOP HELPERS
