@@ -4,14 +4,19 @@
 
 ## Purpose
 
-Reads object mesh data into numpy arrays using `foreach_get` on Blender's evaluated
-depsgraph mesh. Works on any object that can produce a mesh (`MESH`, `CURVE`, `SURFACE`,
-`META`, `FONT`, `CURVES`, `POINTCLOUD`) in both Object mode and Edit mode without
-switching modes. Lights, Empties, and other non-mesh types are rejected gracefully.
+Moves mesh data between Blender and numpy in bulk, in both directions:
 
-Downstream blocks declare what they need via `Numpy_Mesh_Extract_Declaration` (MET) objects submitted
-through `hook_get_mesh_extract_targets`. This block merges, validates, extracts, caches,
-and then fires `hook_mesh_extract_ready` to notify downstream blocks that data is available.
+- **READ** — `foreach_get` from an evaluated or original mesh into a domain-namespaced
+  numpy record.
+- **CALLBACKS** — pure numpy work that mutates that record in place.
+- **WRITE** — `foreach_set` (or a bmesh loop in Edit Mode) back into builtin attributes,
+  named/custom attributes, or UV maps.
+
+One reusable **action declaration** describes all three phases. Every run produces a
+timestamped `Mesh_Action_Record` so reads and writes are tracked identically.
+
+This block is **fully demand-driven**: nothing runs unless a caller invokes it. There are
+no hook sources, no app handlers, no data mirrors, and no UIList.
 
 ---
 
@@ -19,128 +24,248 @@ and then fires `hook_mesh_extract_ready` to notify downstream blocks that data i
 
 | Block | Reason |
 |---|---|
-| `block-core` | Runtime cache, loggers, hooks |
+| `block-core` | Runtime cache, loggers |
 
 ---
 
-## Architecture Summary
+## Public API — `Wrapper_Mesh_Extract`
 
-### Extraction Flow
+| Method | Returns | Description |
+|---|---|---|
+| `run_mesh_action_for_object(object, declaration, depsgraph=None, existing_instance=None)` | `RTC_Mesh_Extract_Instance` | Run one declaration against one object |
+| `run_mesh_actions_for_object(object, declarations, depsgraph=None)` | `RTC_Mesh_Extract_Instance` | Run several declarations in order on one chained instance; stops on first failure |
+| `get_instance(object_name, slot="default", require_valid=True)` | instance \| `None` | Fetch a stored instance |
+| `get_all_instances()` | `list` | All stored instances |
+| `clear_instances(object_name=None)` | `int` | Drop stored data for one object, or all |
+| `diff_instances(old, new)` | `(added, removed, edited)` | Key-level comparison of two instances |
 
-1. `run_mesh_extract()` is called (via operator, scene property, or public API).
-2. `hook_get_mesh_extract_targets` is broadcast — each subscribed block returns a
-   `list[Numpy_Mesh_Extract_Declaration]`.
-3. All METs are merged by `object_name` (silent union for attrs; last-writer-wins for callbacks).
-4. Each object is extracted via `evaluated_get(depsgraph)` → `to_mesh()` — no mode switching.
-5. First-level reads run, then custom attribute reads, then callbacks in insertion order.
-6. Results are written to `RTC_Mesh_Extract_Instance` objects.
-7. The BL `extract_mirror` CollectionProperty is synced.
-8. `hook_mesh_extract_ready` fires with `object_names: list[str]`.
-
-### Attribute Levels
-
-**All MET attributes are first-level** — read directly via `foreach_get`:
-
-| Attribute | Domain | dtype | Shape |
-|---|---|---|---|
-| `MET.VERTEX.CO` | VERTEX | float32 | (n_verts, 3) |
-| `MET.VERTEX.NORMAL` | VERTEX | float32 | (n_verts, 3) |
-| `MET.EDGE.VERTICES` | EDGE | int32 | (n_edges, 2) |
-| `MET.EDGE.CREASE` | EDGE | float32 | (n_edges,) |
-| `MET.EDGE.SHARP` | EDGE | bool | (n_edges,) |
-| `MET.FACE.NORMAL` | FACE | float32 | (n_faces, 3) |
-| `MET.FACE.AREA` | FACE | float32 | (n_faces,) |
-| `MET.FACE.LOOP_START` | FACE | int32 | (n_faces,) |
-| `MET.FACE.LOOP_TOTAL` | FACE | int32 | (n_faces,) |
-| `MET.CORNER.VERTEX_INDEX` | CORNER | int32 | (n_corners,) |
-
-**Derived data** (edge length, face center, neighbor CSR arrays, etc.) is produced by
-callbacks and stored in `instance.custom_attribute_arrays`. Use the pre-built callbacks
-in `block_mesh_extract.callbacks` — see the **Pre-built Callbacks** section below.
-
-### Pre-built Callbacks (`callbacks.py`)
-
-Import and use in `Numpy_Mesh_Extract_Declaration.callbacks` dict:
+`run_mesh_action_for_object` **never raises** for mesh or attribute problems — failures
+are recorded on the action. Check `instance.last_action.is_valid` for this call, or
+`instance.is_valid` for the latest action.
 
 ```python
-from native_blocks.block_mesh_extract.callbacks import (
-    cb_edge_length,          # np.ndarray (n_edges,)     float32
-    cb_face_center,          # np.ndarray (n_faces, 3)   float32
-    cb_vert_vert_neighbors,  # (indices, offsets) CSR tuple
-    cb_vert_face_neighbors,  # (indices, offsets) CSR tuple
-    cb_face_face_neighbors,  # (indices, offsets) CSR tuple
+from ...native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
+
+instance = Wrapper_Mesh_Extract.run_mesh_action_for_object(obj, MY_DECLARATION)
+if not instance.is_valid:
+    logger.error(instance.error_str)
+```
+
+---
+
+## Storage Modes
+
+Storage is chosen **per declaration** with `should_cache_in_RTC`:
+
+| Mode | Setting | Behaviour |
+|---|---|---|
+| **RTC-cached** | `should_cache_in_RTC = True` (default) | Instance is stored under `(object_name, slot)`, accumulates data + action history across calls, and appears in the debug panel |
+| **No storage** | `should_cache_in_RTC = False` | Instance is returned to the caller only; nothing is retained |
+
+Nothing is ever mirrored into Blender data — every payload is a numpy array, so BL
+persistence is not applicable. The debug panel reads the RTC list directly via a looped
+draw function.
+
+> **Diffing caveat:** an RTC-cached declaration mutates its stored instance **in place**.
+> To diff before/after you must either use `should_cache_in_RTC=False` or hold your own
+> snapshot of the previous instance.
+
+---
+
+## Instance Identity & Slots
+
+Identity is the pair **`(object_name, slot)`**.
+
+- Multiple actions may target the same object. Same `slot` → they accumulate into one
+  instance (pass 1 → pass 2 chaining). Different `slot` → independent instances.
+- Latest read wins per attribute slot.
+- Overlapping or differing read/write sets across actions are fine; each action records
+  only the ops it actually performed.
+
+---
+
+## Action Declaration
+
+```python
+from ...native_blocks.block_mesh_extract.data_structures import (
+    MET, Numpy_Mesh_Action_Declaration, Enum_Read_Source, Callback_Op, Write_Op,
+)
+
+MY_DECLARATION = Numpy_Mesh_Action_Declaration(
+    label            = "planarity_pass_1",
+    slot             = "assembly",
+    read_source      = Enum_Read_Source.EVALUATED,
+    read_attributes  = (
+        MET.VERTEX.CO,
+        MET.FACE.NORMAL,
+        MET.FACE.LOOP_START,
+        MET.FACE.LOOP_TOTAL,
+        MET.EDGE.VERTICES,
+        MET.CORNER.VERTEX_INDEX,
+        MET.FACE.CUSTOM_ATTRIBUTE("gn_f1"),
+        MET.CORNER.UV_MAP(),                     # active UV layer
+    ),
+    callbacks        = (
+        cb_face_face_neighbors,
++                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           Callback_Op(_compute_planarity, label="planarity"),
+    ),
+    write_attributes = (
+        MET.FACE.CUSTOM_ATTRIBUTE("planar_groups", data_type="INT"),
+    ),
 )
 ```
 
-| Callback | Key | Returns | Required attrs |
-|---|---|---|---|
-| `cb_edge_length` | `"edge_length"` | `np.ndarray (n_edges,)` | `VERTEX.CO`, `EDGE.VERTICES` |
-| `cb_face_center` | `"face_center"` | `np.ndarray (n_faces, 3)` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
-| `cb_vert_vert_neighbors` | `"vert_vert_neighbors"` | `(idx, off)` | `VERTEX.CO`, `EDGE.VERTICES` |
-| `cb_vert_face_neighbors` | `"vert_face_neighbors"` | `(idx, off)` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
-| `cb_face_face_neighbors` | `"face_face_neighbors"` | `(idx, off)` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| Field | Default | Purpose |
+|---|---|---|
+| `label` | required | Identifies the action in the panel and logs |
+| `slot` | `"default"` | Second half of instance identity |
+| `read_attributes` | `()` | Ordered MET attrs to read |
+| `callbacks` | `()` | Ordered callables / `Callback_Op` |
+| `write_attributes` | `()` | Ordered MET attrs / `Write_Op` to flush |
+| `read_source` | `EVALUATED` | `EVALUATED` (post-modifier) or `ORIGINAL` (write-safe) |
+| `should_cache_in_RTC` | `True` | Storage mode |
+| `allow_evaluated_index_space` | `False` | Required to combine writes with `EVALUATED` reads |
+| `edit_mode_write_strategy` | `BMESH_LOOP` | Or `REJECT` to refuse Edit-Mode writes |
+| `on_type_mismatch` | `ERROR` | Or `RECREATE` an existing attribute with the wrong domain/type |
+| `diff_limited_writes` | `True` | Only touch elements whose value actually changed |
+| `should_push_undo` | `False` | Push an undo step after a successful write |
+| `max_actions_retained` | `50` | Per-instance action-log cap; oldest evicted |
 
-**Accessing CSR data:**
-```python
-idx, off = instance.custom_attribute_arrays["face_face_neighbors"]
-# Neighbors of face i:
-neighbors = idx[off[i] : off[i+1]]
-```
+Declarations are **object-free** module-level constants — never store a
+`bpy.types.Object` on one.
 
-### Custom Attributes
+---
 
-Named mesh attributes (e.g. Geometry Nodes outputs, vertex color layers) are read via
-`mesh.attributes[name].data.foreach_get(...)` and stored in
-`instance.custom_attribute_arrays[attr_name]`.
-
-```python
-Numpy_Mesh_Extract_Declaration(
-    object_name       = "Cube",
-    read_attributes   = [MET.VERTEX.CO],
-    custom_attributes = [(MET.VERTEX, "my_custom_float")],
-)
-```
-
-### Callbacks
-
-Callbacks run after all standard reads and custom attribute reads. The `callbacks` field is
-a **dict mapping a string key to a callable**:
+## MET — One Vocabulary for Reads and Writes
 
 ```python
-callbacks: dict[str, Callable]  # attr_name → func(instance) → any
+MET.VERTEX.CO                                        # builtin, writable
+MET.VERTEX.NORMAL                                    # builtin, read-only (Blender-computed)
+MET.EDGE.SEAM / .SHARP / .CREASE                     # builtin named attributes, writable
+MET.FACE.NORMAL / .AREA / .LOOP_START / .LOOP_TOTAL  # read-only
+MET.CORNER.VERTEX_INDEX                              # read-only
+
+MET.<DOMAIN>.CUSTOM_ATTRIBUTE("name", data_type="INT")   # data_type needed only to create
+MET.CORNER.UV_MAP()                                      # active UV layer, resolved at runtime
+MET.CORNER.UV_MAP("UVMap")                               # explicit UV layer
 ```
 
-- Keys are insertion-ordered (Python 3.7+) — callbacks run in the order they appear in the dict.
-- Each result is stored in `instance.custom_attribute_arrays[attr_name]`.
-- The key is also used as the metadata timing key (`cb:<attr_name>`).
-- A callback may return any value (numpy array, tuple, dict, etc.).
+Each `MET_Attr_Declaration` is a table-driven descriptor: domain, accessor
+(`COLLECTION` vs `NAMED_ATTRIBUTE`), dtype, components, `value_field`, `is_writable`, and
+the instance slot it maps to. Read and write helpers both dispatch off this table, so
+there is no per-attribute `if/elif` chain anywhere.
 
-Callbacks that raise an exception **abort extraction for that object** — `is_valid` is set
-to `False` and `error_str` is populated. No pre-flight validation of callback inputs is
-performed; errors surface at runtime and are displayed in the UI panel details pane.
+---
+
+## Instance Data Layout
+
+Data is domain-namespaced instead of prefix-flattened:
 
 ```python
-from native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
+instance.vertex.co                        # (n_verts, 3) float32
+instance.vertex.count                     # element count
+instance.edge.vertices                    # (n_edges, 2) int32
+instance.face.normal / .area / .loop_start / .loop_total
+instance.corner.vertex_index
 
-def _my_planarity(instance):
-    ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
-    return compute_coplanar_groups(
-        instance.face_normal,
-        ffi, ffo,
-        tolerance_deg=1.0,
-    )
+instance.face.custom["planar_groups"]     # named / GN / user attributes
+instance.face.planar_groups               # sugar (identifier-safe names only)
+instance.corner.custom["UV Map"]          # names with spaces: dict access only
 
-Numpy_Mesh_Extract_Declaration(
-    object_name     = "Cube",
-    read_attributes = [MET.FACE.NORMAL, MET.EDGE.VERTICES,
-                       MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
-                       MET.CORNER.VERTEX_INDEX],
-    callbacks       = {
-        "face_face_neighbors": cb_face_face_neighbors,  # must run before planarity
-        "coplanar_group_id":   _my_planarity,
-    },
-)
+instance.derived["face_face_neighbors"]   # non-domain data: CSR tuples, dicts, scalars
 ```
+
+Domain helpers: `.get(name, default)`, `.has(name)`, `.set_custom(name, value)`,
+`.populated_field_names()`.
+
+Instance helpers: `.domain("FACE")`, `.get_attr_value(attr)`, `.set_attr_value(attr, value)`,
+`.last_action`, `.total_duration_ms`, `.summary_str()`.
+
+**The instance is a bidirectional staging buffer.** A write with no explicit payload
+flushes whatever currently sits at that attribute's slot — so a callback writes its
+result into the slot and the WRITE phase picks it up. Use `Write_Op(attr, payload=arr)`
+for a one-shot write that skips staging.
+
+---
+
+## Callbacks
+
+```python
+def _compute_planarity(instance, action_record):
+    ffi, ffo = instance.derived["face_face_neighbors"]
+    instance.face.custom["planar_groups"] = compute_groups(instance.face.normal, ffi, ffo)
+    instance.derived["planar_group_boundary_edges"] = boundaries
+```
+
+- Signature: `func(instance, action_record) -> None`. Return values are ignored — the
+  callback **mutates the instance**.
+- Per-element results belong in `domain.custom[...]` so they can be written back;
+  anything else goes in `instance.derived[...]`.
+- Wrap in `Callback_Op(func, label="...")` for a nicer panel label.
+- A raising callback marks the op and the action invalid; data read before the failure is
+  retained.
+
+### Pre-built callbacks (`builtin_custom_callbacks.py`)
+
+| Callback | Stores | Required reads |
+|---|---|---|
+| `cb_edge_length` | `derived["edge_length"]` | `VERTEX.CO`, `EDGE.VERTICES` |
+| `cb_face_center` | `derived["face_center"]` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| `cb_vert_vert_neighbors` | `derived["vert_vert_neighbors"]` | `VERTEX.CO`, `EDGE.VERTICES` |
+| `cb_vert_face_neighbors` | `derived["vert_face_neighbors"]` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| `cb_face_face_neighbors` | `derived["face_face_neighbors"]` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+
+CSR access:
+```python
+idx, off = instance.derived["face_face_neighbors"]
+neighbors_of_face_i = idx[off[i] : off[i+1]]
+```
+
+---
+
+## Writing to Meshes — Rules & Pitfalls
+
+Writes are the risky half of the block. The guardrails:
+
+| Concern | Rule |
+|---|---|
+| **Index space** | `EVALUATED` reads come from the post-modifier cage; those indices may not match the original mesh. Writing after an `EVALUATED` read requires `allow_evaluated_index_space=True` as an explicit acknowledgement. Prefer `read_source=ORIGINAL` for read-modify-write. |
+| **Write target** | Writes always go to the **original** mesh (`object.data`). The evaluated cage is throwaway data. |
+| **Length mismatch** | Payload length must equal `domain_count × components`. Mismatches fail the op, never truncate. |
+| **Read-only attrs** | `is_writable=False` (normals, areas, loop_start/total, edge vertices, corner vertex_index) are rejected — these are Blender-computed or topology. |
+| **Reserved names** | `position`, `id`, `material_index` are refused as custom-attribute targets. |
+| **Type mismatch** | An existing attribute with a different domain/data_type raises under `ERROR`, or is deleted and recreated under `RECREATE`. |
+| **Creating attributes** | Requires `data_type` on the MET declaration; otherwise the op fails with a clear message. |
+| **Edit Mode** | `foreach_set` does not reach the BMesh. `BMESH_LOOP` writes through a per-element Python loop (slow, correct); `REJECT` fails fast instead of paying the cost. |
+| **Diff-limited writes** | With `diff_limited_writes=True` the current mesh values are read first and the write is skipped entirely when nothing changed — avoids needless depsgraph churn. |
+| **Depsgraph feedback** | A write triggers a depsgraph update. If your caller runs from a `depsgraph_update_post` handler, guard against re-entry (a re-entrancy flag or handler disable around the call). |
+| **Topology** | This block writes **attribute values only** — it never adds or removes elements. `topology_generation` bumps if element counts change underneath, invalidating cached index-space data. New geometry must be built with bmesh by the caller. |
+| **Undo** | `should_push_undo=True` pushes an undo step after a successful write. Off by default — high-frequency writes should not spam the undo stack. |
+
+---
+
+## Action Records & Timestamp Ordering
+
+Every call appends a `Mesh_Action_Record`:
+
+| Field | Notes |
+|---|---|
+| `action_uid` | Monotonic, from the RTC counter |
+| `label` | Declaration label |
+| `timestamp_start` | Wall clock at action start — **the sort key** |
+| `duration_ms` | Total action duration |
+| `read_source`, `object_mode` | Provenance of this run |
+| `is_valid`, `error_str` | Outcome |
+| `ops` | `list[Mesh_Action_Op_Record]` |
+| `domain_counts` | `{"VERTEX": 8, "EDGE": 12, ...}` |
+
+`append_action()` keeps `actions` sorted by `(timestamp_start, action_uid)` and evicts the
+oldest beyond `max_actions_retained`. Convenience properties: `read_count`,
+`write_count`, `callback_count`, `failed_ops`.
+
+Each `Mesh_Action_Op_Record` carries `op_type` (`READ` / `CALLBACK` / `WRITE`), `label`,
+`duration_ms`, `shape`, `is_valid`, `error_str`, and a `detail` string (e.g.
+`→ face.custom['planar_groups']`, `bmesh loop, 12 changed`).
 
 ---
 
@@ -150,161 +275,75 @@ Numpy_Mesh_Extract_Declaration(
 
 | Property path | Type | Purpose |
 |---|---|---|
-| `scene.dgblocks_mesh_extract_props.run_mesh_extract` | `BoolProperty` | Momentary trigger; auto-resets to False |
-| `scene.dgblocks_mesh_extract_props.extract_mirror` | `CollectionProperty` | Per-object BL persistence (key + is_valid only) |
-| `scene.dgblocks_mesh_extract_props.extract_mirror_selected_idx` | `IntProperty` | Active UIList row |
+| `scene.dgblocks_mesh_extract_props.debug_mode_enabled` | `BoolProperty` | Show the instance inspector |
+| `...debug_expanded_instance_key` | `StringProperty` | Which instance row is expanded |
+| `...debug_max_actions_shown` | `IntProperty` | Actions listed per instance |
+| `...debug_show_op_details` | `BoolProperty` | Show per-op breakdown |
 
-**`DGBLOCKS_PG_Mesh_Extract_Mirror_Row` fields:**
-
-| Field | Type | Notes |
-|---|---|---|
-| `object_name` | `StringProperty` | Key — matches `RTC_Mesh_Extract_Instance.object_name` |
-| `is_valid` | `BoolProperty` | Display only |
+Debug/inspection state only — there is nothing to mirror.
 
 ### Runtime Cache
 
 | RTC Key | Type | Purpose |
 |---|---|---|
-| `MESH_EXTRACT_INSTANCES` | `list[RTC_Mesh_Extract_Instance]` | All extracted object instances |
-
-### `RTC_Mesh_Extract_Instance` Fields
-
-| Field | Shape | dtype | Description |
-|---|---|---|---|
-| `object_name` | — | str | UID |
-| `is_valid` | — | bool | False if extraction failed (includes callback failures) |
-| `error_str` | — | str\|None | Error detail if is_valid=False |
-| `vertex_co` | (n_verts, 3) | float32 | Vertex positions |
-| `vertex_normal` | (n_verts, 3) | float32 | Vertex normals |
-| `edge_vertices` | (n_edges, 2) | int32 | Per-edge vertex indices |
-| `edge_crease` | (n_edges,) | float32 | Edge crease values |
-| `edge_sharp` | (n_edges,) | bool | Sharp edge flags |
-| `face_normal` | (n_faces, 3) | float32 | Face normals |
-| `face_area` | (n_faces,) | float32 | Face areas |
-| `face_loop_start` | (n_faces,) | int32 | Loop start indices |
-| `face_loop_total` | (n_faces,) | int32 | Loop counts per face |
-| `corner_vertex_index` | (n_corners,) | int32 | Per-corner vertex index |
-| `custom_attribute_arrays` | dict | — | Named mesh attr arrays, CSR tuples, and all callback results |
-| `extract_metadata` | dict | — | Per-attr + `_total` timing, shape & read_count |
-
-All derived data (edge length, face centers, neighbor CSR arrays, etc.) lives in
-`custom_attribute_arrays`, keyed by the callback's dict key.
+| `MESH_EXTRACT_INSTANCES` | `list[RTC_Mesh_Extract_Instance]` | Stored instances, keyed by `(object_name, slot)` |
+| `MESH_ACTION_UID_COUNTER` | `int` | Monotonic `action_uid` source |
 
 ---
 
-## Hook Sources
+## Operators
 
-| Member | Direction | Kwargs | Purpose |
-|---|---|---|---|
-| `hook_get_mesh_extract_targets` | block_mesh_extract → subscribers | `{}` | Collect `Numpy_Mesh_Extract_Declaration` objects |
-| `hook_mesh_extract_ready` | block_mesh_extract → subscribers | `object_names: list[str]` | Signal that extraction is complete |
-
----
-
-## Trigger Mechanisms
-
-### Option 1 — Scene Property (from UI or Python)
-```python
-bpy.context.scene.dgblocks_mesh_extract_props.run_mesh_extract = True
-# Auto-resets to False; triggers run_mesh_extract()
-```
-
-### Option 2 — Public API
-```python
-from native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
-processed_names = Wrapper_Mesh_Extract.run_mesh_extract_for_object()
-```
+| Operator | Purpose |
+|---|---|
+| `dgblocks.mesh_extract_toggle_instance` | Expand/collapse an instance row |
+| `dgblocks.mesh_extract_clear` | Clear one object's data, or everything |
 
 ---
 
-## Public API — `Wrapper_Mesh_Extract`
-
-| Method | Returns | Description |
-|---|---|---|
-| `run_mesh_extract_for_object()` | `list[str]` | Trigger full extraction; returns processed object names |
-| `get_instance(name)` | `RTC_Mesh_Extract_Instance \| None` | Get valid instance by object name |
-| `get_all_instances()` | `list[RTC_Mesh_Extract_Instance]` | All live instances |
-| `diff_instances(old, new)` | `list[str]` | Return names of all shared fields that differ between two instances; empty = unchanged |
-
----
-
-## Downstream Block Integration Example
+## Downstream Integration Example
 
 ```python
-# my_block/__init__.py
-
-from ...native_blocks.block_mesh_extract.data_structures import MET, Numpy_Mesh_Extract_Declaration
-from ...native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
-from ...native_blocks.block_mesh_extract.callbacks import cb_face_face_neighbors
-from ...native_blocks.block_mesh_extract.helpers_computed import compute_coplanar_groups
-
-
-def _compute_planarity(instance):
-    """Callback: receives the full RTC instance, returns one np.ndarray."""
-    ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
-    return compute_coplanar_groups(
-        instance.face_normal,
-        ffi, ffo,
-        tolerance_deg=1.0,
-    )
+from ....native_blocks.block_mesh_extract.data_structures import (
+    MET, Numpy_Mesh_Action_Declaration, Enum_Read_Source,
+)
+from ....native_blocks.block_mesh_extract.builtin_custom_callbacks import cb_face_face_neighbors
+from ....native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
 
 
-def hook_get_mesh_extract_targets():
-    return [
-        Numpy_Mesh_Extract_Declaration(
-            object_name     = "Cube",
-            read_attributes = [
-                MET.VERTEX.CO,
-                MET.FACE.NORMAL,
-                MET.FACE.AREA,
-                MET.FACE.LOOP_START,
-                MET.FACE.LOOP_TOTAL,
-                MET.EDGE.VERTICES,
-                MET.CORNER.VERTEX_INDEX,
-            ],
-            custom_attributes = [(MET.VERTEX, "my_float_attr")],
-            callbacks = {
-                "face_face_neighbors": cb_face_face_neighbors,  # CSR — runs first
-                "coplanar_group_id":   _compute_planarity,      # reads CSR result above
-            },
-        )
-    ]
+def _compute_planarity(instance, action_record):
+    ffi, ffo = instance.derived["face_face_neighbors"]
+    instance.face.custom["planar_groups"] = compute_groups(instance.face.normal, ffi, ffo)
 
 
-def hook_mesh_extract_ready(object_names: list):
-    instance = Wrapper_Mesh_Extract.get_instance("Cube")
-    if instance:
-        print(f"Cube has {instance.vertex_co.shape[0]} vertices")
-        print(f"Planarity groups: {instance.custom_attribute_arrays.get('coplanar_group_id')}")
-        ffi, ffo = instance.custom_attribute_arrays["face_face_neighbors"]
-        print(f"Face-face neighbor data: {ffi.shape[0]} adjacency entries")
+PASS_1 = Numpy_Mesh_Action_Declaration(
+    label            = "planarity",
+    slot             = "assembly",
+    should_cache_in_RTC = False,          # caller keeps the instance, enabling before/after diffs
+    read_attributes  = (MET.VERTEX.CO, MET.FACE.NORMAL, MET.EDGE.VERTICES,
+                        MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX),
+    callbacks        = (cb_face_face_neighbors, _compute_planarity),
+)
+
+instance = Wrapper_Mesh_Extract.run_mesh_action_for_object(obj, PASS_1)
+if instance.is_valid:
+    groups = instance.face.custom["planar_groups"]
 ```
 
----
+Chaining a cheap pass 1 into an expensive pass 2 only when data actually changed:
 
-## Planarity Helpers (`helpers_computed.py`)
-
-Two functions are provided as ready-to-use callback innards for a planarity workflow:
-
-### `compute_coplanar_groups(...) → np.ndarray (n_faces,) int32`
-Assigns each face a coplanar group ID. Special values:
-- `-1` : NGon/quad that fails self-planarity check
-- `-2` : Face area below `min_area` threshold
-
-Uses scipy `connected_components` on a face-adjacency graph filtered by normal dot product.
-
-### `compute_coplanar_boundaries(...) → dict[int → list[list[int]]]`
-For each coplanar group: returns ordered edge-index walks of all boundary loops.
-Outer boundary (longest walk) is always first in the list.
+```python
+pass_1 = Wrapper_Mesh_Extract.run_mesh_action_for_object(obj, PASS_1, depsgraph)
+added, removed, edited = Wrapper_Mesh_Extract.diff_instances(pass_1, previous_snapshot)
+if added or removed or edited:
+    pass_2 = Wrapper_Mesh_Extract.run_mesh_action_for_object(obj, PASS_2, depsgraph, pass_1)
+```
 
 ---
 
 ## `helpers_computed.py` — NJIT Contract
 
-All functions in `helpers_computed.py` are pure: only numpy arrays + scalars in,
-numpy arrays out. No bpy, no global state. Each is a direct candidate for `@njit`.
-
-Wrapping pattern for future NJIT conversion:
+All functions are pure: numpy arrays + scalars in, numpy arrays out. No bpy, no global
+state. Each is a direct `@njit` candidate.
 
 ```python
 def compute_edge_length(vertex_co, edge_vertices):
@@ -315,49 +354,24 @@ def _compute_edge_length_inner(vertex_co, edge_vertices):
     ...
 ```
 
-The boundary walk (`_traverse_boundary_walk`) contains a Python loop that cannot be
-trivially vectorized. It is isolated in its own function with a docstring NJIT note
-explaining the conversion path (replace dict/set with CSR integer arrays).
-
 ---
 
 ## Validation
 
-No pre-flight validation is performed. Callbacks that access arrays which are `None`
-(because the corresponding attribute was not requested) will raise at runtime, which
-marks `is_valid=False` and populates `error_str` on the instance. The error is displayed
-in the UI panel details pane.
-
----
-
-## Metadata Format
-
-`instance.extract_metadata` structure:
-
-```python
-{
-    "VERTEX.co":                  {"duration_ms": 0.31, "read_count": 3, "shape": (1024, 3)},
-    "FACE.normal":                {"duration_ms": 0.18, "read_count": 3, "shape": (512, 3)},
-    "custom:my_attr":             {"duration_ms": 0.12, "read_count": 3, "shape": (1024,)},
-    "cb:face_face_neighbors":     {"duration_ms": 0.80, "read_count": 3, "shape": "-"},
-    "cb:coplanar_group_id":       {"duration_ms": 4.20, "read_count": 3, "shape": (512,)},
-    "_total":                     {"duration_ms": 5.10, "read_count": 3},
-}
-```
-
-- Attribute rows include `"shape"` (the numpy `.shape` tuple, or `"-"` for non-array results).
-- Callback rows are prefixed `cb:` and show the shape of the returned value (if it has `.shape`).
-- `_total.read_count` increments on every extraction run for that object.
-- The UI details pane renders attribute rows and the total summary separately.
+No pre-flight validation of callback inputs. A callback that touches an array which was
+never read raises at runtime; the op and action are marked invalid, `error_str` is
+populated, and the failure is shown in the panel. Write-phase validation (writability,
+reserved names, length, type mismatch) **is** performed and fails the op with a
+descriptive message.
 
 ---
 
 ## Loggers
 
-| Logger | Level | Usage |
-|---|---|---|
-| `MESH_EXTRACT_LIFECYCLE` | `DEBUG` | Rebuild/clear events, sync, init/remove |
-| `MESH_EXTRACT_EVENTS` | `DEBUG` | Per-object extraction results, attribute errors |
+| Logger | Usage |
+|---|---|
+| `MESH_EXTRACT_LIFECYCLE` | Wrapper init/remove, instance store/clear |
+| `MESH_EXTRACT_EVENTS` | Per-action results, per-op errors |
 
 ---
 
@@ -365,22 +379,19 @@ in the UI panel details pane.
 
 ```text
 block_mesh_extract/
-├── __init__.py              # Block declaration, BL props, operator, panel, UIList
-├── README.md                # This file
-├── common_declarations.py   # Block_Hook_Sources, Block_Loggers, Block_RTC_Members,
-│                            # Block_Data_Mirrors, Block_UIList_Configs
-├── data_structures.py       # MET, MET_Attr_Declaration, Numpy_Mesh_Extract_Declaration,
-│                            # RTC_Mesh_Extract_Instance, ALL_MET_ATTRS
-├── callbacks.py             # Pre-built callback functions:
-│                            # cb_edge_length, cb_face_center,
-│                            # cb_vert_vert_neighbors, cb_vert_face_neighbors,
-│                            # cb_face_face_neighbors
-├── feature_mesh_extract.py  # Wrapper_Mesh_Extract (FWC)
-├── helpers.py               # run_mesh_extract, merge, _new_mesh_extract_instance_from_mesh,
-│                            # _foreach_get_attr, _read_custom_attribute
-├── helpers_computed.py      # Pure numpy computed functions (NJIT-ready):
-│                            # compute_edge_length, compute_face_center,
-│                            # build_*_csr, compute_coplanar_groups,
-│                            # compute_coplanar_boundaries
-└── ui.py                    # UIList row + details draw helpers
+├── __init__.py                  # Block declaration, debug props, operators, panel
+├── README.md                    # This file
+├── common_declarations.py       # Block_Loggers, Block_RTC_Members
+├── data_structures.py           # Enums, MET table, domain namespaces,
+│                                # Numpy_Mesh_Action_Declaration, Callback_Op, Write_Op,
+│                                # Mesh_Action_Record, Mesh_Action_Op_Record,
+│                                # RTC_Mesh_Extract_Instance
+├── helpers_actions.py           # run_mesh_action orchestration, RTC instance store
+├── helpers_read.py              # Table-driven foreach_get, attribute resolution
+├── helpers_write.py             # Table-driven foreach_set, bmesh Edit-Mode path,
+│                                # attribute creation, diff-limited writes
+├── helpers_diff.py              # diff_instances over domains + custom + derived
+├── helpers_computed.py          # Pure numpy functions (NJIT-ready)
+├── builtin_custom_callbacks.py  # cb_edge_length, cb_face_center, cb_*_neighbors
+└── ui.py                        # ui_draw_mesh_extract_instances (looped draw, no UIList)
 ```

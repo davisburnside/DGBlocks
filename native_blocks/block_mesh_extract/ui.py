@@ -1,107 +1,159 @@
 
-# ==============================================================================================================================
-# UILIST ROW DRAW
-# ==============================================================================================================================
+"""
+ui.py — debug draw for stored mesh-extract instances.
 
-def _uilist_draw_row(context, container, uilist_config_instance, BL_item, RTC_item, list_idx):
-    """
-    Draws a single row in the Mesh Extract UIList.
-    Columns: Object Name | Valid | Total Time (ms) | Read Count
-    """
-    col_widths = uilist_config_instance.col_widths
+There is no UIList and no data mirror: instances hold numpy arrays that cannot be
+represented in Blender data. This is a plain looped draw straight off the RTC list.
+"""
 
-    row = container.row()
+import time
 
-    # Object name
-    sub = row.row()
-    sub.ui_units_x = col_widths[0]
-    sub.label(text=RTC_item.object_name)
+from .data_structures import Enum_Mesh_Op_Type
 
-    # Valid icon
-    sub = row.row()
-    sub.ui_units_x = col_widths[1]
-    icon = "CHECKMARK" if RTC_item.is_valid else "ERROR"
-    sub.label(text="", icon=icon)
+_OP_ICONS = {
+    Enum_Mesh_Op_Type.READ:     "IMPORT",
+    Enum_Mesh_Op_Type.CALLBACK: "SCRIPTPLUGINS",
+    Enum_Mesh_Op_Type.WRITE:    "EXPORT",
+}
 
-    # Total time (ms)
-    sub = row.row()
-    sub.ui_units_x = col_widths[2]
-    total_meta = RTC_item.extract_metadata.get("_total", {})
-    duration_ms = total_meta.get("duration_ms", 0.0)
-    sub.label(text=f"{duration_ms:.2f}")
 
-    # Read count
-    sub = row.row()
-    sub.ui_units_x = col_widths[3]
-    read_count = total_meta.get("read_count", 0)
-    sub.label(text=str(read_count))
+def _instance_key(instance) -> str:
+    return f"{instance.object_name}|{instance.slot}"
+
+
+def _clock_str(timestamp: float) -> str:
+    return time.strftime("%H:%M:%S", time.localtime(timestamp))
 
 
 # ==============================================================================================================================
-# DETAILS SECTION
+# INSTANCE HEADER + BODY
 # ==============================================================================================================================
 
-def _format_shape(shape) -> str:
-    """Return a tidy shape string: '(1024, 3)' or '-' for missing/empty."""
-    if not shape:
-        return "-"
-    return str(shape)
+def _draw_instance_header(layout, instance, props, is_expanded: bool) -> None:
+    row = layout.row(align=True)
+
+    toggle = row.operator(
+        "dgblocks.mesh_extract_toggle_instance",
+        text  = "",
+        icon  = "TRIA_DOWN" if is_expanded else "TRIA_RIGHT",
+        emboss = False,
+    )
+    toggle.instance_key = _instance_key(instance)
+
+    row.label(text="", icon="CHECKMARK" if instance.is_valid else "ERROR")
+
+    name_row = row.row()
+    name_row.label(text=instance.object_name)
+    if instance.slot != "default":
+        name_row.label(text=f"[{instance.slot}]")
+
+    counts = row.row()
+    counts.alignment = "RIGHT"
+    counts.label(
+        text=f"v{instance.vertex.count} e{instance.edge.count} "
+             f"f{instance.face.count} c{instance.corner.count}"
+    )
+    counts.label(text=f"{len(instance.actions)} action(s)")
+
+    clear = row.operator("dgblocks.mesh_extract_clear", text="", icon="TRASH", emboss=False)
+    clear.object_name = instance.object_name
 
 
-def _uilist_draw_selection_details(context, container, uilist_config_instance, BL_item, RTC_item, list_idx):
-    """
-    Draws the details pane below the UIList for the currently selected row.
-    Shows validity, error info, and per-attribute timing/shape metadata.
-    """
-    if RTC_item is None:
+def _draw_data_inventory(layout, instance) -> None:
+    box = layout.box()
+    box.label(text="Stored Data", icon="RNA")
+    for domain_name in ("vertex", "edge", "face", "corner"):
+        domain_obj = getattr(instance, domain_name)
+        populated  = domain_obj.populated_field_names()
+        if not populated:
+            continue
+        row = box.row()
+        row.label(text=f"{domain_name}:")
+        col = row.column(align=True)
+        for name in populated:
+            col.label(text=name)
+    if instance.derived:
+        row = box.row()
+        row.label(text="derived:")
+        col = row.column(align=True)
+        for key in instance.derived:
+            col.label(text=key)
+
+
+def _draw_action(layout, action, show_ops: bool) -> None:
+    box = layout.box()
+
+    header = box.row(align=True)
+    header.label(text="", icon="CHECKMARK" if action.is_valid else "ERROR")
+    header.label(text=f"#{action.action_uid}  {action.label}")
+
+    meta = header.row()
+    meta.alignment = "RIGHT"
+    meta.label(text=_clock_str(action.timestamp_start))
+    meta.label(text=f"{action.duration_ms:.2f} ms")
+
+    detail = box.row()
+    detail.enabled = False
+    detail.label(
+        text=f"{action.read_source} · {action.object_mode} · "
+             f"{action.read_count}R / {action.callback_count}C / {action.write_count}W"
+    )
+
+    if action.error_str:
+        error_box = box.box()
+        error_box.alert = True
+        for line in str(action.error_str).splitlines():
+            error_box.label(text=line, icon="ERROR")
+
+    if not show_ops or not action.ops:
         return
 
-    box = container.box()
+    col = box.column(align=True)
+    head = col.row()
+    head.label(text="Op")
+    head.label(text="ms")
+    head.label(text="Shape")
+    head.label(text="Detail")
 
-    # ---- Header: object name + validity ----
-    header = box.row()
-    icon = "CHECKMARK" if RTC_item.is_valid else "ERROR"
-    header.label(text=RTC_item.object_name, icon=icon)
+    for op in action.ops:
+        row = col.row()
+        if not op.is_valid:
+            row.alert = True
+        row.label(text=op.label, icon=_OP_ICONS.get(op.op_type, "DOT"))
+        row.label(text=f"{op.duration_ms:.3f}")
+        row.label(text=op.shape or "-")
+        row.label(text=op.error_str or op.detail or "")
 
-    # ---- Error string (shown prominently when invalid) ----
-    if not RTC_item.is_valid and RTC_item.error_str:
-        err_box = box.box()
-        err_box.alert = True
-        for line in RTC_item.error_str.splitlines():
-            err_box.label(text=line, icon="ERROR" if line == RTC_item.error_str.splitlines()[0] else "NONE")
 
-    # ---- Per-attribute metadata table ----
-    metadata = RTC_item.extract_metadata
-    if not metadata:
-        box.label(text="No metadata available", icon="INFO")
+# ==============================================================================================================================
+# PUBLIC PANEL DRAW
+# ==============================================================================================================================
+
+def ui_draw_mesh_extract_instances(context, layout, instances, props) -> None:
+    """Draw every stored instance, newest activity first."""
+    if not instances:
+        layout.label(text="No stored mesh actions", icon="INFO")
         return
 
-    # Separate the _total summary row from per-attribute rows
-    attr_rows = {k: v for k, v in metadata.items() if k != "_total"}
-    total_meta = metadata.get("_total", {})
+    ordered = sorted(instances, key=lambda i: i.timestamp_last_action, reverse=True)
+    max_actions = max(1, props.debug_max_actions_shown)
 
-    if attr_rows:
-        col = box.column(align=True)
-        col.label(text="Attributes:", icon="TIME")
+    for instance in ordered:
+        outer       = layout.box()
+        key         = _instance_key(instance)
+        is_expanded = props.debug_expanded_instance_key == key
 
-        header_row = col.row()
-        header_row.label(text="Attribute")
-        header_row.label(text="ms")
-        header_row.label(text="Shape")
-        header_row.label(text="Reads")
+        _draw_instance_header(outer, instance, props, is_expanded)
+        if not is_expanded:
+            continue
 
-        col.separator(factor=0.3)
+        _draw_data_inventory(outer, instance)
 
-        for label, meta in attr_rows.items():
-            row = col.row()
-            row.label(text=label)
-            row.label(text=f"{meta.get('duration_ms', 0.0):.3f}")
-            row.label(text=_format_shape(meta.get("shape")))
-            row.label(text=str(meta.get("read_count", 0)))
-
-    # ---- Total summary ----
-    if total_meta:
-        box.separator(factor=0.5)
-        summary = box.row()
-        summary.label(text=f"Total: {total_meta.get('duration_ms', 0.0):.2f} ms", icon="SORTTIME")
-        summary.label(text=f"Run #{total_meta.get('read_count', 0)}")
+        actions_newest_first = list(reversed(instance.actions))
+        hidden = len(actions_newest_first) - max_actions
+        for action in actions_newest_first[:max_actions]:
+            _draw_action(outer, action, props.debug_show_op_details)
+        if hidden > 0:
+            row = outer.row()
+            row.enabled = False
+            row.label(text=f"...{hidden} older action(s) hidden")

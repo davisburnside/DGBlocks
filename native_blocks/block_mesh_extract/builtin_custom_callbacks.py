@@ -1,46 +1,32 @@
 
 """
-callbacks.py — Pre-built callback functions for standard derived mesh attributes.
+builtin_custom_callbacks.py — pre-built callbacks for common derived mesh data.
 
-These callbacks wrap the pure functions in helpers_computed.py and follow the
-Mesh_Extract_Target callback contract:
+CALLBACK CONTRACT
+    func(instance, action_record) -> None      (return value ignored)
 
-    func signature: func(instance: RTC_Mesh_Extract_Instance) -> any
-    result stored in: instance.custom_attribute_arrays[attr_name]
+A callback MUTATES the instance. Where it stores the result decides what the result IS:
 
-Usage in hook_get_mesh_extract_targets:
+    instance.<domain>.custom["name"] = arr     per-element, len == domain count
+                                               → can be written straight back to the mesh
+    instance.derived["name"] = anything        CSR pairs, dicts, scalars, matrices
+                                               → never writable to a mesh
 
-    from native_blocks.block_mesh_extract.callbacks import (
-        cb_edge_length,
-        cb_face_center,
-        cb_vert_vert_neighbors,
-        cb_vert_face_neighbors,
-        cb_face_face_neighbors,
+Use `action_record` only to append extra Mesh_Action_Op_Record entries if you want
+finer-grained timing than the one op record the framework already creates for you.
+
+Round-trip example — compute per-face data, then write it as a FACE attribute:
+
+    attr_face_center = MET.FACE.CUSTOM_ATTRIBUTE("face_center", data_type="FLOAT_VECTOR")
+
+    Numpy_Mesh_Action_Declaration(
+        label            = "face centers",
+        read_attributes  = [MET.VERTEX.CO, MET.FACE.LOOP_START,
+                            MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX],
+        callbacks        = [cb_face_center],          # → instance.face.custom["face_center"]
+        write_attributes = [attr_face_center],        # same key, written back to the mesh
+        read_source      = Enum_Read_Source.ORIGINAL,
     )
-
-    Mesh_Extract_Target(
-        object_name     = "Cube",
-        read_attributes = [MET.VERTEX.CO, MET.EDGE.VERTICES, ...],
-        callbacks       = {
-            "face_face_neighbors":  cb_face_face_neighbors,
-            "coplanar_group_id":    _my_planarity_callback,
-        },
-    )
-
-CSR callbacks store a (indices, offsets) tuple under their key:
-
-    idx, off = instance.custom_attribute_arrays["face_face_neighbors"]
-    # neighbors of face i:
-    neighbors = idx[off[i] : off[i+1]]
-
-Recommended canonical key names for each pre-built callback:
-    "edge_length"          → np.ndarray (n_edges,)        float32
-    "face_center"          → np.ndarray (n_faces, 3)      float32
-    "vert_vert_neighbors"  → (indices: np.ndarray, offsets: np.ndarray)
-    "vert_face_neighbors"  → (indices: np.ndarray, offsets: np.ndarray)
-    "face_face_neighbors"  → (indices: np.ndarray, offsets: np.ndarray)
-
-Required read_attributes for each callback are documented per-function below.
 """
 
 from .helpers_computed import (
@@ -51,93 +37,77 @@ from .helpers_computed import (
     compute_face_center,
 )
 
-
 # ==============================================================================================================================
-# SCALAR / VECTOR COMPUTED ATTRIBUTES
+# PER-ELEMENT RESULTS  →  domain.custom  (mesh-writable)
 # ==============================================================================================================================
 
-def cb_edge_length(instance):
+def cb_edge_length(instance, action_record) -> None:
     """
-    Compute per-edge Euclidean length.
-
-    Required read_attributes: MET.VERTEX.CO, MET.EDGE.VERTICES
-    Returns: np.ndarray (n_edges,) float32
+    Per-edge Euclidean length → instance.edge.custom["edge_length"]  (n_edges,) float32
+    Requires: MET.VERTEX.CO, MET.EDGE.VERTICES
+    Writable as: MET.EDGE.CUSTOM_ATTRIBUTE("edge_length", data_type="FLOAT")
     """
-    return compute_edge_length(instance.vertex_co, instance.edge_vertices)
+    instance.edge.custom["edge_length"] = compute_edge_length(
+        instance.vertex.co,
+        instance.edge.vertices,
+    )
 
 
-def cb_face_center(instance):
+def cb_face_center(instance, action_record) -> None:
     """
-    Compute mean vertex position (centroid) per face.
-
-    Required read_attributes:
-        MET.VERTEX.CO, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
-    Returns: np.ndarray (n_faces, 3) float32
+    Per-face centroid → instance.face.custom["face_center"]  (n_faces, 3) float32
+    Requires: MET.VERTEX.CO, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
+    Writable as: MET.FACE.CUSTOM_ATTRIBUTE("face_center", data_type="FLOAT_VECTOR")
     """
-    return compute_face_center(
-        instance.vertex_co,
-        instance.face_loop_start,
-        instance.face_loop_total,
-        instance.corner_vertex_index,
+    instance.face.custom["face_center"] = compute_face_center(
+        instance.vertex.co,
+        instance.face.loop_start,
+        instance.face.loop_total,
+        instance.corner.vertex_index,
     )
 
 
 # ==============================================================================================================================
-# CSR NEIGHBOR CALLBACKS
-# Each returns a (indices, offsets) tuple stored under a single key.
+# CSR ADJACENCY  →  instance.derived  (not mesh-writable)
+#
+#   idx, off = instance.derived["face_face_neighbors"]
+#   neighbors_of_face_i = idx[off[i] : off[i + 1]]
 # ==============================================================================================================================
 
-def cb_vert_vert_neighbors(instance):
+def cb_vert_vert_neighbors(instance, action_record) -> None:
     """
-    Build CSR vertex-vertex adjacency (vertices connected by a shared edge).
-
-    Required read_attributes: MET.VERTEX.CO, MET.EDGE.VERTICES
-    Returns: (indices: np.ndarray, offsets: np.ndarray)
-        Neighbors of vertex i:
-            idx, off = instance.custom_attribute_arrays["vert_vert_neighbors"]
-            neighbors = idx[off[i] : off[i+1]]
+    Vertex-vertex adjacency (edge-connected) → instance.derived["vert_vert_neighbors"]
+    Requires: MET.VERTEX.CO, MET.EDGE.VERTICES
     """
-    n_verts = instance.vertex_co.shape[0]
-    return build_vert_vert_neighbors_csr(instance.edge_vertices, n_verts)
-
-
-def cb_vert_face_neighbors(instance):
-    """
-    Build CSR vertex-face adjacency (which faces each vertex belongs to).
-
-    Required read_attributes:
-        MET.VERTEX.CO, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
-    Returns: (indices: np.ndarray, offsets: np.ndarray)
-        Face-neighbors of vertex i:
-            idx, off = instance.custom_attribute_arrays["vert_face_neighbors"]
-            faces = idx[off[i] : off[i+1]]
-    """
-    n_verts = instance.vertex_co.shape[0]
-    return build_vert_face_neighbors_csr(
-        instance.face_loop_start,
-        instance.face_loop_total,
-        instance.corner_vertex_index,
-        n_verts,
+    instance.derived["vert_vert_neighbors"] = build_vert_vert_neighbors_csr(
+        instance.edge.vertices,
+        instance.vertex.co.shape[0],
     )
 
 
-def cb_face_face_neighbors(instance):
+def cb_vert_face_neighbors(instance, action_record) -> None:
     """
-    Build CSR face-face adjacency (faces that share at least one edge).
+    Vertex-face adjacency → instance.derived["vert_face_neighbors"]
+    Requires: MET.VERTEX.CO, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
+    """
+    instance.derived["vert_face_neighbors"] = build_vert_face_neighbors_csr(
+        instance.face.loop_start,
+        instance.face.loop_total,
+        instance.corner.vertex_index,
+        instance.vertex.co.shape[0],
+    )
 
-    Required read_attributes:
-        MET.FACE.NORMAL (for n_faces), MET.EDGE.VERTICES,
-        MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
-    Returns: (indices: np.ndarray, offsets: np.ndarray)
-        Face-neighbors of face i:
-            idx, off = instance.custom_attribute_arrays["face_face_neighbors"]
-            neighbors = idx[off[i] : off[i+1]]
+
+def cb_face_face_neighbors(instance, action_record) -> None:
     """
-    n_faces = instance.face_normal.shape[0]
-    return build_face_face_neighbors_csr(
-        instance.edge_vertices,
-        instance.face_loop_start,
-        instance.face_loop_total,
-        instance.corner_vertex_index,
-        n_faces,
+    Face-face adjacency (shared edge) → instance.derived["face_face_neighbors"]
+    Requires: MET.EDGE.VERTICES, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
+              MET.CORNER.VERTEX_INDEX  (face count taken from instance.face.count)
+    """
+    instance.derived["face_face_neighbors"] = build_face_face_neighbors_csr(
+        instance.edge.vertices,
+        instance.face.loop_start,
+        instance.face.loop_total,
+        instance.corner.vertex_index,
+        instance.face.count,
     )

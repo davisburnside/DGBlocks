@@ -1,370 +1,133 @@
 
 from typing import Optional
-import numpy as np
+
 import bpy
 
-# Addon-level imports
-from ...addon_helpers.data_structures import (
-    Abstract_BL_RTC_List_Syncronizer,
-    Abstract_Feature_Wrapper,
-    Abstract_Shared_UIList_Draw,
-    Enum_Sync_Events,
-)
+from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
 
-# Inter-block imports
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..block_core.core_features.runtime_cache import data_sync_tools
-from ..block_core.core_features.runtime_cache.data_sync_tools import plan_dataclasses_to_match_collectionprop
-from ...native_blocks.block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
-# Intra-block imports
-from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .data_structures import RTC_Mesh_Extract_Instance, default_mesh_extract_field_names
-from .helpers import _new_mesh_extract_instance_from_mesh, merge_mesh_extract_targets, run_mesh_extract
+from .common_declarations import Block_Loggers, Block_RTC_Members
+from .data_structures import Numpy_Mesh_Action_Declaration, RTC_Mesh_Extract_Instance
+from .helpers_actions import (
+    clear_stored_instances,
+    get_stored_instance,
+    get_stored_instances,
+    run_mesh_action,
+)
+from .helpers_diff import diff_instances as _diff_instances
 
 
-class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
+class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper):
     """
     Feature Wrapper for block_mesh_extract.
 
-    Manages the lifecycle of RTC_Mesh_Extract_Instance objects.
-    Extraction is triggered by:
-        - Calling Wrapper_Mesh_Extract.run_mesh_extract_for_object() from any downstream block.
-        - Setting bpy.context.scene.dgblocks_mesh_extract_props.run_mesh_extract = True
-          (auto-resets to False after triggering).
+    Fully demand-driven — nothing runs unless a caller asks for it:
 
-    After extraction completes, hook_mesh_extract_ready is fired with the list of
-    processed object names.
+        instance = Wrapper_Mesh_Extract.run_mesh_action_for_object(object, declaration)
+
+    Storage is decided per declaration via `should_cache_in_RTC`:
+        True  → the instance is kept in the RTC under (object_name, slot) and shows up
+                in the debug panel. Repeat calls accumulate data and action history.
+        False → the instance is returned to the caller and never stored anywhere.
+
+    Instances hold numpy arrays only and are never mirrored to Blender data.
     """
 
     # ----------------------------------------------------------
     # Public API
 
     @classmethod
-    def repoll(depsgraph):
-        """
-        Full extraction cycle:
-            1. Fire hook_get_mesh_extract_targets — collect Numpy_Mesh_Extract_Declaration lists from all blocks.
-            2. Merge targets by object_name (silent union for attrs; last-writer-wins for callbacks).
-            3. Get the current depsgraph.
-            4. For each object: call _new_mesh_extract_instance_from_mesh, reusing or creating an RTC instance.
-            5. Push updated list to RTC.
-            6. Sync BL data mirror.
-            7. Fire hook_mesh_extract_ready with the list of processed object names.
-    
-        Returns list of object names that were processed (regardless of is_valid).
-        """
-        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-        logger.debug("run_mesh_extract: starting")
-    
-        # Step 1: Collect
-        raw_results = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name = Block_Hook_Sources.hook_get_mesh_extract_targets,
-            should_halt_on_exception = False,
-        )
-        targets_by_block = {}
-        for block_id, result in raw_results.items():
-            if isinstance(result, list):
-                targets_by_block[block_id] = result
-            else:
-                logger.warning(
-                    f"run_mesh_extract: block '{block_id}' returned {type(result)!r} "
-                    f"from hook_get_mesh_extract_targets — expected list[Numpy_Mesh_Extract_Declaration], skipping."
-                )
-    
-        if not targets_by_block:
-            logger.info("run_mesh_extract: no Mesh_Extract_Targets returned — returning early.")
-            return []
-    
-        # Step 2: Merge
-        merged_targets = merge_mesh_extract_targets(targets_by_block)
-        logger.debug(f"run_mesh_extract: merged into {len(merged_targets)} object mesh_extract_dec(s)")
-    
-        # Step 4: Extract each object
-        # existing_instances: dict[str, RTC_Mesh_Extract_Instance] = {
-        #     inst.object_name: inst
-        #     for inst in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
-        # }
-        new_instances: list[RTC_Mesh_Extract_Instance] = []
-        processed_names: list[str] = []
-        for object_name, mesh_extract_dec in merged_targets.items():
-            instance = _new_mesh_extract_instance_from_mesh(object_name, mesh_extract_dec, depsgraph)
-            new_instances.append(instance)
-            processed_names.append(object_name)
-    
-        # Step 5: Push to RTC
-        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, new_instances)
-    
-        # Step 6: Sync BL mirror
-        cache_key = Block_RTC_Members.MESH_EXTRACT_INSTANCES
-        # try:
-        #     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key)
-        #     Wrapper_Runtime_Cache.resync_single_data_mirror(
-        #         event                = Enum_Sync_Events.PROPERTY_UPDATE,
-        #         BL_is_truth_source   = False,
-        #         cache_key            = cache_key,
-        #         FWC_instance         = FWC_instance,
-        #         data_mirror_instance = data_mirror_instance,
-        #         actions_denied       = set(),
-        #         logger               = logger,
-        #     )
-        # except Exception as e:
-        #     logger.error("run_mesh_extract: BL mirror sync failed", exc_info=True)
-    
-        # Step 7: Fire ready hook
-        Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name = Block_Hook_Sources.hook_mesh_extract_ready,
-            should_halt_on_exception = False,
-            object_names = processed_names,
-        )
-    
-        logger.info(f"run_mesh_extract: complete — {len(processed_names)} object(s) processed.")
-        return new_instances
-
-    @classmethod
-    def run_mesh_extract_for_object(cls, mesh_extract_declaration, object, depsgraph = None, existing_instance = None) -> list[str]:
-        """
-        Trigger a full mesh extraction cycle from any downstream block.
-        Returns the list of object names that were processed.
-        Raises ValueError if MET validation fails.
-        """
-
-        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-        logger.debug("Running Mesh extract for Object '{object.name}'")
-        if depsgraph is None:
-            depsgraph = bpy.context.evaluated_depsgraph_get()
-        new_mesh_extract = _new_mesh_extract_instance_from_mesh(object, mesh_extract_declaration, depsgraph, existing_instance)
-        return new_mesh_extract
-
-    @classmethod
-    def get_instance(cls, object_name: str) -> Optional[RTC_Mesh_Extract_Instance]:
-        """
-        Return the live RTC_Mesh_Extract_Instance for a given object name, or None.
-        Only returns the instance if is_valid is True.
-        """
-        _, instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
-            Block_RTC_Members.MESH_EXTRACT_INSTANCES, "object_name", object_name
-        )
-        if instance is not None and instance.is_valid:
-            return instance
-        return None
-
-    @classmethod
-    def get_all_instances(cls) -> list[RTC_Mesh_Extract_Instance]:
-        """Return all live RTC_Mesh_Extract_Instance objects (valid and invalid)."""
-        return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
-
-    # ── Helper: compare two numpy arrays ──────────────────────────────────────────
-    @classmethod
-    def _arrays_differ(cls, a: np.ndarray, b: np.ndarray) -> bool:
-        if a.shape != b.shape:
-            return True
-        return bool(np.any(a != b))
-
-    # ── Helper: compare an arbitrary value (array, CSR tuple, or other) ───────────
-    @classmethod
-    def _values_differ(cls, a, b) -> bool:
-        # CSR tuple: (indices_array, offsets_array)
-        if (
-            isinstance(a, tuple) and isinstance(b, tuple)
-            and len(a) == 2 and len(b) == 2
-            and isinstance(a[0], np.ndarray)
-        ):
-            return (
-                cls._arrays_differ(a[0], b[0])
-                or cls._arrays_differ(a[1], b[1])
-            )
-        # Plain numpy array
-        if isinstance(a, np.ndarray) and isinstance(b, np.ndarray):
-            return cls._arrays_differ(a, b)
-        # Fallback — use Python equality; treat comparison errors as changed
-        try:
-            return bool(a != b)
-        except Exception:
-            return True
-
-    @classmethod
-    def diff_instances(
+    def run_mesh_action_for_object(
         cls,
-        old: RTC_Mesh_Extract_Instance,
-        new: RTC_Mesh_Extract_Instance,
-    ) -> tuple[list[str], list[str], list[str]]:
+        object:            bpy.types.Object,
+        declaration:       Numpy_Mesh_Action_Declaration,
+        depsgraph:         Optional[bpy.types.Depsgraph] = None,
+        existing_instance: Optional[RTC_Mesh_Extract_Instance] = None,
+    ) -> RTC_Mesh_Extract_Instance:
         """
-        Compare two RTC_Mesh_Extract_Instance objects for the same object and
-        classify every attribute name into one of three buckets:
+        Run one declaration (READ → CALLBACKS → WRITE) against one object.
 
-          added   — None/absent in **old**, present in **new**
-          removed — present in **old**, None/absent in **new**
-          edited  — present in both, but the data differs
+        Always returns an instance — check `instance.last_action.is_valid` for the
+        outcome of this call, or `instance.is_valid` for the most recent action.
+        Never raises for mesh/attribute problems; failures land in the action record.
 
-        Attributes that are None/absent in both instances are omitted entirely.
-        custom_attribute_arrays is diffed over the union of both key sets.
-
-        Comparison strategy:
-          - Different shapes                → changed immediately (no element scan).
-          - Same-shape numpy arrays         → np.any(old != new)  (strict bitwise).
-          - CSR tuples (idx, off)           → each component array compared the same way.
-          - Non-numpy values                → old != new  (try/except → True on error).
-
-        Returns (added, removed, edited).  All three empty means the two instances
-        carry identical data (mesh is unchanged for the compared attributes).
+        Pass `existing_instance` to chain passes onto a caller-owned instance without
+        going through RTC lookup (e.g. an ephemeral pass-1 → pass-2 sequence).
         """
-        added: list[str] = []
-        removed: list[str] = []
-        edited: list[str] = []
+        return run_mesh_action(object, declaration, depsgraph, existing_instance)
 
-        # ── First-level array fields ───────────────────────────────────────────────
-        first_level_fields = [
-            "vertex_co",
-            "vertex_normal",
-            "vertex_crease",
-            "vertex_bevel_weight",
-            "edge_vertices",
-            "edge_crease",
-            "edge_sharp",
-            "edge_seam",
-            "face_normal",
-            "face_area",
-            "face_loop_start",
-            "face_loop_total",
-            "corner_vertex_index",
-        ]
+    @classmethod
+    def run_mesh_actions_for_object(
+        cls,
+        object:      bpy.types.Object,
+        declarations: list,
+        depsgraph:   Optional[bpy.types.Depsgraph] = None,
+    ) -> RTC_Mesh_Extract_Instance:
+        """
+        Run several declarations in order against one object, chaining the same instance.
+        Stops early if an action fails, returning the partially-populated instance.
+        """
+        instance: Optional[RTC_Mesh_Extract_Instance] = None
+        for declaration in declarations:
+            instance = run_mesh_action(object, declaration, depsgraph, instance)
+            if not instance.is_valid:
+                break
+        return instance
 
-        for field_name in first_level_fields:
-            val_old = getattr(old, field_name)
-            val_new = getattr(new, field_name)
-            if val_old is None and val_new is None:
-                continue  # absent from both — skip
-            if val_old is None:
-                added.append(field_name)
-            elif val_new is None:
-                removed.append(field_name)
-            elif cls._values_differ(val_old, val_new):
-                edited.append(field_name)
+    @classmethod
+    def get_instance(
+        cls,
+        object_name: str,
+        slot:        str = "default",
+        require_valid: bool = True,
+    ) -> Optional[RTC_Mesh_Extract_Instance]:
+        """Return the stored instance for (object_name, slot), or None."""
+        instance = get_stored_instance(object_name, slot)
+        if instance is None:
+            return None
+        if require_valid and not instance.is_valid:
+            return None
+        return instance
 
-        # ── custom_attribute_arrays — union of keys ────────────────────────────────
-        old_attrs = old.custom_attribute_arrays or {}
-        new_attrs = new.custom_attribute_arrays or {}
+    @classmethod
+    def get_all_instances(cls) -> list:
+        """All stored instances (valid and invalid), newest action last."""
+        return get_stored_instances()
 
-        for key in sorted(old_attrs.keys() | new_attrs.keys()):
-            val_old = old_attrs.get(key)
-            val_new = new_attrs.get(key)
-            if val_old is None and val_new is None:
-                continue  # absent from both — skip
-            if val_old is None:
-                added.append(key)
-            elif val_new is None:
-                removed.append(key)
-            elif cls._values_differ(val_old, val_new):
-                edited.append(key)
+    @classmethod
+    def clear_instances(cls, object_name: Optional[str] = None) -> int:
+        """Drop stored instances for one object, or all of them. Returns count removed."""
+        return clear_stored_instances(object_name)
 
-        return added, removed, edited
+    @classmethod
+    def diff_instances(cls, old, new) -> tuple[list, list, list]:
+        """
+        Compare two instances and return (added, removed, edited) key lists.
+        Keys look like "vertex.co", "face.custom['planar_groups']", "derived['csr']".
+        All three empty means the data is identical.
 
+        NOTE: an RTC-cached declaration mutates its stored instance in place, so a
+        before/after diff requires either should_cache_in_RTC=False or a caller-held
+        snapshot of the previous instance.
+        """
+        return _diff_instances(old, new)
 
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation
 
     @classmethod
     def _init_wrapper(cls) -> bool:
-        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-        logger.debug("Wrapper_Mesh_Extract._init_wrapper")
-        # No active initialization needed — extraction is demand-driven.
-        # RTC list starts empty; instances are created on first run_mesh_extract_for_object() call.
+        get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE).debug(
+            "Wrapper_Mesh_Extract._init_wrapper — demand-driven, nothing to initialize"
+        )
         return True
 
     @classmethod
     def _remove_wrapper(cls) -> None:
-        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-        logger.debug("Wrapper_Mesh_Extract._remove_wrapper — clearing all instances")
+        get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE).debug(
+            "Wrapper_Mesh_Extract._remove_wrapper — clearing all instances"
+        )
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, [])
-
-    # ----------------------------------------------------------
-    # Abstract_BL_RTC_List_Syncronizer implementation
-
-    @classmethod
-    def _update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
-        """
-        Called on undo/redo/reload. The extract_mirror CollectionProperty holds only
-        object_name (key) and is_valid (data) — it does not store numpy arrays.
-        On structural change (object added/removed from mirror), we simply clear the
-        RTC list. The user must re-trigger extraction if they want fresh data.
-        On edit-only changes (is_valid toggled — unusual but possible), no action needed.
-        """
-        return
-        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-
-        try:
-            mesh_extract_props = bpy.context.scene.dgblocks_mesh_extract_props
-        except AttributeError:
-            logger.warning("_update_RTC_with_mirrored_BL_data: bpy.context.scene not available")
-            return
-
-        key_fields  = data_mirror_instance.mirrored_key_field_names
-        data_fields = data_mirror_instance.mirrored_data_field_names
-        data_target = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
-        data_source = mesh_extract_props.extract_mirror
-
-        actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
-        structural_actions = [
-            a for a in actions
-            if a.__class__ in {data_sync_tools.Create, data_sync_tools.Remove}
-        ]
-
-        if structural_actions:
-            logger.debug(
-                f"_update_RTC_with_mirrored_BL_data: structural change detected "
-                f"({len(structural_actions)} action(s)) — clearing RTC instances."
-            )
-            Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES, [])
-
-    @classmethod
-    def _update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
-        """
-        Push current RTC instance list to the BL extract_mirror CollectionProperty.
-        Called after run_mesh_extract() and on undo/redo.
-        """
-        return
-        logger = get_logger(Block_Loggers.MESH_EXTRACT_LIFECYCLE)
-
-        try:
-            mesh_extract_props = bpy.context.scene.dgblocks_mesh_extract_props
-        except AttributeError:
-            logger.warning("_update_BL_with_mirrored_RTC_data: bpy.context.scene not available")
-            return
-
-        cached_instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
-
-        key_fields  = data_mirror_instance.mirrored_key_field_names
-        data_fields = data_mirror_instance.mirrored_data_field_names
-        data_target = cached_instances
-        data_source = mesh_extract_props.extract_mirror
-
-        actions = plan_dataclasses_to_match_collectionprop(data_source, data_target, key_fields, data_fields)
-        structural_actions = [
-            a for a in actions
-            if a.__class__ in {data_sync_tools.Create, data_sync_tools.Remove, data_sync_tools.Move}
-        ]
-
-        if structural_actions:
-            Wrapper_Runtime_Cache.assert_cache_is_not_syncing(Block_RTC_Members.MESH_EXTRACT_INSTANCES)
-            Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.MESH_EXTRACT_INSTANCES, True)
-            try:
-                mesh_extract_props.extract_mirror.clear()
-                for inst in cached_instances:
-                    row = mesh_extract_props.extract_mirror.add()
-                    row.object_name = inst.object_name
-                    row.is_valid    = inst.is_valid
-            finally:
-                Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.MESH_EXTRACT_INSTANCES, False)
-
-            logger.debug(
-                f"_update_BL_with_mirrored_RTC_data: synced {len(cached_instances)} row(s)"
-            )
-
-    # ----------------------------------------------------------
-    # Abstract_Shared_UIList_Draw implementation
-
-    @classmethod
-    def shared_uilist_get_data_path(cls, shared_uilist_instance) -> str:
-        return shared_uilist_instance.scene_colprop_path
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_ACTION_UID_COUNTER, 0)
