@@ -111,27 +111,34 @@ def _draw_action(layout, action, show_ops: bool) -> None:
     if not show_ops or not action.ops:
         return
 
-    # Single pass: Group_Tag ops start a new indented section; subsequent ops
-    # are nested under the most recent group until another Group_Tag appears.
-    current_target = box.column(align=True)
-    header_drawn = False
+    # Render ops, grouping those that follow a Group_Tag under an indented section.
+    current_group_box = None
+    col = box.column(align=True)
 
     for op in action.ops:
         if op.op_type == Enum_Mesh_Op_Type.GROUP:
-            current_target = box.box()
-            current_target.label(text=op.label, icon=_OP_ICONS.get(op.op_type, "DOT"))
-            header_drawn = False
+            # Start a new group section
+            current_group_box = col.box()
+            current_group_box.label(text=op.label, icon=_OP_ICONS.get(op.op_type, "DOT"))
             continue
 
-        if not header_drawn:
-            head = current_target.row()
-            head.label(text="Op")
-            head.label(text="ms")
-            head.label(text="Shape")
-            head.label(text="Detail")
-            header_drawn = True
+        target = current_group_box if current_group_box is not None else col
+        head = target.row()
+        head.label(text="Op")
+        head.label(text="ms")
+        head.label(text="Shape")
+        head.label(text="Detail")
+        break
 
-        row = current_target.row()
+    # Second pass: actual op rows (after the header row above)
+    current_group_box = None
+    for op in action.ops:
+        if op.op_type == Enum_Mesh_Op_Type.GROUP:
+            current_group_box = col.box()
+            current_group_box.label(text=op.label, icon=_OP_ICONS.get(op.op_type, "DOT"))
+            continue
+        target = current_group_box if current_group_box is not None else col
+        row = target.row()
         if not op.is_valid:
             row.alert = True
         row.label(text=op.label, icon=_OP_ICONS.get(op.op_type, "DOT"))

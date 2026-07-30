@@ -52,21 +52,7 @@ class Enum_Mesh_Op_Type(StrEnum):
     READ     = "READ"
     CALLBACK = "CALLBACK"
     WRITE    = "WRITE"
-
-
-class Enum_Edit_Mode_Write_Strategy(StrEnum):
-    """
-    BMESH_LOOP : Edit-Mode writes go through bmesh with a per-element Python loop.
-    REJECT     : Edit-Mode writes fail with an error instead of paying the loop cost.
-    """
-    BMESH_LOOP = "BMESH_LOOP"
-    REJECT     = "REJECT"
-
-
-class Enum_Attr_Type_Mismatch(StrEnum):
-    """What to do when a write target exists with a different domain/data_type."""
-    ERROR    = "ERROR"
-    RECREATE = "RECREATE"
+    GROUP    = "GROUP"
 
 
 # Blender data_type → (numpy dtype, components, foreach value field)
@@ -497,23 +483,41 @@ class Mesh_Action_Record:
 
 
 # ==============================================================================================================================
-# DECLARATIONS
+# STEP TYPES
+# ==============================================================================================================================
+#
+# A declaration is an ordered list of steps. Each step is one of:
+#   - Read_Step(attr)        : read one MET attribute into the instance (manual refresh)
+#   - Callback_Step(func)    : run a callback that mutates the instance and/or the mesh
+#   - Group_Tag(label)       : a named grouping marker for log/UI formatting only
+#
+# Steps run in the order given. There is no automatic re-read after a callback —
+# if a callback changes topology or attribute values, the developer must add an
+# explicit Read_Step afterwards to refresh the instance slot.
+#
+# Callback contract:
+#     func(instance, action_record, mesh_context) -> None
+# The callback may:
+#   - mutate the instance (numpy slots / derived dict)        — pure-numpy work
+#   - call mesh_context.write_attr(attr, arr)                 — validated attribute write
+#   - call mesh_context.edit_bmesh() and do topology ops     — add/remove geometry
+# Return values are ignored. A raising callback fails the action gracefully.
 # ==============================================================================================================================
 
-@dataclass
-class Callback_Op:
-    """
-    Optional wrapper giving a callback an explicit panel label.
-    A bare callable is also accepted in `callbacks` (label = func.__name__).
 
-    Callback contract:
-        func(instance, action_record) -> None
-    The callback MUTATES the instance:
-        instance.face.custom["planar_groups"] = arr    # per-element → writable back to the mesh
-        instance.derived["boundaries"] = data          # non-domain data
-    Return values are ignored.
+@dataclass
+class Read_Step:
+    """Read one MET attribute into the instance slot."""
+    attr: MET_Attr_Declaration
+
+
+@dataclass
+class Callback_Step:
     """
-    func:  Callable
+    Run a callback. `func` may be a bare callable or a Callback_Step wrapper.
+    Signature: func(instance, action_record, mesh_context) -> None
+    """
+    func: Callable
     label: Optional[str] = None
 
     @property
@@ -522,55 +526,57 @@ class Callback_Op:
 
 
 @dataclass
-class Write_Op:
+class Group_Tag:
     """
-    A write target. By default the payload is whatever currently sits at the
-    attribute's slot on the instance (the instance is a bidirectional staging buffer).
-    Pass `payload` to write a one-shot array without staging it.
+    A named grouping marker inserted into the step list. It performs no work —
+    it exists solely to provide structure for execution-time logs and the debug
+    panel. Subsequent steps are displayed/logged under this group until another
+    Group_Tag appears.
     """
-    attr:    MET_Attr_Declaration
-    payload: Optional[np.ndarray] = None
+    label: str
 
+
+# Back-compat alias for callers that wrap a callback for a nicer label.
+Callback_Op = Callback_Step
+
+
+# ==============================================================================================================================
+# DECLARATION
+# ==============================================================================================================================
 
 @dataclass
 class Numpy_Mesh_Action_Declaration:
     """
-    One reusable, object-free declaration. Phases run in a fixed order:
+    One reusable, object-free declaration describing an ordered step list.
 
-        READ  →  CALLBACKS  →  WRITE
-
-    Never store a bpy.types.Object here — declarations are module-level constants and
-    caching Blender IDs is forbidden. The object is passed to
+    Never store a bpy.types.Object here — declarations are module-level constants
+    and caching Blender IDs is forbidden. The object is passed to
     Wrapper_Mesh_Extract.run_mesh_action_for_object(object, declaration).
 
-    label            : identifies this action in the panel / logs
-    slot             : instance identity is (object_name, slot). Same slot accumulates
-                       data across declarations (pass 1 → pass 2 chaining).
-    read_attributes  : ordered MET attrs (builtin, custom, or UV map)
-    callbacks        : ordered callables / Callback_Op — mutate the instance in place
-    write_attributes : ordered MET attrs / Write_Op — flushed from the instance to the mesh
-    read_source      : EVALUATED (post-modifier) or ORIGINAL (write-back safe indices)
+    label          : identifies this action in the panel / logs
+    slot           : instance identity is (object_name, slot). Same slot accumulates
+                     data across declarations (pass 1 → pass 2 chaining).
+    steps          : ordered tuple of Read_Step / Callback_Step / Group_Tag
+    read_source    : EVALUATED (post-modifier) or ORIGINAL (write-back safe indices)
+    should_cache_in_RTC : if True, the instance is stored in the RTC under
+                          (object_name, slot) and appears in the debug panel
+    history_depth  : number of past instances to retain per (object_name, slot).
+                     0 = no history (only the latest instance is kept). N>0 keeps a
+                     deque of the last N completed instances for before/after diffs.
+    max_actions_retained : per-instance action-log cap; oldest evicted
     """
-    label:            str
-    read_attributes:  Sequence = field(default_factory=tuple)
-    callbacks:        Sequence = field(default_factory=tuple)
-    write_attributes: Sequence = field(default_factory=tuple)
+    label:                 str
+    steps:                 Sequence = field(default_factory=tuple)
 
-    read_source:      str  = Enum_Read_Source.EVALUATED
-    should_cache_in_RTC: bool = True
-    slot:             str  = "default"
-
-    # Safety / behaviour switches
-    allow_evaluated_index_space: bool = False   # required to combine writes with EVALUATED reads
-    edit_mode_write_strategy:    str  = Enum_Edit_Mode_Write_Strategy.BMESH_LOOP
-    on_type_mismatch:            str  = Enum_Attr_Type_Mismatch.ERROR
-    diff_limited_writes:         bool = True    # only touch elements whose value actually changed
-    should_push_undo:            bool = False
-    max_actions_retained:        int  = 50      # per instance, oldest evicted
+    read_source:           str  = Enum_Read_Source.EVALUATED
+    should_cache_in_RTC:   bool = True
+    slot:                  str  = "default"
+    history_depth:         int  = 0
+    max_actions_retained:  int  = 50
 
     @property
-    def has_writes(self) -> bool:
-        return bool(self.write_attributes)
+    def has_callbacks(self) -> bool:
+        return any(isinstance(s, Callback_Step) for s in self.steps)
 
 
 # ==============================================================================================================================

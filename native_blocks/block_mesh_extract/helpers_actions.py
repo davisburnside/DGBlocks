@@ -1,13 +1,17 @@
-
 """
-helpers_actions.py — action orchestration + RTC storage.
+helpers_actions.py — step-list orchestration + RTC storage (with history).
 
 One call = one Mesh_Action_Record, appended to the (object_name, slot) instance.
-Phases run READ -> CALLBACKS -> WRITE. A failure records the action as invalid and
-keeps whatever data the reads managed to gather before failing.
+Steps run in the order given. A failure records the action as invalid and keeps
+whatever data the reads managed to gather before failing.
+
+Mesh acquisition happens ONCE per action for the whole step list — minimizing
+depsgraph evaluations and mesh creations. The Mesh_Context is bound to that one
+acquisition and finalized after each Callback_Step.
 """
 
 import time
+from collections import deque
 from typing import Optional
 
 import bpy
@@ -19,15 +23,16 @@ from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Run
 
 from .common_declarations import Block_Loggers, Block_RTC_Members
 from .data_structures import (
-    Callback_Op,
+    Callback_Step,
     Enum_Mesh_Op_Type,
     Enum_Read_Source,
+    Group_Tag,
     Mesh_Action_Op_Record,
     Mesh_Action_Record,
     MET_Attr_Declaration,
     Numpy_Mesh_Action_Declaration,
+    Read_Step,
     RTC_Mesh_Extract_Instance,
-    Write_Op,
 )
 from .helpers_read import (
     acquire_mesh_for_read,
@@ -37,15 +42,7 @@ from .helpers_read import (
     release_mesh_handle,
     resolve_attr,
 )
-from .helpers_write import (
-    Mesh_Write_Error,
-    check_edit_mode_write_allowed,
-    validate_object_is_writable,
-    validate_write_payload,
-    warn_write_hazards,
-    write_attr_edit_mode,
-    write_attr_object_mode,
-)
+from .helpers_write import Mesh_Context, warn_write_hazards
 
 MAX_STORED_INSTANCES = 64
 
@@ -91,6 +88,52 @@ def next_action_uid() -> int:
 
 
 # ==============================================================================================================================
+# HISTORY STORAGE
+# ==============================================================================================================================
+
+def _history_key(object_name: str, slot: str) -> str:
+    return f"{object_name}|{slot}"
+
+
+def get_history(object_name: str, slot: str = "default") -> deque:
+    """Return the history deque for (object_name, slot). Empty if none stored."""
+    history_map = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_HISTORY) or {}
+    return history_map.get(_history_key(object_name, slot), deque())
+
+
+def push_history(instance: RTC_Mesh_Extract_Instance, depth: int) -> None:
+    """Push a snapshot of the instance into its history deque (maxlen=depth)."""
+    if depth <= 0:
+        return
+    history_map = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_HISTORY) or {}
+    key = _history_key(instance.object_name, instance.slot)
+    dq = history_map.get(key)
+    if dq is None:
+        dq = deque(maxlen=depth)
+        history_map[key] = dq
+    elif dq.maxlen != depth:
+        # depth changed — rebuild with new cap
+        dq = deque(list(dq)[-depth:], maxlen=depth)
+        history_map[key] = dq
+    dq.append(instance)
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_HISTORY, history_map)
+
+
+def clear_history(object_name: Optional[str] = None) -> int:
+    """Clear history for one object, or all. Returns number of deques removed."""
+    history_map = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MESH_EXTRACT_HISTORY) or {}
+    if object_name is None:
+        removed = len(history_map)
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_HISTORY, {})
+        return removed
+    keys_to_remove = [k for k in history_map if k.startswith(f"{object_name}|")]
+    for k in keys_to_remove:
+        del history_map[k]
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MESH_EXTRACT_HISTORY, history_map)
+    return len(keys_to_remove)
+
+
+# ==============================================================================================================================
 # HELPERS
 # ==============================================================================================================================
 
@@ -116,12 +159,23 @@ def _instance_content_keys(instance: RTC_Mesh_Extract_Instance) -> set:
     return keys
 
 
-def _normalize_callbacks(callbacks) -> list:
-    return [cb if isinstance(cb, Callback_Op) else Callback_Op(func=cb) for cb in (callbacks or ())]
+def _domain_counts_snapshot(mesh) -> dict:
+    return all_domain_counts(mesh)
 
 
-def _normalize_write_ops(write_attributes) -> list:
-    return [wo if isinstance(wo, Write_Op) else Write_Op(attr=wo) for wo in (write_attributes or ())]
+def _topology_changed(before: dict, after: dict) -> bool:
+    return before != after
+
+
+def _invalidate_per_element_slots(instance: RTC_Mesh_Extract_Instance) -> None:
+    """Null out all per-element data after a topology change (index space is stale)."""
+    for domain_name in ("vertex", "edge", "face", "corner"):
+        domain_obj = getattr(instance, domain_name)
+        for field_name in domain_obj.builtin_field_names():
+            if field_name == "count":
+                continue
+            setattr(domain_obj, field_name, None)
+        domain_obj.custom.clear()
 
 
 # ==============================================================================================================================
@@ -135,8 +189,8 @@ def run_mesh_action(
     existing_instance: Optional[RTC_Mesh_Extract_Instance] = None,
 ) -> RTC_Mesh_Extract_Instance:
     """
-    Run one declaration against one object. Always returns the instance, valid or not;
-    inspect instance.last_action for the outcome of this specific call.
+    Run one declaration's step list against one object. Always returns the instance,
+    valid or not; inspect instance.last_action for the outcome of this specific call.
     """
     logger      = get_logger(Block_Loggers.MESH_EXTRACT_EVENTS)
     total_start = time.perf_counter()
@@ -153,8 +207,6 @@ def run_mesh_action(
     )
 
     # Resolve / create the instance for this (object, slot).
-    # Only RTC-cached declarations adopt a previously stored instance; a non-cached
-    # declaration always starts fresh unless the caller supplies existing_instance.
     instance = existing_instance
     if instance is None and declaration.should_cache_in_RTC:
         instance = get_stored_instance(object_name, declaration.slot)
@@ -169,28 +221,21 @@ def run_mesh_action(
         instance.append_action(action, declaration.max_actions_retained)
         if declaration.should_cache_in_RTC:
             store_instance(instance)
+        # Push to history regardless of caching — history is independent of RTC storage.
+        push_history(instance, declaration.history_depth)
         logger.debug(
             f"mesh action #{action.action_uid} '{action.label}' on '{object_name}' "
             f"valid={action.is_valid} {action.duration_ms:.2f}ms"
         )
         return instance
 
-    # ---- Guard: writing into evaluated index space is unsafe --------------------
-    if declaration.has_writes and declaration.read_source == Enum_Read_Source.EVALUATED \
-            and not declaration.allow_evaluated_index_space:
-        return _finish(
-            "Declaration combines write_attributes with read_source=EVALUATED. "
-            "Modifier-evaluated indices may not match the original mesh, so writes could "
-            "land on the wrong elements. Use read_source=ORIGINAL, or set "
-            "allow_evaluated_index_space=True if the stack is known to preserve topology."
-        )
-
-    # ---- Acquire the mesh -------------------------------------------------------
+    # ---- Acquire the mesh ONCE for the whole step list --------------------------
     handle = acquire_mesh_for_read(object, depsgraph, str(declaration.read_source))
     if not handle.is_valid:
         return _finish(handle.error_str)
 
     mesh = handle.mesh
+    mesh_context: Optional[Mesh_Context] = None
     try:
         counts = all_domain_counts(mesh)
         action.domain_counts = counts
@@ -199,170 +244,135 @@ def run_mesh_action(
         instance.face.count   = counts["FACE"]
         instance.corner.count = counts["CORNER"]
 
-        # ---- PHASE 1: READS ----------------------------------------------------
-        resolved_reads: dict[str, MET_Attr_Declaration] = {}
-        for attr in declaration.read_attributes or ():
-            t0 = time.perf_counter()
-            resolved, resolve_error = resolve_attr(mesh, attr)
-            if resolve_error:
+        # Surface non-fatal write hazards as a synthetic op (only if there are callbacks)
+        if declaration.has_callbacks:
+            for warning in warn_write_hazards(object):
                 action.ops.append(Mesh_Action_Op_Record(
-                    op_type=Enum_Mesh_Op_Type.READ, label=attr.key, is_valid=False,
-                    duration_ms=(time.perf_counter() - t0) * 1000.0, error_str=resolve_error,
+                    op_type=Enum_Mesh_Op_Type.CALLBACK, label="hazard", detail=warning,
+                ))
+
+        # ---- RUN THE STEP LIST ------------------------------------------------
+        for step in declaration.steps or ():
+
+            # ---- Group_Tag: no work, just a marker for logs/UI ----------------
+            if isinstance(step, Group_Tag):
+                action.ops.append(Mesh_Action_Op_Record(
+                    op_type=Enum_Mesh_Op_Type.GROUP, label=step.label,
                 ))
                 continue
 
-            arr, detail = read_attr(mesh, resolved)
-            if arr is not None:
-                instance.set_attr_value(resolved, arr)
-                resolved_reads[resolved.key] = resolved
-            action.ops.append(Mesh_Action_Op_Record(
-                op_type     = Enum_Mesh_Op_Type.READ,
-                label       = resolved.key,
-                duration_ms = (time.perf_counter() - t0) * 1000.0,
-                shape       = _shape_str(arr),
-                is_valid    = True,
-                detail      = detail or f"→ {resolved.storage_path}",
-            ))
+            # ---- Read_Step ----------------------------------------------------
+            if isinstance(step, Read_Step):
+                t0 = time.perf_counter()
+                attr = step.attr
+                resolved, resolve_error = resolve_attr(mesh, attr)
+                if resolve_error or resolved is None:
+                    action.ops.append(Mesh_Action_Op_Record(
+                        op_type=Enum_Mesh_Op_Type.READ, label=attr.key, is_valid=False,
+                        duration_ms=(time.perf_counter() - t0) * 1000.0,
+                        error_str=resolve_error or f"could not resolve '{attr.key}'",
+                    ))
+                    continue
 
-        # ---- PHASE 2: CALLBACKS ------------------------------------------------
-        for callback_op in _normalize_callbacks(declaration.callbacks):
-            t0 = time.perf_counter()
-            keys_before = _instance_content_keys(instance)
-            try:
-                callback_op.func(instance, action)
-            except Exception as e:
+                try:
+                    arr, detail = read_attr(mesh, resolved)
+                    if arr is not None:
+                        instance.set_attr_value(resolved, arr)
+                    action.ops.append(Mesh_Action_Op_Record(
+                        op_type     = Enum_Mesh_Op_Type.READ,
+                        label       = resolved.key,
+                        duration_ms = (time.perf_counter() - t0) * 1000.0,
+                        shape       = _shape_str(arr),
+                        is_valid    = True,
+                        detail      = detail or f"→ {resolved.storage_path}",
+                    ))
+                except Exception as e:
+                    action.ops.append(Mesh_Action_Op_Record(
+                        op_type=Enum_Mesh_Op_Type.READ, label=attr.key, is_valid=False,
+                        duration_ms=(time.perf_counter() - t0) * 1000.0,
+                        error_str=get_exception_last_n_lines(3, e),
+                    ))
+                continue
+
+            # ---- Callback_Step ------------------------------------------------
+            if isinstance(step, Callback_Step):
+                t0 = time.perf_counter()
+                keys_before = _instance_content_keys(instance)
+                counts_before = _domain_counts_snapshot(mesh)
+
+                # Lazily create the Mesh_Context bound to this acquisition
+                if mesh_context is None:
+                    mesh_context = Mesh_Context(object, mesh, is_edit_mode=(object_mode == "EDIT"))
+
+                try:
+                    step.func(instance, action, mesh_context)
+                except Exception as e:
+                    action.ops.append(Mesh_Action_Op_Record(
+                        op_type=Enum_Mesh_Op_Type.CALLBACK, label=step.resolved_label,
+                        duration_ms=(time.perf_counter() - t0) * 1000.0, is_valid=False,
+                        error_str=get_exception_last_n_lines(3, e),
+                    ))
+                    logger.error(
+                        f"callback '{step.resolved_label}' failed on '{object_name}'",
+                        exc_info=True,
+                    )
+                    # Finalize the bmesh even on failure, then bail
+                    try:
+                        mesh_context.finalize()
+                    except Exception:
+                        pass
+                    return _finish(f"Callback '{step.resolved_label}' raised.")
+
+                # Finalize any bmesh mutations from this callback
+                try:
+                    mesh_context.finalize()
+                except Exception as e:
+                    action.ops.append(Mesh_Action_Op_Record(
+                        op_type=Enum_Mesh_Op_Type.CALLBACK, label=step.resolved_label,
+                        duration_ms=(time.perf_counter() - t0) * 1000.0, is_valid=False,
+                        error_str=f"bmesh finalize failed: {get_exception_last_n_lines(3, e)}",
+                    ))
+                    return _finish(f"Callback '{step.resolved_label}' finalize raised.")
+
+                # Detect topology change — fail gracefully if counts mismatch
+                # (no validation, just observation for the record)
+                counts_after = _domain_counts_snapshot(mesh)
+                if _topology_changed(counts_before, counts_after):
+                    instance.topology_generation += 1
+                    _invalidate_per_element_slots(instance)
+                    # Update instance counts to the new reality
+                    instance.vertex.count = counts_after["VERTEX"]
+                    instance.edge.count   = counts_after["EDGE"]
+                    instance.face.count   = counts_after["FACE"]
+                    instance.corner.count = counts_after["CORNER"]
+                    action.domain_counts = counts_after
+
+                written = sorted(_instance_content_keys(instance) - keys_before)
                 action.ops.append(Mesh_Action_Op_Record(
-                    op_type=Enum_Mesh_Op_Type.CALLBACK, label=callback_op.resolved_label,
-                    duration_ms=(time.perf_counter() - t0) * 1000.0, is_valid=False,
-                    error_str=get_exception_last_n_lines(3, e),
+                    op_type     = Enum_Mesh_Op_Type.CALLBACK,
+                    label       = step.resolved_label,
+                    duration_ms = (time.perf_counter() - t0) * 1000.0,
+                    detail      = ("→ " + ", ".join(written)) if written else "no new keys",
                 ))
-                logger.error(
-                    f"callback '{callback_op.resolved_label}' failed on '{object_name}'",
-                    exc_info=True,
-                )
-                return _finish(f"Callback '{callback_op.resolved_label}' raised.")
+                continue
 
-            written = sorted(_instance_content_keys(instance) - keys_before)
+            # ---- Unknown step type — fail gracefully ---------------------------
             action.ops.append(Mesh_Action_Op_Record(
-                op_type     = Enum_Mesh_Op_Type.CALLBACK,
-                label       = callback_op.resolved_label,
-                duration_ms = (time.perf_counter() - t0) * 1000.0,
-                detail      = ("→ " + ", ".join(written)) if written else "no new keys",
+                op_type=Enum_Mesh_Op_Type.CALLBACK, label=str(step), is_valid=False,
+                error_str=f"Unknown step type: {type(step).__name__}",
             ))
-
-        # ---- PHASE 3: WRITES ---------------------------------------------------
-        if declaration.has_writes:
-            error_str = _run_write_phase(object, declaration, instance, action, resolved_reads, logger)
-            if error_str:
-                return _finish(error_str)
+            return _finish(f"Unknown step type: {type(step).__name__}")
 
     except Exception as e:
         logger.error(f"mesh action failed on '{object_name}'", exc_info=True)
         return _finish(get_exception_last_n_lines(3, e))
     finally:
+        # Finalize any lingering bmesh context
+        if mesh_context is not None:
+            try:
+                mesh_context.finalize()
+            except Exception:
+                pass
         release_mesh_handle(handle)
 
     return _finish(None)
-
-
-# ==============================================================================================================================
-# WRITE PHASE
-# ==============================================================================================================================
-
-def _run_write_phase(
-    object:         bpy.types.Object,
-    declaration:    Numpy_Mesh_Action_Declaration,
-    instance:       RTC_Mesh_Extract_Instance,
-    action:         Mesh_Action_Record,
-    resolved_reads: dict,
-    logger,
-) -> Optional[str]:
-    """
-    Validate every write op, then apply them all. Writes always target the ORIGINAL
-    mesh (object.data) — never the evaluated copy. Returns an error string on failure.
-    """
-    import bmesh
-
-    try:
-        validate_object_is_writable(object)
-        check_edit_mode_write_allowed(object, str(declaration.edit_mode_write_strategy))
-    except Mesh_Write_Error as e:
-        return str(e)
-
-    is_edit_mode = object.mode == "EDIT"
-    if is_edit_mode:
-        # Make object.data element counts trustworthy without leaving Edit Mode.
-        try:
-            object.update_from_editmode()
-        except Exception as e:
-            return f"update_from_editmode() failed before write: {e}"
-
-    target_mesh = object.data
-
-    for warning in warn_write_hazards(object):
-        action.ops.append(Mesh_Action_Op_Record(
-            op_type=Enum_Mesh_Op_Type.WRITE, label="hazard", detail=warning,
-        ))
-
-    # ---- Validate all ops before applying any ----
-    planned: list[tuple] = []   # (attr, flat_payload, previous_values)
-    for write_op in _normalize_write_ops(declaration.write_attributes):
-        attr = write_op.attr
-        resolved, resolve_error = resolve_attr(target_mesh, attr)
-        if resolve_error or resolved is None:
-            return f"Write target '{attr.key}' could not be resolved: {resolve_error}"
-
-        payload = write_op.payload
-        if payload is None:
-            payload = instance.get_attr_value(resolved)
-        try:
-            n_elements   = domain_element_count(target_mesh, resolved.domain)
-            flat_payload = validate_write_payload(resolved, payload, n_elements)
-        except Mesh_Write_Error as e:
-            return str(e)
-
-        previous = instance.get_attr_value(resolved) if resolved.key in resolved_reads else None
-        planned.append((resolved, flat_payload, previous))
-
-    # ---- Apply ----
-    if declaration.should_push_undo:
-        try:
-            bpy.ops.ed.undo_push(message=f"Mesh Write: {declaration.label}")
-        except Exception:
-            pass
-
-    bm = bmesh.from_edit_mesh(target_mesh) if is_edit_mode else None
-    try:
-        for attr, flat_payload, previous in planned:
-            t0 = time.perf_counter()
-            try:
-                if is_edit_mode:
-                    detail = write_attr_edit_mode(
-                        object, bm, attr, flat_payload, previous,
-                        declaration.diff_limited_writes,
-                    )
-                else:
-                    detail = write_attr_object_mode(
-                        target_mesh, attr, flat_payload, str(declaration.on_type_mismatch),
-                    )
-            except Mesh_Write_Error as e:
-                action.ops.append(Mesh_Action_Op_Record(
-                    op_type=Enum_Mesh_Op_Type.WRITE, label=attr.key, is_valid=False,
-                    duration_ms=(time.perf_counter() - t0) * 1000.0, error_str=str(e),
-                ))
-                return str(e)
-
-            action.ops.append(Mesh_Action_Op_Record(
-                op_type     = Enum_Mesh_Op_Type.WRITE,
-                label       = attr.key,
-                duration_ms = (time.perf_counter() - t0) * 1000.0,
-                shape       = _shape_str(flat_payload),
-                detail      = detail,
-            ))
-    finally:
-        if is_edit_mode:
-            bmesh.update_edit_mesh(target_mesh, loop_triangles=True, destructive=False)
-        else:
-            target_mesh.update()
-
-    return None

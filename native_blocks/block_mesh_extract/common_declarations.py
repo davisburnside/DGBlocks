@@ -21,5 +21,7 @@ class Block_Loggers(String_Comparable_Mixin):
 class Block_RTC_Members(String_Comparable_Mixin):
     # list[RTC_Mesh_Extract_Instance] — keyed by (object_name, slot)
     MESH_EXTRACT_INSTANCES   = RTC_Member_Declaration([])
+    # dict[str, deque[RTC_Mesh_Extract_Instance]] — keyed by "object_name|slot"
+    MESH_EXTRACT_HISTORY     = RTC_Member_Declaration({})
     # Monotonic counter used to stamp each Mesh_Action_Record with a unique action_uid
     MESH_ACTION_UID_COUNTER  = RTC_Member_Declaration(0)

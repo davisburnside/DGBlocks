@@ -1,31 +1,37 @@
-
 """
 builtin_custom_callbacks.py — pre-built callbacks for common derived mesh data.
 
 CALLBACK CONTRACT
-    func(instance, action_record) -> None      (return value ignored)
+    func(instance, action_record, mesh_context) -> None      (return value ignored)
 
 A callback MUTATES the instance. Where it stores the result decides what the result IS:
 
     instance.<domain>.custom["name"] = arr     per-element, len == domain count
                                                → can be written straight back to the mesh
-    instance.derived["name"] = anything        CSR pairs, dicts, scalars, matrices
+    instance.derived["name"] = anything         CSR pairs, dicts, scalars, matrices
                                                → never writable to a mesh
 
-Use `action_record` only to append extra Mesh_Action_Op_Record entries if you want
-finer-grained timing than the one op record the framework already creates for you.
+`mesh_context` is provided for callbacks that need to write attributes or edit
+topology. Pure-numpy callbacks (the ones below) ignore it.
 
 Round-trip example — compute per-face data, then write it as a FACE attribute:
+
+    def _cb_face_center(instance, action_record, mesh_context):
+        instance.face.custom["face_center"] = compute_face_center(...)
 
     attr_face_center = MET.FACE.CUSTOM_ATTRIBUTE("face_center", data_type="FLOAT_VECTOR")
 
     Numpy_Mesh_Action_Declaration(
-        label            = "face centers",
-        read_attributes  = [MET.VERTEX.CO, MET.FACE.LOOP_START,
-                            MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX],
-        callbacks        = [cb_face_center],          # → instance.face.custom["face_center"]
-        write_attributes = [attr_face_center],        # same key, written back to the mesh
-        read_source      = Enum_Read_Source.ORIGINAL,
+        label = "face centers",
+        steps = (
+            Read_Step(MET.VERTEX.CO),
+            Read_Step(MET.FACE.LOOP_START),
+            Read_Step(MET.FACE.LOOP_TOTAL),
+            Read_Step(MET.CORNER.VERTEX_INDEX),
+            Callback_Step(_cb_face_center),          # → instance.face.custom["face_center"]
+            Callback_Step(_cb_write_face_center),    # → mesh_context.write_attr(...)
+        ),
+        read_source = Enum_Read_Source.ORIGINAL,
     )
 """
 
@@ -41,7 +47,7 @@ from .helpers_computed import (
 # PER-ELEMENT RESULTS  →  domain.custom  (mesh-writable)
 # ==============================================================================================================================
 
-def cb_edge_length(instance, action_record) -> None:
+def cb_edge_length(instance, action_record, mesh_context) -> None:
     """
     Per-edge Euclidean length → instance.edge.custom["edge_length"]  (n_edges,) float32
     Requires: MET.VERTEX.CO, MET.EDGE.VERTICES
@@ -53,7 +59,7 @@ def cb_edge_length(instance, action_record) -> None:
     )
 
 
-def cb_face_center(instance, action_record) -> None:
+def cb_face_center(instance, action_record, mesh_context) -> None:
     """
     Per-face centroid → instance.face.custom["face_center"]  (n_faces, 3) float32
     Requires: MET.VERTEX.CO, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
@@ -74,7 +80,7 @@ def cb_face_center(instance, action_record) -> None:
 #   neighbors_of_face_i = idx[off[i] : off[i + 1]]
 # ==============================================================================================================================
 
-def cb_vert_vert_neighbors(instance, action_record) -> None:
+def cb_vert_vert_neighbors(instance, action_record, mesh_context) -> None:
     """
     Vertex-vertex adjacency (edge-connected) → instance.derived["vert_vert_neighbors"]
     Requires: MET.VERTEX.CO, MET.EDGE.VERTICES
@@ -85,7 +91,7 @@ def cb_vert_vert_neighbors(instance, action_record) -> None:
     )
 
 
-def cb_vert_face_neighbors(instance, action_record) -> None:
+def cb_vert_face_neighbors(instance, action_record, mesh_context) -> None:
     """
     Vertex-face adjacency → instance.derived["vert_face_neighbors"]
     Requires: MET.VERTEX.CO, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX
@@ -98,7 +104,7 @@ def cb_vert_face_neighbors(instance, action_record) -> None:
     )
 
 
-def cb_face_face_neighbors(instance, action_record) -> None:
+def cb_face_face_neighbors(instance, action_record, mesh_context) -> None:
     """
     Face-face adjacency (shared edge) → instance.derived["face_face_neighbors"]
     Requires: MET.EDGE.VERTICES, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,
