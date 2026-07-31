@@ -59,24 +59,6 @@ class Wrapper_Mesh_Extract(Abstract_Feature_Wrapper):
         return run_mesh_action(object, declaration, depsgraph, existing_instance)
 
     @classmethod
-    def run_mesh_actions_for_object(
-        cls,
-        object:      bpy.types.Object,
-        declarations: list,
-        depsgraph:   Optional[bpy.types.Depsgraph] = None,
-    ) -> RTC_Mesh_Extract_Instance:
-        """
-        Run several declarations in order against one object, chaining the same instance.
-        Stops early if an action fails, returning the partially-populated instance.
-        """
-        instance: Optional[RTC_Mesh_Extract_Instance] = None
-        for declaration in declarations:
-            instance = run_mesh_action(object, declaration, depsgraph, instance)
-            if not instance.is_valid:
-                break
-        return instance
-
-    @classmethod
     def get_instance(
         cls,
         object_name: str,

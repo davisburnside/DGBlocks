@@ -106,7 +106,7 @@ MY_DECLARATION = Numpy_Mesh_Action_Declaration(
         MET.CORNER.UV_MAP(),                     # active UV layer
     ),
     callbacks        = (
-        cb_face_face_neighbors,
+        _cb_face_face_neighbors,
 +                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           Callback_Op(_compute_planarity, label="planarity"),
     ),
     write_attributes = (
@@ -213,7 +213,7 @@ def _compute_planarity(instance, action_record):
 | `cb_face_center` | `derived["face_center"]` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
 | `cb_vert_vert_neighbors` | `derived["vert_vert_neighbors"]` | `VERTEX.CO`, `EDGE.VERTICES` |
 | `cb_vert_face_neighbors` | `derived["vert_face_neighbors"]` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
-| `cb_face_face_neighbors` | `derived["face_face_neighbors"]` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| `_cb_face_face_neighbors` | `derived["face_face_neighbors"]` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
 
 CSR access:
 ```python
@@ -306,7 +306,7 @@ Debug/inspection state only — there is nothing to mirror.
 from ....native_blocks.block_mesh_extract.data_structures import (
     MET, Numpy_Mesh_Action_Declaration, Enum_Read_Source,
 )
-from ....native_blocks.block_mesh_extract.builtin_custom_callbacks import cb_face_face_neighbors
+from ....native_blocks.block_mesh_extract.builtin_custom_callbacks import _cb_face_face_neighbors
 from ....native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
 
 
@@ -321,7 +321,7 @@ PASS_1 = Numpy_Mesh_Action_Declaration(
     should_cache_in_RTC = False,          # caller keeps the instance, enabling before/after diffs
     read_attributes  = (MET.VERTEX.CO, MET.FACE.NORMAL, MET.EDGE.VERTICES,
                         MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL, MET.CORNER.VERTEX_INDEX),
-    callbacks        = (cb_face_face_neighbors, _compute_planarity),
+    callbacks        = (_cb_face_face_neighbors, _compute_planarity),
 )
 
 instance = Wrapper_Mesh_Extract.run_mesh_action_for_object(obj, PASS_1)

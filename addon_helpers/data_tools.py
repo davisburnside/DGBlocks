@@ -176,6 +176,20 @@ def lighten_color(color, factor: float = 0.3):
 # BLENDER DATA TOOLS
 # ==============================================================================================================================
 
+def is_mesh_writable(obj, mesh) -> bool:
+    """True if `mesh` is real, local geometry we're allowed to write to."""
+    return (
+        obj.type == 'MESH'
+        and mesh.library is None            # not linked from another .blend
+        and mesh.override_library is None   # not a library override
+        and mesh.is_editable                # catches linked-but-editable assets, missing links
+        and not mesh.is_evaluated           # not a depsgraph copy (GN / modifier output)
+        and not mesh.is_runtime_data        # exists in Main, will be saved
+        and obj.asset_data is None          # not marked as an asset
+        and mesh.asset_data is None
+        and len(mesh.vertices) > 0          # has actual geometry
+    )
+
 def guess_mesh_attribute_type_from_data(values, components: Optional[int] = None) -> str:
     """
     Blender data_type inference from an input array.

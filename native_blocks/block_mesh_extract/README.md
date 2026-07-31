@@ -126,7 +126,7 @@ from ...native_blocks.block_mesh_extract.data_structures import (
     MET, Numpy_Mesh_Action_Declaration, Enum_Read_Source,
     Read_Step, Callback_Step, Group_Tag,
 )
-from ...native_blocks.block_mesh_extract.builtin_custom_callbacks import cb_face_face_neighbors
+from ...native_blocks.block_mesh_extract.builtin_custom_callbacks import _cb_face_face_neighbors
 
 MY_DECLARATION = Numpy_Mesh_Action_Declaration(
     label            = "planarity_pass",
@@ -144,7 +144,7 @@ MY_DECLARATION = Numpy_Mesh_Action_Declaration(
         Read_Step(MET.FACE.CUSTOM_ATTRIBUTE("gn_f1")),
         Read_Step(MET.CORNER.UV_MAP()),                     # active UV layer
         Group_Tag("adjacency"),
-        Callback_Step(cb_face_face_neighbors),
+        Callback_Step(_cb_face_face_neighbors),
         Group_Tag("planarity"),
         Callback_Step(_compute_planarity),
     ),
@@ -281,7 +281,7 @@ backing Edit Mode. The code never calls `bmesh.new()` for Edit-Mode writes.
 | `cb_face_center` | `derived["face_center"]` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
 | `cb_vert_vert_neighbors` | `derived["vert_vert_neighbors"]` | `VERTEX.CO`, `EDGE.VERTICES` |
 | `cb_vert_face_neighbors` | `derived["vert_face_neighbors"]` | `VERTEX.CO`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
-| `cb_face_face_neighbors` | `derived["face_face_neighbors"]` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
+| `_cb_face_face_neighbors` | `derived["face_face_neighbors"]` | `FACE.NORMAL`, `EDGE.VERTICES`, `FACE.LOOP_START`, `FACE.LOOP_TOTAL`, `CORNER.VERTEX_INDEX` |
 
 CSR access:
 ```python
@@ -359,7 +359,7 @@ from ....native_blocks.block_mesh_extract.data_structures import (
     MET, Numpy_Mesh_Action_Declaration, Enum_Read_Source,
     Read_Step, Callback_Step, Group_Tag,
 )
-from ....native_blocks.block_mesh_extract.builtin_custom_callbacks import cb_face_face_neighbors
+from ....native_blocks.block_mesh_extract.builtin_custom_callbacks import _cb_face_face_neighbors
 from ....native_blocks.block_mesh_extract.feature_mesh_extract import Wrapper_Mesh_Extract
 
 
@@ -382,7 +382,7 @@ PASS_1 = Numpy_Mesh_Action_Declaration(
         Read_Step(MET.FACE.LOOP_TOTAL),
         Read_Step(MET.CORNER.VERTEX_INDEX),
         Group_Tag("adjacency"),
-        Callback_Step(cb_face_face_neighbors),
+        Callback_Step(_cb_face_face_neighbors),
         Group_Tag("planarity"),
         Callback_Step(_compute_planarity),
     ),

@@ -103,8 +103,11 @@ def cb_vert_face_neighbors(instance, action_record, mesh_context) -> None:
         instance.vertex.co.shape[0],
     )
 
+def _cb_writability(instance, action_record, mesh_context):
+    # instance.face.custom["_face_writable"] = np.full((len(mesh_context)), mesh_uid)
+    pass
 
-def cb_face_face_neighbors(instance, action_record, mesh_context) -> None:
+def _cb_face_face_neighbors(instance, action_record, mesh_context):
     """
     Face-face adjacency (shared edge) → instance.derived["face_face_neighbors"]
     Requires: MET.EDGE.VERTICES, MET.FACE.LOOP_START, MET.FACE.LOOP_TOTAL,

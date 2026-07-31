@@ -69,7 +69,10 @@ class Mesh_Context:
         Edit Mode:   per-element bmesh loop (slow, correct).
         """
         flat = np.ascontiguousarray(arr).reshape(-1)
-        dtype = attr_dec.dtype or "float32"
+        if isinstance(arr, np.ndarray):
+            dtype = arr.dtype
+        else:
+            dtype = attr_dec.dtype or "float32"
         flat = flat.astype(dtype, copy=False)
 
         if self.is_edit_mode:
@@ -78,8 +81,8 @@ class Mesh_Context:
 
     def _write_attr_object_mode(self, attr_dec: MET_Attr_Declaration, flat: np.ndarray) -> str:
         if attr_dec.accessor == Enum_Attr_Accessor.COLLECTION:
-            collection = getattr(self.mesh, attr_dec.collection_name)
-            collection.foreach_set(attr_dec.value_field, flat)
+            layer_col = getattr(self.mesh, attr_dec.collection_name)
+            layer_col.foreach_set(attr_dec.value_field, flat)
             return f"foreach_set mesh.{attr_dec.collection_name}.{attr_dec.value_field}"
 
         bl_attr = self._ensure_named_attribute(attr_dec, flat)
@@ -114,12 +117,12 @@ class Mesh_Context:
             )
 
         sequence = _bm_sequence(bm, attr_dec.domain)
-        collection = getattr(sequence.layers, layer_kind, None)
-        if collection is None:
+        layer_col = getattr(sequence.layers, layer_kind, None)
+        if layer_col is None:
             raise RuntimeError(
-                f"BMesh has no '{layer_kind}' layer collection on domain {attr_dec.domain}."
+                f"BMesh has no '{layer_kind}' layer layer_col on domain {attr_dec.domain}."
             )
-        layer = collection.get(attr_dec.name) or collection.new(attr_dec.name)
+        layer = layer_col.get(attr_dec.name) or layer_col.new(attr_dec.name)
 
         is_uv = attr_dec.is_uv_map or layer_kind == "uv"
         count = 0
