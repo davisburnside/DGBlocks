@@ -12,6 +12,7 @@ import dataclasses
 import json
 import bpy  # type: ignore
 import mathutils # type: ignore
+from mathutils import Vector, Matrix, Quaternion, Color, Euler # type: ignore
 
 # ==============================================================================================================================
 # PYTHON DATA TOOLS
@@ -174,6 +175,114 @@ def lighten_color(color, factor: float = 0.3):
 # ==============================================================================================================================
 # BLENDER DATA TOOLS
 # ==============================================================================================================================
+
+def guess_mesh_attribute_type_from_data(values, components: Optional[int] = None) -> str:
+    """
+    Blender data_type inference from an input array.
+    
+    COVERED:
+      shape (N,)            + float dtype   -> 'FLOAT'
+      shape (N,)            + int dtype     -> 'INT'
+      shape (N,)            + bool dtype    -> 'BOOLEAN'
+      shape (N,)            + int8 dtype    -> 'INT8'   (only if dtype is explicitly int8)
+      shape (N, 2)          + float         -> 'FLOAT2'   (UV-like)
+      shape (N, 2)          + int           -> 'INT32_2D'
+      shape (N, 3)          + float         -> 'FLOAT_VECTOR'
+      shape (N, 4)          + float         -> 'FLOAT_COLOR'   (see AMBIGUOUS below)
+      shape (N, 4, 4)       + float         -> 'FLOAT4X4'
+      flat arrays of length N*C when `components` is declared on the attr
+      sequences of mathutils.Vector / Color / Quaternion / Matrix (len() of element 0 used)
+      plain nested python lists/tuples (converted via np.asarray first)
+    
+    AMBIGUOUS / NOT COVERED (must pass data_type explicitly):
+      (N, 4) float -> could be FLOAT_COLOR or a quaternion; we always guess FLOAT_COLOR.
+        mathutils.Quaternion elements are detected by type and mapped to 'QUATERNION'.
+      (N, 4) float meant as BYTE_COLOR -> we always pick FLOAT_COLOR; byte color is never guessed.
+      (N, 3) float meant as a color -> guessed as FLOAT_VECTOR, not color.
+      (N, 2) int meant as two separate scalars -> guessed as INT32_2D.
+      Flat arrays with no declared `components` and length not divisible in an obvious way ->
+        treated as scalar (N,). A flat (3N,) vector array will be mis-guessed as FLOAT.
+      Object/string dtypes, ragged nested sequences, empty arrays -> raise.
+      FLOAT4X4 only detected from an explicit (N,4,4) shape or mathutils.Matrix elements;
+        a flat (16N,) array is not recognised."""
+        
+    _MATHUTILS_TYPE_MAP = {
+        Quaternion: "QUATERNION",
+        Matrix:     "FLOAT4X4",
+        Color:      "FLOAT_COLOR",
+    }
+
+    # --- mathutils element detection (before numpy conversion loses the type) ---
+    if isinstance(values, (list, tuple)) and len(values):
+        first = values[0]
+        for mu_type, dt in _MATHUTILS_TYPE_MAP.items():
+            if mu_type and isinstance(first, mu_type):
+                return dt
+        if Vector and isinstance(first, (Vector, Euler)):
+            n = len(first)
+            if n == 2:
+                return "FLOAT2"
+            if n == 3:
+                return "FLOAT_VECTOR"
+            if n == 4:
+                return "FLOAT_COLOR"
+
+    arr = np.asarray(values)
+
+    if arr.dtype == object:
+        raise RuntimeError(
+            "Cannot guess data_type from an object-dtype / ragged array — pass data_type explicitly."
+        )
+    if arr.size == 0:
+        raise RuntimeError("Cannot guess data_type from an empty array — pass data_type explicitly.")
+
+    kind = arr.dtype.kind
+
+    # --- reshape flat input using the declared component count ---
+    if arr.ndim == 1 and components and components > 1:
+        if arr.size % components:
+            raise RuntimeError(
+                f"Flat array of length {arr.size} is not divisible by declared components={components}."
+            )
+        arr = arr.reshape(-1, components)
+
+    # --- matrices ---
+    if arr.ndim == 3:
+        if arr.shape[1:] == (4, 4):
+            return "FLOAT4X4"
+        raise RuntimeError(f"Unsupported array shape {arr.shape} — pass data_type explicitly.")
+
+    # --- vectors / colors ---
+    if arr.ndim == 2:
+        width = arr.shape[1]
+        if kind == "f":
+            if width == 2:
+                return "FLOAT2"
+            if width == 3:
+                return "FLOAT_VECTOR"
+            if width == 4:
+                return "FLOAT_COLOR"   # ambiguous: could be QUATERNION / BYTE_COLOR
+        elif kind in "iu":
+            if width == 2:
+                return "INT32_2D"
+            if width == 3:
+                return "FLOAT_VECTOR"  # ints promoted; Blender has no INT vector3
+        raise RuntimeError(
+            f"Cannot guess data_type for shape {arr.shape} dtype {arr.dtype} — pass data_type explicitly."
+        )
+
+    # --- scalars ---
+    if arr.ndim == 1:
+        if kind == "b":
+            return "BOOLEAN"
+        if kind == "f":
+            return "FLOAT"
+        if kind in "iu":
+            return "INT8" if arr.dtype in (np.int8, np.uint8) else "INT"
+
+    raise RuntimeError(
+        f"Cannot guess data_type for shape {arr.shape} dtype {arr.dtype} — pass data_type explicitly."
+    )
 
 # --------------------------------------------------------------
 # Recursively walk down a nested PropertyGroup to print/reset its contents.

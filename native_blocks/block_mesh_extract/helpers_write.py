@@ -13,9 +13,12 @@ Python loop.
 """
 
 from typing import Optional
-
-import bpy
 import numpy as np
+import bmesh
+import bpy
+
+
+from ...addon_helpers.data_tools import guess_mesh_attribute_type_from_data
 
 from .data_structures import (
     BL_DOMAIN_FROM_MET,
@@ -34,7 +37,7 @@ class Mesh_Context:
     Handed to every Callback_Step's func as the third argument.
 
     Provides:
-        write_attr(attr, arr)  — attempt a validated-free attribute write (both modes)
+        write_attr(attr_dec, arr)  — attempt a validated-free attribute write (both modes)
         edit_bmesh()           — get a BMesh for topology edits (both modes)
 
     The context is bound to ONE mesh acquisition for the whole step list. It is
@@ -57,43 +60,43 @@ class Mesh_Context:
     # Attribute writes — no validation, fail gracefully
     # ----------------------------------------------------------
 
-    def write_attr(self, attr: MET_Attr_Declaration, arr) -> str:
+    def write_attr(self, attr_dec: MET_Attr_Declaration, arr) -> str:
         """
-        Attempt to write `arr` to `attr` on the mesh. Returns a detail string.
+        Attempt to write `arr` to `attr_dec` on the mesh. Returns a detail string.
         Raises on any failure; the caller (step runner) catches and records it.
 
         Object Mode: foreach_set (bulk, fast).
         Edit Mode:   per-element bmesh loop (slow, correct).
         """
         flat = np.ascontiguousarray(arr).reshape(-1)
-        dtype = attr.dtype or "float32"
+        dtype = attr_dec.dtype or "float32"
         flat = flat.astype(dtype, copy=False)
 
         if self.is_edit_mode:
-            return self._write_attr_edit_mode(attr, flat)
-        return self._write_attr_object_mode(attr, flat)
+            return self._write_attr_edit_mode(attr_dec, flat)
+        return self._write_attr_object_mode(attr_dec, flat)
 
-    def _write_attr_object_mode(self, attr: MET_Attr_Declaration, flat: np.ndarray) -> str:
-        if attr.accessor == Enum_Attr_Accessor.COLLECTION:
-            collection = getattr(self.mesh, attr.collection_name)
-            collection.foreach_set(attr.value_field, flat)
-            return f"foreach_set mesh.{attr.collection_name}.{attr.value_field}"
+    def _write_attr_object_mode(self, attr_dec: MET_Attr_Declaration, flat: np.ndarray) -> str:
+        if attr_dec.accessor == Enum_Attr_Accessor.COLLECTION:
+            collection = getattr(self.mesh, attr_dec.collection_name)
+            collection.foreach_set(attr_dec.value_field, flat)
+            return f"foreach_set mesh.{attr_dec.collection_name}.{attr_dec.value_field}"
 
-        bl_attr = self._ensure_named_attribute(attr)
-        bl_attr.data.foreach_set(attr.value_field, flat)
-        return f"foreach_set attributes['{attr.name}'].{attr.value_field}"
+        bl_attr = self._ensure_named_attribute(attr_dec, flat)
+        bl_attr.data.foreach_set(attr_dec.value_field, flat)
+        return f"foreach_set attributes['{attr_dec.name}'].{attr_dec.value_field}"
 
-    def _write_attr_edit_mode(self, attr: MET_Attr_Declaration, flat: np.ndarray) -> str:
-        import bmesh
+    def _write_attr_edit_mode(self, attr_dec: MET_Attr_Declaration, flat: np.ndarray) -> str:
+        
         bm = self.edit_bmesh()
-        components = attr.components
+        components = attr_dec.components
         values = flat.reshape(-1, components) if components > 1 else flat
 
         # Builtin fast paths
-        if attr.accessor == Enum_Attr_Accessor.COLLECTION or attr.name in ("seam_edge", "sharp_edge"):
-            setter, seq_domain = _resolve_builtin_bmesh_setter(attr)
+        if attr_dec.accessor == Enum_Attr_Accessor.COLLECTION or attr_dec.name in ("seam_edge", "sharp_edge"):
+            setter, seq_domain = _resolve_builtin_bmesh_setter(attr_dec)
             if setter is None:
-                raise RuntimeError(f"'{attr.key}' cannot be written in Edit Mode.")
+                raise RuntimeError(f"'{attr_dec.key}' cannot be written in Edit Mode.")
             count = 0
             for idx, element in enumerate(_iter_bm_elements(bm, seq_domain)):
                 setter(element, values[idx])
@@ -102,24 +105,25 @@ class Mesh_Context:
             return f"bmesh loop, {count} element(s)"
 
         # Named attribute → bmesh custom data layer
-        layer_kind = _BM_LAYER_KIND.get(attr.data_type or "")
+        data_type = attr_dec.data_type or guess_mesh_attribute_type_from_data(values, attr_dec.components)
+        layer_kind = _BM_LAYER_KIND.get(data_type)
         if layer_kind is None:
             raise RuntimeError(
-                f"data_type {attr.data_type!r} has no BMesh layer equivalent — "
-                f"cannot write '{attr.name}' in Edit Mode."
+                f"data_type {attr_dec.data_type!r} has no BMesh layer equivalent — "
+                f"cannot write '{attr_dec.name}' in Edit Mode."
             )
 
-        sequence = _bm_sequence(bm, attr.domain)
+        sequence = _bm_sequence(bm, attr_dec.domain)
         collection = getattr(sequence.layers, layer_kind, None)
         if collection is None:
             raise RuntimeError(
-                f"BMesh has no '{layer_kind}' layer collection on domain {attr.domain}."
+                f"BMesh has no '{layer_kind}' layer collection on domain {attr_dec.domain}."
             )
-        layer = collection.get(attr.name) or collection.new(attr.name)
+        layer = collection.get(attr_dec.name) or collection.new(attr_dec.name)
 
-        is_uv = attr.is_uv_map or layer_kind == "uv"
+        is_uv = attr_dec.is_uv_map or layer_kind == "uv"
         count = 0
-        for idx, element in enumerate(_iter_bm_elements(bm, attr.domain)):
+        for idx, element in enumerate(_iter_bm_elements(bm, attr_dec.domain)):
             value = values[idx]
             if is_uv:
                 element[layer].uv = (float(value[0]), float(value[1]))
@@ -131,18 +135,30 @@ class Mesh_Context:
         self._bm_touched = True
         return f"bmesh loop, {count} element(s)"
 
-    def _ensure_named_attribute(self, attr: MET_Attr_Declaration):
+    def _ensure_named_attribute(self, attr_dec: MET_Attr_Declaration, values = None):
         """Fetch (creating if needed) the named attribute this write targets. No validation."""
-        bl_domain = BL_DOMAIN_FROM_MET[str(attr.domain)]
-        existing = self.mesh.attributes.get(attr.name)
-        if existing is not None:
-            return existing
-        if not attr.data_type:
-            raise RuntimeError(
-                f"Attribute '{attr.name}' does not exist and no data_type was declared — "
-                f"use MET.{attr.domain}.CUSTOM_ATTRIBUTE('{attr.name}', data_type='FLOAT')."
-            )
-        return self.mesh.attributes.new(name=attr.name, type=attr.data_type, domain=bl_domain)
+        bl_domain = BL_DOMAIN_FROM_MET[str(attr_dec.domain)]
+        actual_attr = self.mesh.attributes.get(attr_dec.name)
+        if actual_attr is not None:
+            return actual_attr
+
+        data_type = attr_dec.data_type
+        if not data_type:
+            if values is None:
+                raise RuntimeError(
+                    f"Attribute '{attr_dec.name}' does not exist, no data_type was declared, and no "
+                    f"values were supplied to infer one — use "
+                    f"MET.{attr_dec.domain}.CUSTOM_ATTRIBUTE('{attr_dec.name}', data_type='FLOAT')."
+                )
+            try:
+                data_type = guess_mesh_attribute_type_from_data(values, attr_dec.components)
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    f"Attribute '{attr_dec.name}' does not exist and its data_type could not be "
+                    f"inferred: {exc}"
+                ) from exc
+            
+        return self.mesh.attributes.new(name=attr_dec.name, type=data_type, domain=bl_domain)
 
     # ----------------------------------------------------------
     # Topology edits via bmesh
@@ -156,7 +172,6 @@ class Mesh_Context:
         Object Mode: a round-trip bmesh.new()/from_mesh(object.data). The framework
                      writes it back to the mesh after the callback returns.
         """
-        import bmesh
         if self._bm is not None:
             return self._bm
         if self.is_edit_mode:
@@ -177,7 +192,6 @@ class Mesh_Context:
             if not self.is_edit_mode:
                 self.mesh.update()
             return
-        import bmesh
         if self._bm_touched:
             if self.is_edit_mode:
                 bmesh.update_edit_mesh(self.object.data, loop_triangles=True, destructive=True)
@@ -217,9 +231,9 @@ def _iter_bm_elements(bm, met_domain: str):
             yield element
 
 
-def _resolve_builtin_bmesh_setter(attr: MET_Attr_Declaration):
+def _resolve_builtin_bmesh_setter(attr_dec: MET_Attr_Declaration):
     """Return (setter_func, domain) for builtin attributes writable via BMesh members."""
-    key = attr.key
+    key = attr_dec.key
     if key == "VERTEX.co":
         return (lambda v, val: setattr(v, "co", (float(val[0]), float(val[1]), float(val[2])))), "VERTEX"
     if key == "EDGE.seam_edge":
@@ -227,7 +241,7 @@ def _resolve_builtin_bmesh_setter(attr: MET_Attr_Declaration):
     if key == "EDGE.sharp_edge":
         # BMesh stores the inverse: smooth == not sharp
         return (lambda e, val: setattr(e, "smooth", not bool(val))), "EDGE"
-    return None, str(attr.domain)
+    return None, str(attr_dec.domain)
 
 
 # ==============================================================================================================================
