@@ -50,8 +50,8 @@ def _fire_handler(handler_type_name: str, **kwargs):
 
     executing = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.APP_HANDLERS_CURRENTLY_EXECUTING)
     _, handler_instance, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(Block_RTC_Members.APP_HANDLER_STATUS_LIST, "handler_type_name", handler_type_name)
-    if not handler_instance.is_registered:
-        raise Exception(f"App Handler '{handler_instance}' is not registered")
+    if not handler_instance or not handler_instance.is_registered:
+        logger.warning(f"App Handler '{handler_instance}' is not registered")
     if not handler_instance.is_enabled:
         return
     if handler_type_name in executing:
