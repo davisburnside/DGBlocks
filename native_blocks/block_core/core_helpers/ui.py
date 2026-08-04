@@ -26,6 +26,10 @@ def _uilist_blocks_draw_row(context, container, uillist_config_instance, BL_item
     version_str = ".".join([str(i) for i in RTC_item.block_version])
     sub.label(text = version_str)
 
+    sub = header.row()
+    sub.ui_units_x = col_widths[3]
+    sub.prop(BL_item, "debug_mode_enabled", text = "")
+
 def _uilist_blocks_draw_selection_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
 
     box = container.box()
@@ -168,6 +172,8 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
 
     def draw_header(self, context):
         ui_draw_block_panel_header(context, self.layout, "Block-Core", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
+        row = self.layout.row()
+        row.operator("dgblocks.reload_all_blocks", text="Reload All", icon="FILE_REFRESH")
 
 
     def draw_subpanel_body(self, context, container):
@@ -175,7 +181,6 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         core_scene_props = context.scene.dgblocks_core_props
         grid = container.grid_flow(columns=2)
         grid.prop(core_scene_props, "addon_is_active")
-        grid.prop(core_scene_props, "debug_mode_enabled")
         grid.prop(core_scene_props, "debug_log_all_RTC_BL_sync_actions")
         grid.prop(core_scene_props, "documentation_weblinks_enabled")
         op_rtc_clear = grid.operator("dgblocks.debug_clear_and_restore_caches", text = "Clear RTC")
@@ -193,6 +198,13 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         row = container.row()
         row.prop(core_scene_props, "hooks_hide_unsub", text="Hide hooks with no subscribers")
         draw_shared_uilist(context, container, "managed_hooks")
+
+    def _draw_loggers_subpanel_body(self, context, container):
+        """Draw body of the Loggers subpanel, including the datetime dropdown."""
+        core_scene_props = context.scene.dgblocks_core_props
+        row = container.row()
+        row.prop(core_scene_props, "logger_include_datetime", text="Include Datetime")
+        draw_shared_uilist(context, container, "managed_loggers")
 
     def draw(self, context):
         
@@ -213,6 +225,5 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
 
         # Loggers subpanel
         loggers_label = f"All Loggers ({len(core_scene_props.managed_loggers)})"
-        ui_draw_subpanel(context, layout, "managed_loggers", loggers_label, draw_shared_uilist,
-                         scene_data_path="managed_loggers")
+        ui_draw_subpanel(context, layout, "managed_loggers", loggers_label, self._draw_loggers_subpanel_body)
             

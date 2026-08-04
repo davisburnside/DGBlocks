@@ -10,6 +10,7 @@ from ...addon_helpers.ui import ui_draw_block_panel_header
 # --------------------------------------------------------------
 # Inter-block imports
 from .. import block_core  # noqa: F401 — ensures block_core is loaded first
+from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -35,12 +36,6 @@ from .ui import ui_draw_mesh_extract_instances
 
 class DGBLOCKS_PG_Mesh_Extract_Props(bpy.types.PropertyGroup):
     """Scene-level property group for block_mesh_extract."""
-
-    debug_mode_enabled: bpy.props.BoolProperty(          # type: ignore
-        name        = "Debug Mode",
-        description = "Show stored mesh action instances and their per-op timings",
-        default     = False,
-    )
 
     debug_expanded_instance_key: bpy.props.StringProperty(  # type: ignore
         name    = "Expanded Instance",
@@ -113,8 +108,7 @@ class DGBLOCKS_PT_Mesh_Extract_Panel(bpy.types.Panel):
         ui_draw_block_panel_header(
             context, self.layout,
             _BLOCK_DECLARATION.block_id,
-            Documentation_URLs.MY_PLACEHOLDER_URL_2,
-            icon_name = "MESH_DATA",
+            block_declaration = _BLOCK_DECLARATION,
         )
 
     def draw(self, context):
@@ -123,8 +117,18 @@ class DGBLOCKS_PT_Mesh_Extract_Panel(bpy.types.Panel):
 
         instances = Wrapper_Mesh_Extract.get_all_instances()
 
+        # Debug mode lives on the block's record (toggled in core's All Blocks UIList)
+        debug_mode = False
+        try:
+            block_records = Wrapper_Runtime_Cache.get_cache("REGISTRY_ALL_BLOCKS")
+            for b in block_records or []:
+                if b.block_id == _BLOCK_DECLARATION.block_id:
+                    debug_mode = b.debug_mode_enabled
+                    break
+        except Exception:
+            debug_mode = False
+
         row = layout.row(align=True)
-        row.prop(props, "debug_mode_enabled", text="Debug Mode", toggle=True)
         clear_all = row.operator("dgblocks.mesh_extract_clear", text="", icon="TRASH")
         clear_all.object_name = ""
 
@@ -132,7 +136,7 @@ class DGBLOCKS_PT_Mesh_Extract_Panel(bpy.types.Panel):
         info.enabled = False
         info.label(text=f"{len(instances)} stored instance(s)")
 
-        if not props.debug_mode_enabled:
+        if not debug_mode:
             return
 
         options = layout.row(align=True)
@@ -175,4 +179,6 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_feature_wrapper_classes = [Wrapper_Mesh_Extract],
     block_RTC_members             = Block_RTC_Members,
     block_loggers                 = Block_Loggers,
+    icon                          = "MESH_DATA",
+    documentation_url             = Documentation_URLs.MY_PLACEHOLDER_URL_2,
 )

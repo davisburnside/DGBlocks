@@ -1,6 +1,8 @@
 
 from typing import Callable
 
+from .....addon_helpers.generic_tools import force_redraw_ui
+
 # Intra-block imports
 from ...core_helpers.constants import  Core_Runtime_Cache_Members
 from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
@@ -53,3 +55,12 @@ def increment_bypass_count_of_subs(hook_source_instance, actual_hook_func_name):
 
 def _callback_hook_sub_uilist_selection_idx_updated(self, context):
     print("update list")
+
+
+def _callback_hooks_hide_unsub_changed(self, context):
+    """
+    Fired when the "Hide hooks with no subscribers" checkbox is toggled.
+    Forces a UI redraw so the filter_items callback re-runs immediately.
+    """
+    
+    force_redraw_ui(context)

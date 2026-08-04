@@ -11,9 +11,10 @@ from ....addon_helpers.data_structures import Enum_Sync_Events
 # --------------------------------------------------------------
 # Core block imports
 # --------------------------------------------------------------
-from ..core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
+from ..core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources, Core_Runtime_Cache_Members
 from ..core_features.loggers.feature_wrapper import  get_logger
 from ..core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # --------------------------------------------------------------
 # Aliases
@@ -77,6 +78,28 @@ class DGBLOCKS_OT_Force_Reload_Refresh_UI(bpy.types.Operator):
         force_redraw_ui(context)
         return {"FINISHED"}
    
+class DGBLOCKS_OT_Reload_All_Blocks(bpy.types.Operator):
+    bl_idname = "dgblocks.reload_all_blocks"
+    bl_label = "Reload All Blocks"
+    bl_description = "Fire hook_before_blocks_reload, call bpy.ops.script.reload(), then fire hook_after_blocks_reload"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
+        logger.info("Reload-all: firing hook_before_blocks_reload")
+        _ = Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name=Core_Block_Hook_Sources.hook_before_blocks_reload,
+            should_halt_on_exception=False,
+        )
+        bpy.ops.script.reload()
+        logger.info("Reload-all: fired hook_after_blocks_reload")
+        _ = Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name=Core_Block_Hook_Sources.hook_after_blocks_reload,
+            should_halt_on_exception=False,
+        )
+        return {"FINISHED"}
+
+
 class DGBLOCKS_OT_Debug_Clear_And_Restore_Caches(bpy.types.Operator):
     bl_idname = "dgblocks.debug_clear_and_restore_caches"
     bl_label = "Reload scripts"

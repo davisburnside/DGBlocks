@@ -206,7 +206,7 @@ class DGBLOCKS_PT_Debugging_Panel(bpy.types.Panel):
     bl_order = 0
 
     def draw_header(self, context):
-        ui_draw_block_panel_header(context, self.layout, _BLOCK_ID, Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "TOOL_SETTINGS")
+        ui_draw_block_panel_header(context, self.layout, _BLOCK_ID, block_declaration = _BLOCK_DECLARATION)
 
     def draw(self, context):
         ui_draw_filter_settings(context, self.layout)
@@ -236,6 +236,8 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_dependencies = ["block-core"], # ids of blocks that this one depends on
     block_bpy_classes = _block_classes_to_register, # Blender-registerable classes
     block_hook_sources = Block_Hook_Sources,
+    icon = "TOOL_SETTINGS",
+    documentation_url = Documentation_URLs.MY_PLACEHOLDER_URL_2,
 )
 
 def register_block_props():

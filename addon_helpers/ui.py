@@ -88,7 +88,14 @@ def ui_draw_static_list(container, data_rows: list, col_widths):
             sub.ui_units_x = col_widths[i]
             sub.label(text = data_col)
 
-def ui_draw_block_panel_header(context:bpy.context, container:bpy.types.UILayout, header_text:str, url_enum:Enum = None, icon_name:str = None):
+def ui_draw_block_panel_header(context:bpy.context, container:bpy.types.UILayout, header_text:str, url_enum:Enum = None, icon_name:str = None, block_declaration = None):
+
+    # If a Block_Declaration is provided, use its optional icon / documentation_url
+    if block_declaration is not None:
+        if icon_name is None:
+            icon_name = getattr(block_declaration, "icon", None)
+        if url_enum is None:
+            url_enum = getattr(block_declaration, "documentation_url", None)
 
     container.separator(factor = separator_width_factor, type = "LINE")
     container.use_property_split = False
@@ -102,7 +109,7 @@ def ui_draw_block_panel_header(context:bpy.context, container:bpy.types.UILayout
         row.separator(factor = separator_width_factor, type = "LINE")
         row.scale_x = weblink_button_width_factor
         op = row.operator("dgblocks.open_help_page", text="", icon = "QUESTION")
-        op.web_documentation_url = url_enum.value
+        op.web_documentation_url = url_enum.value if hasattr(url_enum, "value") else url_enum
 
 def uilayout_section_separator(container, lines_count:int = 2, extra_space:float = 1):
 

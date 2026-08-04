@@ -74,12 +74,26 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         ADDON_METADATA = Wrapper_Runtime_Cache.get_cache(cache_key_metadata)
         if ADDON_METADATA.POST_REG_INIT_HAS_RUN:
-            logger.info("Already completed post-bpy init for Wrapper_Control_Plane, returning early")
+            # The first init may have fired before the .blend file was loaded
+            # (timer-based fallback). User-saved settings such as logger levels
+            # must be loaded into RTC now that the real file data is available.
+            logger.info("Already completed post-bpy init — re-running BL→RTC mirror sync to load saved data")
+            event = Enum_Sync_Events.PROPERTY_UPDATE
+            Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source=True, logger=logger)
+
+            # Apply the saved "Include Datetime" choice to formatters
+            try:
+                desired_dt = bpy.context.scene.dgblocks_core_props.logger_include_datetime
+            except Exception:
+                desired_dt = "NONE"
+            Wrapper_Loggers.update_logger_formatters(desired_dt)
             return
 
         # 0: (Debugging) clear all saved properties if needed
         core_props = bpy.context.scene.dgblocks_core_props
-        if core_props.debug_mode_enabled and core_props.debug_clear_BL_data_on_startup:
+        core_block_instance = cls.get_block_instance("block-core")
+        core_block_debug_mode = core_block_instance.debug_mode_enabled if core_block_instance else False
+        if core_block_debug_mode and core_props.debug_clear_BL_data_on_startup:
             logger.warning("(Debugging) Clearing all DGBLOCK saved properties")
             reset_propertygroup(core_props, clear_collections=True, reset_defaults=True, logger=logger)
 
@@ -101,6 +115,13 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         event = Enum_Sync_Events.ADDON_INIT
         Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = False, logger = logger) 
         Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source = True, logger = logger) 
+
+        # Apply the saved "Include Datetime" choice (from the All Loggers panel) to all logger formatters
+        try:
+            desired_dt = bpy.context.scene.dgblocks_core_props.logger_include_datetime
+        except Exception:
+            desired_dt = "NONE"
+        Wrapper_Loggers.update_logger_formatters(desired_dt)
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 4: Update addon metadata
@@ -188,7 +209,7 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             error_str = None
             _create_new_block_record(block_declaration, new_FWC_instances, error_str, logger)
 
-            logger.debug(f"Finished creation of block '{block_id}' instance")
+            logger.info(f"Finished creation of block '{block_id}' instance")
 
         except Exception as e:
             # logger.error("       fgfg   ", exc_info=True)
@@ -248,6 +269,8 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             bl_block.is_valid = rtc_block.is_valid
             bl_block.error_message = rtc_block.error_message if rtc_block.error_message else ""
             bl_block.is_block_enabled = rtc_block.is_block_enabled
+            bl_block.debug_mode_enabled = rtc_block.debug_mode_enabled
+            bl_block.block_index = rtc_block.block_index
 
     # ------------------------------------------------------------------
     # Funcs specific to this class

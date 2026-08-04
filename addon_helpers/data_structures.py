@@ -61,6 +61,11 @@ class Block_Declaration:
     block_data_mirrors: Enum = field(default_factory = list)
     block_uilist_configs: Enum = field(default_factory = list)
 
+    # Optional UI metadata. If present, ui_draw_block_panel_header will
+    # automatically draw the icon and [?] documentation button.
+    icon: Optional[str] = field(default = None)
+    documentation_url: Optional[str] = field(default = None)
+
 # ==============================================================================================================================
 # COMMON ENUMS
 

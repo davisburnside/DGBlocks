@@ -76,8 +76,7 @@ class DGBLOCKS_PT_Animation_Panel(bpy.types.Panel):
         ui_draw_block_panel_header(
             context, self.layout,
             _BLOCK_DECLARATION.block_id,
-            Documentation_URLs.MY_PLACEHOLDER_URL_2,
-            icon_name="TOOL_SETTINGS",
+            block_declaration = _BLOCK_DECLARATION,
         )
 
     def draw(self, context):
@@ -96,4 +95,6 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_feature_wrapper_classes= [Wrapper_Animation_Manager],
     block_loggers                = Block_Loggers,
     block_RTC_members            = Block_RTC_Members,
+    icon                         = "TOOL_SETTINGS",
+    documentation_url            = Documentation_URLs.MY_PLACEHOLDER_URL_2,
 )

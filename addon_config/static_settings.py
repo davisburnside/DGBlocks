@@ -63,7 +63,41 @@ class Documentation_URLs(StrEnum):
     # ...
 
 # Format for all log messages
-logger_format = f"- %(name)20s %(levelname)10s: %(message)s"
+# The name/levelname widths are computed dynamically in get_logger_format()
+# so that all lines align at the ":" separator, even with long logger names.
+logger_format = f"- %(name)s %(levelname)s: %(message)s"
+logger_format_prefix_condensed = f"%(asctime)s "
+logger_format_prefix_full = f"%(asctime)s "
+logger_format_prefix_raw = f"%(asctime)s "
+logger_format_condensed_datefmt = "%H:%M:%S"
+logger_format_full_datefmt = "%Y-%m-%d %H:%M:%S"
+logger_format_raw_datefmt = "%s"
+
+
+def get_logger_format(include_datetime: str = "NONE", name_width: int = 20, level_width: int = 10) -> str:
+    """
+    Build the logger format string dynamically.
+    - include_datetime: "NONE" / "CONDENSED" / "FULL" / "RAW"
+    - name_width: pad width for %(name)s
+    - level_width: pad width for %(levelname)s
+    Returns a format string with an optional %(asctime)s prefix.
+    """
+    prefix = ""
+    datefmt = None
+    if include_datetime == "CONDENSED":
+        prefix = logger_format_prefix_condensed
+        datefmt = logger_format_condensed_datefmt
+    elif include_datetime == "FULL":
+        prefix = logger_format_prefix_full
+        datefmt = logger_format_full_datefmt
+    elif include_datetime == "RAW":
+        prefix = logger_format_prefix_raw
+        datefmt = logger_format_raw_datefmt
+
+    fmt = f"- %(name){name_width}s %(levelname){level_width}s: %(message)s"
+    if prefix:
+        fmt = f"- {prefix}{fmt[2:]}"
+    return fmt, datefmt
 
 # =============================================================================
 # NON-REQUIRED ARBITRARY VALUES - These can be anything, & may even be removed

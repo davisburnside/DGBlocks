@@ -249,7 +249,18 @@ def _universal_timer_callback(timer_instance: Timer_Instance) -> Optional[float]
         timer_instance.timer_error_str = get_exception_last_n_lines(2, e)
         logger.error(f"_universal_timer_callback: exception in '{timer_instance.timer_uid}' ", exc_info = True)
 
-    if bpy.context.scene.dgblocks_timers_props.debug_mode_enabled:
+    # Debug mode now lives on the owning block's record (toggled in core's All Blocks UIList)
+    debug_mode = False
+    try:
+        block_records = Wrapper_Runtime_Cache.get_cache("REGISTRY_ALL_BLOCKS")
+        for b in block_records or []:
+            if b.block_id == "block-timers":
+                debug_mode = b.debug_mode_enabled
+                break
+    except Exception:
+        debug_mode = False
+
+    if debug_mode:
         force_redraw_ui(bpy.context)
 
     return timer_instance.frequency

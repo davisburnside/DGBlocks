@@ -191,8 +191,7 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
         ui_draw_block_panel_header(
             context, self.layout,
             _BLOCK_DECLARATION.block_id,
-            Documentation_URLs.MY_PLACEHOLDER_URL_2,
-            icon_name="FILE_3D",
+            block_declaration = _BLOCK_DECLARATION,
         )
 
     def draw(self, context):
@@ -241,4 +240,6 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_data_mirrors = Block_Data_Mirrors,
     block_loggers = Block_Loggers,
     block_uilist_configs = Block_UIList_Configs,
+    icon = "FILE_3D",
+    documentation_url = Documentation_URLs.MY_PLACEHOLDER_URL_2,
 )

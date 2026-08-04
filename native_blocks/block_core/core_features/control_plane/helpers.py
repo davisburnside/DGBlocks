@@ -160,6 +160,9 @@ def _create_new_block_record(block_declaration, new_FWC_instances, error_str, lo
         block_RTC_member_names = [m.name for m in block_declaration.block_RTC_members],
     )
 
+    # Store the block's index in the block list, for fast lookup
+    block_instance.block_index = len(cached_blocks)
+
     if error_str is not None:
         block_instance.is_valid = False
         block_instance.error_message = error_str

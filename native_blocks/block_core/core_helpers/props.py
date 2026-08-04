@@ -1,8 +1,8 @@
 import bpy
 from ..core_features.control_plane.data_structures import DGBLOCKS_PG_Block_Record
 from ..core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
-from ..core_features.hooks.helpers import _callback_hook_sub_uilist_selection_idx_updated
-from ..core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance
+from ..core_features.hooks.helpers import _callback_hook_sub_uilist_selection_idx_updated, _callback_hooks_hide_unsub_changed
+from ..core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance, _callback_logger_include_datetime_changed
 
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     
@@ -11,9 +11,6 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     
     # General settings
     documentation_weblinks_enabled: bpy.props.BoolProperty(default = True, name = "Enable [ ? ] Webpage Links") # type: ignore  
-    
-    # Enables extra UI options for debugging. Most properties & functions that begin with "debug_" are not used when this value is false
-    debug_mode_enabled: bpy.props.BoolProperty(default = False, name = "Is in Debug Mode?") # type: ignore
     
     # When true, all sync actions for create/edit/move/remove actions are printed to the console:
     debug_log_all_RTC_BL_sync_actions: bpy.props.BoolProperty(default = False)# type: ignore
@@ -25,6 +22,22 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     hooks_hide_unsub: bpy.props.BoolProperty(  # type: ignore
         default = True,
         name    = "Hide hooks with no subscribers",
+        update  = _callback_hooks_hide_unsub_changed,
+    )
+
+    # In the "All Loggers" panel: datetime prefix for log lines
+    # None = no timestamp, Condensed = short timestamp, Full = full datetime, Raw = unix timestamp
+    logger_include_datetime: bpy.props.EnumProperty(  # type: ignore
+        name = "Include Datetime",
+        description = "Show a datetime prefix on log lines",
+        items = [
+            ("NONE", "None", "No timestamp on log lines"),
+            ("CONDENSED", "Condensed", "Short HH:MM:SS timestamp"),
+            ("FULL", "Full", "Full YYYY-MM-DD HH:MM:SS timestamp"),
+            ("RAW", "Raw Timestamp", "Raw unix timestamp"),
+        ],
+        default = "NONE",
+        update = _callback_logger_include_datetime_changed,
     )
 
     # --------------------------------------------------------------

@@ -1,0 +1,20 @@
+
+1: Logger-level choice is not accurately reflecting at startup. User choice is saved, but I sometimes have to re-choose the same option in the "All Loggers" table row dropdown. I don't know why. If you can't identifyt the issue, tell me instead of writing code.
+
+2: "Debug mode" should apply at the block level, not addon, and should be an implicit property to each block DGBLOCKS_PG_Block_Record record. In this same propgroup & RTC record, store the block's index in the block list, for fast lookup. In the UIList table for blocks, add a checkbox to enable toggling debug_mode status for each block.
+
+3: In a block's _BLOCK_DECLARATION, should be optional fields for "icon" and "documentation_url". If these are present, then ui_draw_block_panel_header should automatically use them.
+
+4: dgblocks_core_props.hooks_hide_unsub has no effect. I need to fix it, to hide unused hooks from a long list.
+
+5: I need new options and features added to the "All Loggers" Panel: 
+A "Include Datetime" downdown, with "None", "Condensed" "Full" "Raw Timestamp". Any time this changes ( and at startup), a prop listener should update the logger handler formatter.
+Also, The left-padding of log lines isn't working right. Look at this example: APP_HANDLERS_LIFECYCLE pokes out past HOOKS
+-      POST_REGISTRATE       INFO: Running final-init hook for all subscriber Blocks
+-                HOOKS      DEBUG: Calling hook 'hook_post_startup' of subscriber block 'block-app-handlers'
+-                HOOKS      DEBUG: Calling hook 'hook_get_app_handler_subscriptions' of subscriber block 'block-flatypus-assembly-mode'
+- APP_HANDLERS_LIFECYCLE       INFO: repoll: 0 handler type(s) active, 0 removed
+-                HOOKS      DEBUG: Calling hook 'hook_post_startup' of subscriber block 'block-modal-events'
+I need everything (optional timestamp, logger name, and level) left of the ":" separator to be on the same column of text. Obvisouly, if the datetime choice changes, the ":" will be balanced on a different column for future log lines.
+
+6: finally, a "Reload all" button added to the core-block panel header. It will trigger a new hook, "hook_before_blocks_reload", then call bpy.ops.script.reload(), then trigger hook_after_blocks_reload

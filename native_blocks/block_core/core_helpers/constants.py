@@ -28,6 +28,8 @@ class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_core_event_undo = Hook_Source_Declaration({})
     hook_core_event_redo = Hook_Source_Declaration({})
     hook_post_startup    = Hook_Source_Declaration()
+    hook_before_blocks_reload = Hook_Source_Declaration()
+    hook_after_blocks_reload  = Hook_Source_Declaration()
 
 class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty list as default
     ADDON_METADATA                 = RTC_Member_Declaration(Global_Addon_State())
@@ -45,7 +47,7 @@ class Core_Data_Mirrors(String_Comparable_Mixin):
         RTC_key = "REGISTRY_ALL_BLOCKS",
         FWC_name = "Wrapper_Control_Plane",
         mirrored_key_field_names = ["block_id"],
-        mirrored_data_field_names = ["is_valid", "error_message", "is_block_enabled"],
+        mirrored_data_field_names = ["is_valid", "error_message", "is_block_enabled", "debug_mode_enabled", "block_index"],
         scene_colprop_path = None, # Non-standard, 1-direction sync
     )
     HOOKS_LIST = RTC_Member_Data_Mirror_Declaration(
@@ -87,8 +89,8 @@ class Core_UIList_Configs(String_Comparable_Mixin):
         callback_filter_items = _hooks_filter_items,
     )
     BLOCKS_UILIST = Shared_UIList_Declaration(
-        col_names = ["Status", "Block Name", "Version",],
-        col_widths = [1, 4, 2],
+        col_names = ["Status", "Block Name", "Version", "Debug",],
+        col_widths = [1, 4, 2, 1],
         scene_parent_path = "dgblocks_core_props",
         scene_colprop_path = "managed_blocks",
         scene_colprop_path_UIList_selection_idx_path = "managed_blocks_selected_idx",

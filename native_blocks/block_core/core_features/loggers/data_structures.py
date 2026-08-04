@@ -80,6 +80,16 @@ def _callback_log_level_changed(self, context):
     if old_level_int != new_level_int:
         logger.log(new_level_int, f"Log level changed to: {new_level_name}")
 
+
+def _callback_logger_include_datetime_changed(self, context):
+    """
+    Callback fired when the "Include Datetime" dropdown in the All Loggers panel changes.
+    Updates the formatter on all registered logger handlers so future log lines reflect
+    the new datetime prefix choice.
+    """
+    from ..loggers.feature_wrapper import Wrapper_Loggers
+    Wrapper_Loggers.update_logger_formatters(self.logger_include_datetime)
+
 class DGBLOCKS_PG_Logger_Instance(bpy.types.PropertyGroup):
 
     # The unique logger's name

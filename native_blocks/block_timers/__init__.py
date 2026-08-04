@@ -88,7 +88,6 @@ class DGBLOCKS_PG_Timers_Props(bpy.types.PropertyGroup):
     ) # type: ignore
     timer_mirror: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Timer_Mirror_Row)  # type: ignore
     timer_mirror_selected_idx: bpy.props.IntProperty() # type: ignore
-    debug_mode_enabled: bpy.props.BoolProperty() # type: ignore
 
 # ==============================================================================================================================
 # UI
@@ -115,8 +114,7 @@ class DGBLOCKS_PT_Timers_Panel(bpy.types.Panel):
         ui_draw_block_panel_header(
             context, self.layout,
             _BLOCK_DECLARATION.block_id,
-            Documentation_URLs.MY_PLACEHOLDER_URL_2,
-            icon_name="TIME",
+            block_declaration = _BLOCK_DECLARATION,
         )
 
     def draw(self, context):
@@ -126,7 +124,14 @@ class DGBLOCKS_PT_Timers_Panel(bpy.types.Panel):
         # Master enable / disable toggle
         layout.prop(timers_props, "enable_timers", toggle=True)
 
-        layout.prop(timers_props, "debug_mode_enabled", text = "Debug Mode")
+        # Debug mode now lives on the block's record (toggled in core's All Blocks UIList)
+        block_records = Wrapper_Runtime_Cache.get_cache(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS)
+        debug_mode = False
+        for b in block_records or []:
+            if b.block_id == _BLOCK_DECLARATION.block_id:
+                debug_mode = b.debug_mode_enabled
+                break
+        layout.label(text=f"Debug: {'ON' if debug_mode else 'OFF'}")
 
         if not timers_props.timer_mirror:
             row = layout.row()
@@ -165,4 +170,6 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_data_mirrors = Block_Data_Mirrors,
     block_loggers = Block_Loggers,
     block_uilist_configs = Block_UIList_Configs,
+    icon = "TIME",
+    documentation_url = Documentation_URLs.MY_PLACEHOLDER_URL_2,
 )

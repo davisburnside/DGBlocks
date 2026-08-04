@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Callable
 import types
 import logging
+import bpy  # type: ignore
 
 
 # Addon-level imports
@@ -94,6 +95,51 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         "No-op. Loggers exist until the addon's final unregister() steps"
 
     # --------------------------------------------------------------
+    # Formatter management
+    # --------------------------------------------------------------
+
+    @classmethod
+    def update_logger_formatters(cls, include_datetime: str = "NONE"):
+        """
+        Rebuild the console-handler formatter on every registered logger so that
+        the ":" separator aligns across all log lines, and the optional datetime
+        prefix is applied.
+
+        The name/levelname column widths are computed from the longest logger name
+        and level label currently registered, + a small margin so future loggers
+        don't shift the column mid-session. Called:
+          - At startup (after BL data is loaded)
+          - When the Include Datetime dropdown changes
+          - When a new logger is created (to rebalance widths)
+        """
+        try:
+            from ...core_helpers.constants import Core_Block_Loggers
+            cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers) or []
+            if not cached_loggers:
+                return
+
+            # Compute max widths for all loggers currently registered
+            max_name_len = max(len(l.logger_name) for l in cached_loggers)
+            max_level_len = max(len(l.level_name) for l in cached_loggers)
+
+            # Add padding so new loggers don't cause the column to shift mid-session
+            name_width = max(20, max_name_len + 2)
+            level_width = max(10, max_level_len + 2)
+
+            from .....addon_config.static_settings import get_logger_format
+            fmt, datefmt = get_logger_format(include_datetime, name_width, level_width)
+
+            for rtc_logger_instance in cached_loggers:
+                python_logger = rtc_logger_instance.logger
+                for handler in list(python_logger.handlers):
+                    if isinstance(handler, logging.StreamHandler):
+                        new_formatter = logging.Formatter(fmt, datefmt)
+                        handler.setFormatter(new_formatter)
+
+        except Exception:
+            pass
+
+    # --------------------------------------------------------------
     # Implemented from Abstract_Datawrapper_Instance_Manager
     # --------------------------------------------------------------
 
@@ -136,6 +182,18 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
         Wrapper_Runtime_Cache.set_cache(cache_key_loggers, cached_loggers)
         action_logger.debug(f"Created Logger '{true_logger_id}'")
 
+        # Rebalance formatter widths so the ":" column stays aligned
+        try:
+            from .....addon_config.static_settings import get_logger_format
+            desired_dt = "NONE"
+            try:
+                desired_dt = bpy.context.scene.dgblocks_core_props.logger_include_datetime
+            except Exception:
+                desired_dt = "NONE"
+            cls.update_logger_formatters(desired_dt)
+        except Exception:
+            pass
+
         return new_logger
 
     @classmethod
@@ -149,6 +207,53 @@ class Wrapper_Loggers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer
             uniqueness_field_value=logger_name,
         )
         logger.debug(f"Removed Logger '{logger_name}'")
+
+    # --------------------------------------------------------------
+    # Implemented from Abstract_BL_RTC_List_Syncronizer
+    # --------------------------------------------------------------
+
+    @classmethod
+    def _update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
+        """
+        Custom BL→RTC sync for loggers.
+
+        Iterate the persistent `managed_loggers` CollectionProperty rows and
+        update each matching RTC_Logger_Instance's `level_name`, then push the
+        saved level into the live Python logging.Logger object. This ensures
+        choices saved in the .blend file are actually applied at startup.
+        """
+        BL_data_path = data_mirror_instance.scene_colprop_path
+        if BL_data_path is None:
+            return
+
+        BL_colprop = bpy.context.scene.path_resolve(BL_data_path)
+        if BL_colprop is None:
+            return
+
+        cached_loggers = Wrapper_Runtime_Cache.get_cache(cache_key_loggers) or []
+
+        # Build a lookup of RTC loggers by name
+        rtc_by_name = {l.logger_name: l for l in cached_loggers}
+
+        for bl_row in BL_colprop:
+            name = bl_row.logger_name
+            rtc_logger = rtc_by_name.get(name)
+            if rtc_logger is None:
+                continue
+            # Update the dataclass field (keeps RTC in sync with BL)
+            rtc_logger.level_name = bl_row.level_name
+            # Apply the level to the live Python logger
+            try:
+                rtc_logger.logger.setLevel(bl_row.level_name)
+            except Exception:
+                pass
+
+        # Rebalance formatter widths / datetime prefix
+        try:
+            desired_dt = bpy.context.scene.dgblocks_core_props.logger_include_datetime
+        except Exception:
+            desired_dt = "NONE"
+        cls.update_logger_formatters(desired_dt)
 
     # --------------------------------------------------------------
     # Private funcs specific to this class
