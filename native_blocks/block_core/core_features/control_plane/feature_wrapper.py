@@ -14,7 +14,7 @@ from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..loggers.feature_wrapper import Wrapper_Loggers, get_logger
 from ..hooks.feature_wrapper import Wrapper_Hooks
 from .data_structures import RTC_Block_Instance
-from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_properties, _create_new_block_record, _create_new_block_shared_UILists, _create_new_block_standard_features, _remove_block_FWC_instances, _remove_block_bpy_classes, _remove_block_properties, shallow_validate_block_declaration, shallow_validate_block_module
+from .helpers import _create_and_init_new_block_FWCs, _create_new_block_RTC_data_mirrors, _create_new_block_bpy_classes, _create_new_block_properties, _create_new_block_record, _create_new_block_shared_UILists, _create_new_block_standard_features, _remove_block_FWC_instances, _remove_block_bpy_classes, _remove_block_properties, reset_reload_flag_if_needed, shallow_validate_block_declaration, shallow_validate_block_module
 from .app_handlers import install_core_app_handler_callbacks, remove_core_app_handler_callbacks
 from .msgbus import add_msgbuses, clear_msgbuses, msgbus_subs
 
@@ -147,10 +147,15 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             **kwargs)
 
         # ----------------------------------------------------------------------------------------------------------------------------
-        # 6: refresh UI, finish init
+        # 6: Reset reload-flag, call did-reset hook if needed refresh UI
+        surviving_data = reset_reload_flag_if_needed()
+        if surviving_data:
+            logger.info("Reload-all: fired hook_after_blocks_reload")
+            Wrapper_Hooks.run_hooked_funcs(hook_func_name=Core_Block_Hook_Sources.hook_after_blocks_reload, surviving_data = surviving_data)
+        else:
+            logger.info(f"Finished all init actions. The Addon is ready to use")
         force_redraw_ui(bpy.context)
-        logger.info(f"Finished all init actions. The Addon is ready to use")
-
+        
 
     @classmethod
     def _remove_wrapper(cls) -> bool:

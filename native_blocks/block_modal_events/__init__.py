@@ -108,6 +108,9 @@ def hook_post_startup():
     if modal_props.enable_modal:
         start_router()
 
+def hook_before_blocks_reload():
+    bpy.context.scene.dgblocks_modal_events_props.enable_modal = False
+
 # ==============================================================================================================================
 # UI
 

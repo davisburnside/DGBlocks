@@ -25,11 +25,11 @@ class Core_Block_Loggers(String_Comparable_Mixin):
     SCENE_MONITOR = Logger_Declaration("INFO")
 
 class Core_Block_Hook_Sources(String_Comparable_Mixin):
-    hook_core_event_undo = Hook_Source_Declaration({})
-    hook_core_event_redo = Hook_Source_Declaration({})
+    hook_core_event_undo = Hook_Source_Declaration()
+    hook_core_event_redo = Hook_Source_Declaration()
     hook_post_startup    = Hook_Source_Declaration()
     hook_before_blocks_reload = Hook_Source_Declaration()
-    hook_after_blocks_reload  = Hook_Source_Declaration()
+    hook_after_blocks_reload  = Hook_Source_Declaration({"surviving_data": dict})
 
 class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty list as default
     ADDON_METADATA                 = RTC_Member_Declaration(Global_Addon_State())

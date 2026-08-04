@@ -6,6 +6,7 @@ import bpy # type: ignore
 # Addon-level imports
 from .....addon_helpers.data_structures import  Block_Declaration, Enum_Sync_Events, Hook_Source_Declaration, Logger_Declaration, RTC_FWC_Data_Mirror_Instance, RTC_FWC_Instance, Shared_UIList_Instance
 from .....addon_helpers.generic_tools import  determine_FWC_abstract_funcs, get_folder_parts, is_same_class_by_name, validate_func_args
+from .....addon_config.static_settings import addon_name
 
 # Intra-block imports
 from ...core_helpers.constants import Core_Block_Hook_Sources, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id
@@ -313,3 +314,15 @@ def _remove_block_FWC_instances(block_instance, logger):
                 )
             except Exception as e:
                 logger.error(e, exc_info = True)
+
+# ==============================================================================================================================
+# RELOAD
+
+reload_flag_name = f"{addon_name}_is_reloading"
+
+def reset_reload_flag_if_needed():
+    
+    if hasattr(bpy.context.window_manager, reload_flag_name):
+        surviving_data = bpy.context.window_manager[reload_flag_name]
+        del bpy.context.window_manager[reload_flag_name]
+        return surviving_data

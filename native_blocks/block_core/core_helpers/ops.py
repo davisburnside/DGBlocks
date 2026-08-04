@@ -1,5 +1,6 @@
 import os
 from ....addon_helpers.ui import ui_draw_block_panel_header
+from ....addon_config.static_settings import addon_name
 import bpy # type: ignore
 
 # --------------------------------------------------------------
@@ -15,6 +16,7 @@ from ..core_helpers.constants import Core_Block_Loggers, Core_Block_Hook_Sources
 from ..core_features.loggers.feature_wrapper import  get_logger
 from ..core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..core_features.hooks.feature_wrapper import Wrapper_Hooks
+from ..core_features.control_plane.helpers import reload_flag_name
 
 # --------------------------------------------------------------
 # Aliases
@@ -26,15 +28,12 @@ cache_key_loggers = Core_Runtime_Cache_Members.REGISTRY_ALL_LOGGERS
 class DGBLOCKS_OT_Open_Help_Page(bpy.types.Operator):
     bl_idname = "dgblocks.open_help_page"
     bl_label = "Learn more"
-    # bl_description = "Opens a webpage that describes this feature"
     bl_options = {"REGISTER"}
     
     web_documentation_url: bpy.props.StringProperty() # type: ignore 
     
     @classmethod
     def description(cls, context, properties):
-        print(cls)
-        print(dir(properties))
         return properties.web_documentation_url
 
     def execute(self, context):
@@ -84,19 +83,17 @@ class DGBLOCKS_OT_Reload_All_Blocks(bpy.types.Operator):
     bl_description = "Fire hook_before_blocks_reload, call bpy.ops.script.reload(), then fire hook_after_blocks_reload"
     bl_options = {"REGISTER"}
 
+    def _reload(self):
+        bpy.ops.script.reload()
+        return None
+
     def execute(self, context):
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.info("Reload-all: firing hook_before_blocks_reload")
-        _ = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name=Core_Block_Hook_Sources.hook_before_blocks_reload,
-            should_halt_on_exception=False,
-        )
-        bpy.ops.script.reload()
-        logger.info("Reload-all: fired hook_after_blocks_reload")
-        _ = Wrapper_Hooks.run_hooked_funcs(
-            hook_func_name=Core_Block_Hook_Sources.hook_after_blocks_reload,
-            should_halt_on_exception=False,
-        )
+        responses = Wrapper_Hooks.run_hooked_funcs(hook_func_name=Core_Block_Hook_Sources.hook_before_blocks_reload)
+        bpy.context.window_manager[reload_flag_name] = responses
+        print(bpy.context.window_manager[reload_flag_name], bpy.context.window_manager[reload_flag_name].values)
+        bpy.app.timers.register(self._reload, first_interval=0.1)
         return {"FINISHED"}
 
 
