@@ -13,7 +13,7 @@ from ..native_blocks import (
     block_app_handlers, 
     block_timers, 
     block_animations,
-    block_mesh_extract, 
+    block_geometry_actions,
     block_modal_events,
     #, block_pip_library_manager
 )
@@ -48,7 +48,7 @@ _BLOCK_PACKAGES = [
     block_app_handlers,
     block_timers,
     block_animations,
-    block_mesh_extract,
+    block_geometry_actions,
     block_modal_events,
     block_flatypus_modes_manager,
     # block_pip_library_manager,

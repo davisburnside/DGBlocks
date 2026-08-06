@@ -1,6 +1,6 @@
 
 """
-helpers_computed.py — Pure numpy computed-attribute functions for block_mesh_extract.
+helpers_computed.py — Pure numpy computed-attribute functions for block_geometry_actions.
 
 ARCHITECTURE CONTRACT
 ---------------------

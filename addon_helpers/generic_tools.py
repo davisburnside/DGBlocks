@@ -112,6 +112,25 @@ def get_self_block_module():
     block_module = inspect.getmodule(caller_frame.frame)
     return block_module
 
+def is_block_debug_mode_enabled(block_id: str) -> bool:
+    """
+    True when the named block's `debug_mode_enabled` flag is set.
+
+    Debug mode lives on the block's RTC record (`REGISTRY_ALL_BLOCKS`), which is toggled
+    from core's All Blocks UIList. Looking the record up by `block_id` avoids depending on
+    the unstable index of `scene.dgblocks_core_props.managed_blocks[N]`.
+
+    Never raises — returns False when the cache is unavailable (startup / teardown).
+    """
+    try:
+        cache = get_Wrapper_Runtime_Cache()
+        for block_record in cache.get_cache("REGISTRY_ALL_BLOCKS") or []:
+            if block_record.block_id == block_id:
+                return bool(block_record.debug_mode_enabled)
+    except Exception:
+        return False
+    return False
+
 def find_blocks_owning_func_with_name(func_name: str, registered_blocks:list[ModuleType], logger: Optional[logging.Logger] = None) -> List[ModuleType]:
     """Find all registered blocks that have a function with the given name."""
     

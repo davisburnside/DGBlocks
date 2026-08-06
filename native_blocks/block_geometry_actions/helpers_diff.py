@@ -1,6 +1,6 @@
 
 """
-helpers_diff.py — structural/value comparison between two RTC_Mesh_Extract_Instances.
+helpers_diff.py — structural/value comparison between two Geometry_Actions_Result_Instances.
 
 Used by callers that want to skip expensive downstream work when nothing relevant
 about the mesh changed since the previous read.
@@ -21,7 +21,7 @@ Comparison strategy:
 
 import numpy as np
 
-_DOMAIN_NAMES = ("vertex", "edge", "face", "corner")
+_DOMAIN_NAMES = ("vertex", "edge", "face", "corner", "point", "curve")
 
 
 # ==============================================================================================================================
@@ -88,7 +88,7 @@ def flatten_instance_values(instance) -> dict:
 # PUBLIC DIFF
 # ==============================================================================================================================
 
-def diff_instances(old, new) -> tuple[list[str], list[str], list[str]]:
+def _diff_instances(old, new) -> tuple[list[str], list[str], list[str]]:
     """
     Classify every key across two instances:
 
