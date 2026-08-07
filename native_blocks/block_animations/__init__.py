@@ -55,7 +55,10 @@ class DGBLOCKS_OT_Sample_Animation(bpy.types.Operator):
                     end_state = shifted_points,
                     duration  = 3.0,
                     framerate = 10,
+                    # Preserves this demo's original "snap back when done" look.
+                    revert_on_finish = True,
                 )
+
                 new_animations.append(animation_instance)
         Wrapper_Animation_Manager.add_animations(new_animations)
 

@@ -17,7 +17,14 @@ from ..block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manag
 
 # Intra-block imports
 from .common_declarations import Block_Loggers, Block_RTC_Members
-from .data_structures import Animation_Instance, ANIM_DATA_TYPE_BATCH, ANIM_DATA_TYPE_UNIFORMS
+from .data_structures import (
+    Animation_Instance,
+    ANIM_DATA_TYPE_BATCH,
+    ANIM_DATA_TYPE_UNIFORMS,
+    ANIM_LOOP_PING_PONG,
+    ANIM_LOOP_REPEAT,
+)
+
 
 # ==============================================================================================================================
 # LERP
@@ -108,8 +115,58 @@ def _revert_state(anim: Animation_Instance, shader) -> None:
     elif anim.data_type == ANIM_DATA_TYPE_UNIFORMS:
         shader.set_uniform(anim.data_name, anim._start_state)
 
+
+def _handle_loop_boundary(anim: Animation_Instance, logger) -> bool:
+    """
+    Called when an animation reaches t >= 1.0.
+
+    Returns True if the animation should now be treated as FINISHED, or False if
+    it looped and should keep running.
+
+    REPEAT    → carry the overshoot into the next cycle (so cycles never drift)
+                and replay start -> end.
+    PING_PONG → carry the overshoot and swap start/end, so the next cycle plays
+                back the other way.
+
+    loop_count == 0 means infinite; otherwise the animation finishes once
+    loops_completed reaches loop_count.
+    """
+    if not anim.is_looping:
+        return True
+
+    # Carry the remainder so repeated cycles never accumulate rounding drift.
+    if anim.duration > 0:
+        anim._elapsed_time = max(0.0, (anim._elapsed_time - anim.duration) % anim.duration)
+    else:
+        anim._elapsed_time = 0.0
+
+    anim.loops_completed += 1
+
+    if anim.loop_mode == ANIM_LOOP_PING_PONG:
+        anim._start_state, anim.end_state = anim.end_state, anim._start_state
+
+    if anim._callback_after_loop is not None:
+        try:
+            anim._callback_after_loop(anim)
+        except Exception:
+            logger.error(
+                f"callback_after_loop raised for '{anim.animation_uid}'",
+                exc_info=True,
+            )
+
+    # loop_count == 0 → infinite
+    if anim.loop_count and anim.loops_completed >= anim.loop_count:
+        logger.debug(
+            f"Animation '{anim.animation_uid}' exhausted loop_count "
+            f"({anim.loop_count}) — finishing"
+        )
+        return True
+
+    return False
+
 # ==============================================================================================================================
 # TIMER DEFINITIONS — returned to block_timers via hook_get_timer_definitions
+
 # ==============================================================================================================================
 
 def _get_timer_definitions_from_animations() -> list:
@@ -206,10 +263,13 @@ def _tick_all_at_framerate(framerate: float, timer_instance) -> None:
                         exc_info=True,
                     )
 
-            # ── completion check ──────────────────────────────────────────
+            # ── completion / loop-boundary check ──────────────────────────
             t = min(anim._elapsed_time / anim.duration, 1.0) if anim.duration > 0 else 1.0
             if t >= 1.0:
-                finished.append(anim)
+                # Looping animations reset their phase here and keep running.
+                if _handle_loop_boundary(anim, logger):
+                    finished.append(anim)
+
 
         except Exception:
             logger.error(
@@ -240,9 +300,15 @@ def _tick_all_at_framerate(framerate: float, timer_instance) -> None:
         if anim in cached:
             cached.remove(anim)
             logger.debug(f"Animation '{anim.animation_uid}' completed")
-            shader = Wrapper_Shader_Manager.get_shader(anim.target_shader_uid)
-            setattr(shader, anim.data_name, anim._start_state)
+
+            # Opt-in only: by default an animation LANDS on end_state.
+            if anim.revert_on_finish:
+                shader = Wrapper_Shader_Manager.get_shader(anim.target_shader_uid)
+                if shader is not None:
+                    _revert_state(anim, shader)
+
             if anim._callback_after_finish is not None:
+
                 try:
                     anim._callback_after_finish(anim)
                 except Exception:

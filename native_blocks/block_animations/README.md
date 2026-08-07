@@ -29,15 +29,62 @@ Create one or more animations.  Each declaration is validated and, if the target
 shader exists, stored as an `Animation_Instance` in the RTC.  A timer rebuild is
 requested for any new framerate introduced.
 
+### `set_animation(declaration: Animation_Declaration) -> None`
+
+**Upsert — the call to reach for whenever the data being animated changes.**
+
+- UID not active → identical to `add_animations([declaration])`.
+- UID already active → the live instance is updated **in place**, and its phase
+  (`_elapsed_time`) is **preserved**.
+
+Phase preservation is what makes a looping animation seamless across data
+changes: swapping in a new point/color set mid-cycle produces no visual jump,
+because the animation simply carries on from where it was with the new data.
+
+```python
+# Called every time the selection changes — no interrupt, no restart, no seam.
+Wrapper_Animation_Manager.set_animation(Animation_Declaration(
+    animation_uid     = "MY_PULSE",
+    target_shader_uid = "MY_SHADER",
+    data_type         = ANIM_DATA_TYPE_BATCH,
+    data_name         = "_colors",
+    start_state       = colors_dim,
+    end_state         = colors_bright,
+    duration          = 1.2,
+    framerate         = 30,
+    loop_mode         = ANIM_LOOP_PING_PONG,
+    loop_count        = 0,   # infinite
+))
+```
+
+> `start_state=None` auto-captures from the shader **on create only**. On update it
+> keeps the existing `start_state`, since re-capturing mid-lerp would read a
+> half-interpolated value.
+
+### `update_animation(uid: str, **fields) -> None`
+
+Patch individual fields on a live animation, preserving phase.  Accepts any
+`Animation_Instance` field plus the aliases `start_state` and the four callback
+names.  Warns and does nothing if `uid` is not active — use `set_animation()`
+when the animation may not exist yet.
+
+### `get_animation(uid: str)` / `has_animation(uid: str) -> bool`
+
+Read-only lookup of a live `Animation_Instance`.
+
 ### `pause_animation(uid: str) -> None`
 
 Toggle `is_paused` on the matching animation.  Elapsed time and delay countdown
 freeze while paused; other animations at the same framerate are unaffected.
 
-### `cancel_animation(uid: str) -> None`
+### `cancel_animation(uid: str, revert: bool = True) -> None`
 
-Immediately remove an animation, revert the shader attribute to its pre-animation
-value, and fire `callback_after_interrupt`.
+The interrupt entry point.  Immediately removes an animation and fires
+`callback_after_interrupt`.  By default the shader attribute is reverted to its
+pre-animation value; pass `revert=False` to freeze it at the last written value.
+
+This is the only way to stop an infinite (`loop_count=0`) looping animation.
+
 
 ### `get_active_animations() -> list[Animation_Instance]`
 
@@ -59,11 +106,52 @@ Return a snapshot of all currently active `Animation_Instance` objects.
 | `duration` | `float` | `1.0` | Seconds for the full lerp |
 | `framerate` | `float` | `60.0` | Ticks per second; shared framerate → shared timer |
 | `enabled` | `bool` | `True` | Set `False` to skip creation |
+| `loop_mode` | `str` | `ANIM_LOOP_ONCE` | `ANIM_LOOP_ONCE`, `ANIM_LOOP_REPEAT`, or `ANIM_LOOP_PING_PONG` |
+| `loop_count` | `int` | `0` | Cycles to play when looping; `0` = infinite |
+| `revert_on_finish` | `bool` | `False` | If `True`, restore `start_state` when the animation completes |
 | `callback_after_every_tick` | `Callable` | `None` | `callback(anim_instance)` called after each lerp step |
+| `callback_after_loop` | `Callable` | `None` | `callback(anim_instance)` called at each loop boundary |
 | `callback_after_finish` | `Callable` | `None` | `callback(anim_instance)` called after animation is removed from RTC |
 | `callback_after_interrupt` | `Callable` | `None` | `callback(anim_instance)` called on `cancel_animation()` or error |
 
 ---
+
+## The complete rulebook
+
+There is no hidden behaviour beyond these three rules:
+
+1. **`_indices` can never be animated** (it is integer topology, not an
+   interpolatable value).  Every other batch attribute and every uniform can be.
+2. **`add_animations()` ignores a declaration whose uid is already active.**
+   `set_animation()` upserts instead, preserving the live animation's phase.
+3. **A looping animation runs until `cancel_animation()` or `loop_count`
+   exhaustion.**  By default an animation lands on `end_state`; set
+   `revert_on_finish=True` to snap back to `start_state` instead.
+
+---
+
+## Loop modes
+
+| Mode | Behaviour at `t >= 1.0` |
+|---|---|
+| `ANIM_LOOP_ONCE` | Finish: remove from RTC, fire `callback_after_finish` |
+| `ANIM_LOOP_REPEAT` | Jump back to `start_state` and replay forwards |
+| `ANIM_LOOP_PING_PONG` | Swap `start_state` ↔ `end_state` and play back the other way |
+
+At every loop boundary the overshoot is **carried into the next cycle**, so long-
+running loops never accumulate timing drift.  A ping-pong out-and-back counts as
+**two** completed loops (`loops_completed`).
+
+Useful read-only properties on `Animation_Instance`:
+
+| Property | Meaning |
+|---|---|
+| `is_looping` | `True` for `REPEAT` / `PING_PONG` |
+| `completion_factor` | Position within the current cycle, `0.0` → `1.0` |
+| `loops_completed` | Number of cycles finished so far |
+
+---
+
 
 ## Data types
 
@@ -128,37 +216,50 @@ Wrapper_Animation_Manager.add_animations([
 ])
 ```
 
-### Infinite loop via `callback_after_finish`
+### Endless pulse (infinite ping-pong)
 
 ```python
-def _loop(anim):
-    Wrapper_Animation_Manager.add_animations([
-        Animation_Declaration(
-            animation_uid     = anim.animation_uid,  # reuse same uid — it was removed before this fires
-            target_shader_uid = anim.target_shader_uid,
-            data_type         = anim.data_type,
-            data_name         = anim.data_name,
-            end_state         = anim._start_state,   # reverse direction
-            delay_start       = 0.01,                # tiny delay avoids deep recursion
-            duration          = anim.duration,
-            framerate         = anim.framerate,
-            callback_after_finish = _loop,
-        )
-    ])
-
 Wrapper_Animation_Manager.add_animations([
     Animation_Declaration(
-        animation_uid         = "pulse",
-        target_shader_uid     = "my_shader",
-        data_type             = ANIM_DATA_TYPE_UNIFORMS,
-        data_name             = "alpha",
-        start_state           = 0.0,
-        end_state             = 1.0,
-        duration              = 0.6,
-        callback_after_finish = _loop,
+        animation_uid     = "pulse",
+        target_shader_uid = "my_shader",
+        data_type         = ANIM_DATA_TYPE_UNIFORMS,
+        data_name         = "alpha",
+        start_state       = 0.2,
+        end_state         = 1.0,
+        duration          = 0.6,
+        loop_mode         = ANIM_LOOP_PING_PONG,
+        loop_count        = 0,          # infinite
     )
 ])
+
+# ...later, stop it:
+Wrapper_Animation_Manager.cancel_animation("pulse")
 ```
+
+### Keeping a pulse alive across data changes
+
+The animation instance lives for as long as the feature needs it.  Whenever the
+underlying data changes (e.g. the user's selection grows or shrinks), rebuild the
+states and call `set_animation()` with the same uid — the phase is preserved, so
+the pulse never blinks or restarts:
+
+```python
+def refresh_selection_pulse(colors_dim, colors_bright):
+    Wrapper_Animation_Manager.set_animation(Animation_Declaration(
+        animation_uid     = "SELECTION_PULSE",
+        target_shader_uid = "SELECTION_SHADER",
+        data_type         = ANIM_DATA_TYPE_BATCH,
+        data_name         = "_colors",
+        start_state       = colors_dim,
+        end_state         = colors_bright,
+        duration          = 1.2,
+        framerate         = 30,
+        loop_mode         = ANIM_LOOP_PING_PONG,
+        loop_count        = 0,
+    ))
+```
+
 
 ---
 
@@ -172,7 +273,14 @@ Wrapper_Animation_Manager.add_animations([
   cancelled, the timer is disabled and a deferred `request_timer_rebuild()` is
   scheduled (0.01 s) to clean up the RTC timer entry.
 - **State revert.**  `_start_state` (captured at `add_animations()` time) is
-  restored to the shader on `cancel_animation()` or unhandled tick exception.
-- **Looping pattern.**  Call `add_animations()` inside `callback_after_finish`
-  with a small `delay_start`.  The animation is removed from the RTC before the
-  callback fires, so the uid is available for reuse.
+  restored to the shader on `cancel_animation(revert=True)` (the default) or on an
+  unhandled tick exception.  On normal completion the shader keeps `end_state`
+  unless `revert_on_finish=True`.
+- **Looping.**  Handled natively by `loop_mode` — no callback juggling required.
+  Loop boundaries carry their overshoot forward, so cycles never drift.
+- **Updating a live animation.**  `set_animation()` / `update_animation()` mutate
+  the existing `Animation_Instance` rather than replacing it, so `_elapsed_time`
+  (the phase) survives.  This is the supported way to keep a long-lived looping
+  animation visually seamless while its underlying data changes.
+
+
