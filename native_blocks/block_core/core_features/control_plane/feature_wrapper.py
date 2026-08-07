@@ -148,10 +148,13 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         # ----------------------------------------------------------------------------------------------------------------------------
         # 6: Reset reload-flag, call did-reset hook if needed refresh UI
-        surviving_data = reset_reload_flag_if_needed()
-        if surviving_data:
-            logger.info("Reload-all: fired hook_after_blocks_reload")
-            Wrapper_Hooks.run_hooked_funcs(hook_func_name=Core_Block_Hook_Sources.hook_after_blocks_reload, surviving_data = surviving_data)
+        all_surviving_block_data = reset_reload_flag_if_needed(blocks_cache)
+        if all_surviving_block_data:
+            for block_id, block_data in all_surviving_block_data.items():
+                Wrapper_Hooks.run_hooked_funcs(
+                    hook_func_name=Core_Block_Hook_Sources.hook_after_blocks_reload, 
+                    subscriber_block_id = block_id,
+                    surviving_data = block_data)
         else:
             logger.info(f"Finished all init actions. The Addon is ready to use")
         force_redraw_ui(bpy.context)

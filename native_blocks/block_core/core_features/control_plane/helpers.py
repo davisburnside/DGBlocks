@@ -320,9 +320,17 @@ def _remove_block_FWC_instances(block_instance, logger):
 
 reload_flag_name = f"{addon_name}_is_reloading"
 
-def reset_reload_flag_if_needed():
+def reset_reload_flag_if_needed(blocks_cache: list[RTC_Block_Instance]):
     
-    if hasattr(bpy.context.window_manager, reload_flag_name):
-        surviving_data = bpy.context.window_manager[reload_flag_name]
-        del bpy.context.window_manager[reload_flag_name]
-        return surviving_data
+    return_data = {}
+    wm = bpy.context.window_manager
+    for block_instance in blocks_cache:
+        surviving_data = wm.get(block_instance.block_id, None)
+        if surviving_data:
+            return_data[block_instance.block_id] = surviving_data
+    return return_data
+    
+    # if hasattr(bpy.context.window_manager, reload_flag_name):
+    #     surviving_data = bpy.context.window_manager[reload_flag_name]
+    #     del bpy.context.window_manager[reload_flag_name]
+    #     return surviving_data

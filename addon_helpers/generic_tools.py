@@ -306,3 +306,15 @@ def validate_func_args(func, expected_args: list[str]) -> None:
 def get_folder_parts(module) -> list[str]:
     """Return the folder names containing the module, from filesystem root down."""
     return list(Path(module.__file__).parent.parts)
+
+def delay_function_call(delay, func, *args, **kwargs):
+    """Call func(*args, **kwargs) once, after `delay` seconds.
+
+    Returns a handle you can pass to cancel_delayed().
+    """
+    def _timer():
+        func(*args, **kwargs)
+        return None  # None = don't repeat
+
+    bpy.app.timers.register(_timer, first_interval=delay, persistent=False)
+    return _timer

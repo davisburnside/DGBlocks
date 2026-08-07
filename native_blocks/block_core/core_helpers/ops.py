@@ -91,8 +91,12 @@ class DGBLOCKS_OT_Reload_All_Blocks(bpy.types.Operator):
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
         logger.info("Reload-all: firing hook_before_blocks_reload")
         responses = Wrapper_Hooks.run_hooked_funcs(hook_func_name=Core_Block_Hook_Sources.hook_before_blocks_reload)
-        bpy.context.window_manager[reload_flag_name] = responses
-        print(bpy.context.window_manager[reload_flag_name], bpy.context.window_manager[reload_flag_name].values)
+        wm = bpy.context.window_manager
+        for block_id, block_response in responses.items():
+            try:
+                wm[block_id] = block_response
+            except Exception as e:
+                logger.error("Unable to store data before reload, likely invalid data type", exc_info = True)
         bpy.app.timers.register(self._reload, first_interval=0.1)
         return {"FINISHED"}
 
