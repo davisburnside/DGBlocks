@@ -285,9 +285,17 @@ class _MET_EDGE:
         accessor = Enum_Attr_Accessor.NAMED_ATTRIBUTE, value_field = "value",
         is_writable = True, instance_field = "sharp", data_type = "BOOLEAN",
     )
+    # COLLECTION, not NAMED_ATTRIBUTE, and deliberately so. "use_seam" is the RNA field on
+    # MeshEdge; as an ATTRIBUTE name it does not exist (Blender stores the seam as the
+    # dot-prefixed internal ".uv_seam"), so attributes.get("use_seam") always returned None
+    # and every mesh read back as seamless. edges.foreach_get("use_seam") is the only
+    # spelling that is stable across versions, since RNA field names are public API while
+    # dot-prefixed attribute names are not.
     SEAM = Attr_Declaration(
-        domain = "EDGE", name = "seam_edge", dtype = "bool", components = 1,
-        accessor = Enum_Attr_Accessor.NAMED_ATTRIBUTE, value_field = "value",
+        domain = "EDGE", name = "use_seam", dtype = "bool", components = 1,
+        accessor = Enum_Attr_Accessor.COLLECTION, collection_name = "edges",
+        value_field = "use_seam",
+
         is_writable = True, instance_field = "seam", data_type = "BOOLEAN",
     )
 

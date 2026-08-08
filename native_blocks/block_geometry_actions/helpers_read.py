@@ -50,6 +50,46 @@ _ZERO_FILL_IF_ABSENT = {
     "radius", "tilt", "resolution", "cyclic", "curve_type",
 }
 
+# Builtin flags Blender stores under a DOT-PREFIXED internal name, which
+# `data.attributes.get("<public name>")` does not find.
+#
+# The UV seam is the one that actually bites: it is authored constantly (Edit Mode ->
+# Mark Seam) but is stored as `.use_seam`, so a lookup for "seam_edge" returns None. Paired
+# with _ZERO_FILL_IF_ABSENT that produced an all-False seam array on a mesh full of seams —
+# a silent wrong answer, which is the worst kind. Every alias is tried in order, so a
+# future Blender that promotes one of these back to a public name still resolves first.
+_NAMED_ATTRIBUTE_ALIASES = {
+    "seam_edge":         (".use_seam",),
+    "sharp_edge":        (".sharp_edge",),
+    "crease_edge":       (".crease_edge",),
+    "crease_vert":       (".crease_vert",),
+    "bevel_weight_vert": (".bevel_weight_vert",),
+}
+
+
+def resolve_named_attribute(data, name: str):
+    """`data.attributes[name]`, falling back to Blender's dot-prefixed internal spelling.
+
+    Returns None only when neither the public name nor any alias exists. Used by BOTH the
+    read and the write path — if they disagreed about where a flag lives, a write would
+    create a dead public-named attribute next to the live internal one and read back as
+    unchanged.
+    """
+    attributes = getattr(data, "attributes", None)
+    if attributes is None:
+        return None
+
+    bl_attr = attributes.get(name)
+    if bl_attr is not None:
+        return bl_attr
+
+    for alias in _NAMED_ATTRIBUTE_ALIASES.get(name, ()):
+        bl_attr = attributes.get(alias)
+        if bl_attr is not None:
+            return bl_attr
+    return None
+
+
 
 def object_has_geometry(obj: bpy.types.Object) -> bool:
     return obj is not None and obj.type in MESH_CAPABLE_TYPES
@@ -313,10 +353,11 @@ def resolve_attr(
     if resolved.accessor != Enum_Attr_Accessor.NAMED_ATTRIBUTE:
         return resolved, None
 
-    bl_attr = data.attributes.get(resolved.name)
+    bl_attr = resolve_named_attribute(data, resolved.name)
     if bl_attr is None:
         # Absent: builtin-backed names read as zeros; custom attrs are simply skipped.
         return resolved, None
+
 
     data_type = bl_attr.data_type
     if data_type not in BL_DATA_TYPE_MAP:
@@ -363,8 +404,9 @@ def read_attr(data, attr: Attr_Declaration, geometry_type: str) -> Optional[np.n
         return buf.reshape(n, attr.components) if attr.components > 1 else buf
 
     # ---- Named attribute (data.attributes[...]) ------------------------------
-    bl_attr = data.attributes.get(attr.name)
+    bl_attr = resolve_named_attribute(data, attr.name)
     if bl_attr is None:
+
         if attr.name in _ZERO_FILL_IF_ABSENT:
             return np.zeros(
                 (n, attr.components) if attr.components > 1 else n,
@@ -383,7 +425,7 @@ def read_attr(data, attr: Attr_Declaration, geometry_type: str) -> Optional[np.n
 def list_readable_custom_attribute_names(data) -> list[str]:
     """
     Public helper: user-facing named attributes on a mesh or curves datablock.
-    Skips Blender's dot-prefixed internals (.corner_vert, .select_vert, .uv_seam, ...).
+    Skips Blender's dot-prefixed internals (.corner_vert, .select_vert, .use_seam, ...).
     """
     if not _has_attributes_api(data):
         return []

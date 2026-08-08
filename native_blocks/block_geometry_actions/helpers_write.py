@@ -28,6 +28,8 @@ from .data_structures import (
     Enum_Geometry_Type,
     Attr_Declaration,
 )
+from .helpers_read import resolve_named_attribute
+
 
 
 # ==============================================================================================================================
@@ -129,7 +131,8 @@ class Geometry_Context:
 
         # Builtin fast paths
         if (attr_dec.accessor == Enum_Attr_Accessor.COLLECTION
-                or attr_dec.name in ("seam_edge", "sharp_edge")):
+                or attr_dec.name in ("seam_edge", "sharp_edge", "use_seam")):
+
             setter, seq_domain = _resolve_builtin_bmesh_setter(attr_dec)
             if setter is None:
                 raise RuntimeError(f"'{attr_dec.key}' cannot be written in Edit Mode.")
@@ -176,9 +179,13 @@ class Geometry_Context:
     def _ensure_named_attribute(self, attr_dec: Attr_Declaration, values=None):
         """Fetch (creating if needed) the named attribute this write targets. No validation."""
         bl_domain = BL_DOMAIN_FROM_DOMAIN[str(attr_dec.domain)]
-        actual_attr = self.data.attributes.get(attr_dec.name)
+        # Alias-aware: some builtin flags (notably seam_edge -> `.use_seam`) live under a
+        # dot-prefixed internal name. Creating the public name instead would write to a
+        # brand new, unused attribute and read back as if nothing had changed.
+        actual_attr = resolve_named_attribute(self.data, attr_dec.name)
         if actual_attr is not None:
             return actual_attr
+
 
         data_type = attr_dec.data_type
         if not data_type:
@@ -305,8 +312,11 @@ def _resolve_builtin_bmesh_setter(attr_dec: Attr_Declaration):
     key = attr_dec.key
     if key == "VERTEX.co":
         return (lambda v, val: setattr(v, "co", (float(val[0]), float(val[1]), float(val[2])))), "VERTEX"
-    if key == "EDGE.seam_edge":
+    # MET.EDGE.SEAM is declared as the RNA field name "use_seam" (see data_structures.py),
+    # so the key is EDGE.use_seam. The BMesh member is still `.seam`.
+    if key in ("EDGE.use_seam", "EDGE.seam_edge"):
         return (lambda e, val: setattr(e, "seam", bool(val))), "EDGE"
+
     if key == "EDGE.sharp_edge":
         # BMesh stores the inverse: smooth == not sharp
         return (lambda e, val: setattr(e, "smooth", not bool(val))), "EDGE"
