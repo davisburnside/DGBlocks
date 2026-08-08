@@ -609,10 +609,6 @@ class Action_Record:
         return sum(1 for op in self.ops if op.op_type == Enum_Op_Type.READ)
 
     @property
-    def write_count(self) -> int:
-        return sum(1 for op in self.ops if op.op_type == Enum_Op_Type.WRITE)
-
-    @property
     def callback_count(self) -> int:
         return sum(1 for op in self.ops if op.op_type == Enum_Op_Type.CALLBACK)
 

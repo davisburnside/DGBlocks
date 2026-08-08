@@ -92,29 +92,47 @@ def get_actual_id(input):
         raise Exception("Expecting 'Enum' or 'str'")
 
 def simple_truncate_dict(d, max_str=160, max_array_items=8, max_depth=7, _depth=0):
-    # Handles Dataclasses too
+    # 1. Depth limit
     if _depth >= max_depth:
         return "..."
+        
+    # 2. Dataclasses - bypassing asdict() to avoid deepcopy crashes
     if dataclasses.is_dataclass(d) and not isinstance(d, type):
         return {
             f"@{type(d).__name__}": {
-                k: simple_truncate_dict(v, max_str, max_array_items, max_depth, _depth + 1)
-                for k, v in dataclasses.asdict(d).items()
+                field.name: simple_truncate_dict(getattr(d, field.name), max_str, max_array_items, max_depth, _depth + 1)
+                for field in dataclasses.fields(d)
             }
         }
+        
+    # 3. Dictionaries
     if isinstance(d, dict):
         return {k: simple_truncate_dict(v, max_str, max_array_items, max_depth, _depth + 1) for k, v in d.items()}
+        
+    # 4. Numpy arrays
     if isinstance(d, np.ndarray):
         flat = d.flat[:max_array_items].tolist()
-        return f"ndarray{d.shape} dtype={d.dtype} [{', '.join(f'{x:.4g}' for x in flat)}, ...]"
-    if isinstance(d, str) and len(d) > max_str:
-        return d[:max_str] + "..."
+        items_str = ", ".join(f"{x:.4g}" if isinstance(x, (int, float)) else str(x) for x in flat)
+        suffix = ", ..." if d.size > max_array_items else ""
+        return f"ndarray{d.shape} dtype={d.dtype} [{items_str}{suffix}]"
+        
+    # 5. Strings
+    if isinstance(d, str):
+        return d[:max_str] + "..." if len(d) > max_str else d
+        
+    # 6. Lists and Tuples
     if isinstance(d, (list, tuple)):
         truncated = [simple_truncate_dict(x, max_str, max_array_items, max_depth, _depth + 1) for x in d[:max_array_items]]
         if len(d) > max_array_items:
             truncated.append(f"... ({len(d)} total)")
         return truncated
-    return d
+        
+    # 7. Basic Primitives (Return as-is)
+    if d is None or isinstance(d, (int, float, bool)):
+        return d
+        
+    # 8. Fallback for custom/unpickleable objects (e.g., BVHTree, Blender Objects)
+    return f"<{type(d).__name__}>"
 
 # ==============================================================================================================================
 # COLOR TOOLS

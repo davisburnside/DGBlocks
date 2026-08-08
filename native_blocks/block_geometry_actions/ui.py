@@ -22,7 +22,6 @@ from .data_structures import Enum_Op_Type
 _OP_ICONS = {
     Enum_Op_Type.READ:     "IMPORT",
     Enum_Op_Type.CALLBACK: "SCRIPTPLUGINS",
-    Enum_Op_Type.WRITE:    "EXPORT",
     Enum_Op_Type.GROUP:    "DOWNARROW_HLT",
 }
 

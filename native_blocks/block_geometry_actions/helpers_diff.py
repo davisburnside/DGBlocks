@@ -8,7 +8,7 @@ about the mesh changed since the previous read.
 Keys are the same strings the panel and op records use:
 
     "vertex.co"
-    "face.custom['face_planar_groups']"
+    "face.custom['fltyps_f_plane_id']"
     "derived['face_face_neighbors']"
 
 Comparison strategy:
