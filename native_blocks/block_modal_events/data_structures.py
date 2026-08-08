@@ -1,11 +1,14 @@
 
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
+import time
 from typing import Callable, Optional
 
 # ==============================================================================================================================
 # EVENT CLASSIFICATION
 # ==============================================================================================================================
+
+
 
 class Modal_Event_Category(StrEnum):
     """
@@ -24,6 +27,54 @@ class Modal_Event_Category(StrEnum):
     KEYBOARD    = auto()
     WINDOW      = auto()
     OTHER       = auto()
+
+
+@dataclass
+class User_Input_Capture_Instance:
+    """
+    Capture all relevant modal event details for mouse movement.
+    All fields are updated every event if a modals are active, even if some fields are ignored.
+    This instance can be read in the RTC when the modal is running
+    """
+    
+    # Core event data
+    last_type: str = None  # 'MOUSEMOVE', 'LEFTMOUSE', etc.
+    mouse_x: int = None  # Window x position
+    mouse_y: int = None  # Window y position
+    shift: bool = None
+    ctrl: bool = None
+    alt: bool = None
+    oskey: bool  = None # Windows key / Command key
+    value: str  = None # 'PRESS', 'RELEASE', 'CLICK', etc.
+    event_time: float = None
+    
+    # Context info
+    window_id: Optional[int] = None
+    area_id: Optional[int] = None
+    area_type: Optional[str] = None  # 'VIEW_3D', 'NODE_EDITOR', etc.
+    region_type: Optional[str] = None  # 'WINDOW', 'HEADER', etc.
+    workspace_name: Optional[str] = None
+    
+    # Derived positions
+    mouse_x_area: Optional[int] = None  # Position within current area
+    mouse_y_area: Optional[int] = None
+    
+    @property
+    def pos_window(self) -> tuple[int, int]:
+        """Return (x, y) in window coordinates."""
+        return (self.mouse_x, self.mouse_y)
+    
+    @property
+    def pos_area(self) -> Optional[tuple[int, int]]:
+        """Return (x, y) in area coordinates if available."""
+        if self.mouse_x_area is not None and self.mouse_y_area is not None:
+            return (self.mouse_x_area, self.mouse_y_area)
+        return None
+    
+    @property
+    def is_modifier_only(self) -> bool:
+        """Check if this is just a modifier key event."""
+        return self.type == 'TIMER' and not any([self.shift, self.ctrl, self.alt, self.oskey])
 
 # ==============================================================================================================================
 # DECLARATIVE CONFIG DATACLASSES
@@ -73,6 +124,7 @@ class RTC_Modal_Listener_Instance:
 
     # Status
     is_enabled: bool = True
+    current_event: User_Input_Capture_Instance = None
 
     # Per-event-category opt-outs (mirrored from the definition)
     ignore_mouse_click_events: bool = False

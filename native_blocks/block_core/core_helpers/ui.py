@@ -3,7 +3,7 @@ import time
 import bpy
 
 from ....addon_config.static_settings import Documentation_URLs, addon_title
-from ....addon_helpers.ui import format_timestamp_for_ui, draw_shared_uilist, ui_draw_generic_instance_data, ui_draw_block_panel_header, ui_draw_static_list, ui_draw_subpanel
+from ....addon_helpers.ui.helpers import format_timestamp_for_ui, draw_shared_uilist, ui_draw_generic_instance_data, ui_draw_block_panel_header, ui_draw_static_list, ui_draw_subpanel
 from ....addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 
 # Sentinel passed as 'rtc_key' to dgblocks.copy_to_clipboard to request the whole Runtime Cache.
@@ -236,6 +236,7 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
     def draw_header(self, context):
         ui_draw_block_panel_header(context, self.layout, "Block-Core", Documentation_URLs.MY_PLACEHOLDER_URL_2, icon_name = "FILE_3D")
         row = self.layout.row()
+        row.alert = True
         row.operator("dgblocks.reload_all_blocks", text="Reload All", icon="FILE_REFRESH")
 
 

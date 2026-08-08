@@ -288,6 +288,7 @@ def _handle_batch_update(shader):
         duration = (time.time() - start_ts)
         shader.last_batch_creation_timestamp = start_ts
         shader.last_batch_creation_duration = duration
+        shader.draw_count_of_batch = 0
         shader.batch_count_of_shader += 1
         shader._needs_new_batch = False
 

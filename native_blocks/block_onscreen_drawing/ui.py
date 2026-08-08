@@ -1,5 +1,5 @@
 
-from ...addon_helpers.ui import format_timestamp_for_ui, ui_draw_generic_instance_data, ui_draw_subpanel
+from ...addon_helpers.ui.helpers import format_timestamp_for_ui, ui_draw_generic_instance_data, ui_draw_subpanel
 
 
 def _uilist_draw_uilist_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
@@ -32,7 +32,7 @@ ui_structure_for_shader_instance = {
     ],
     "Draw Statistics":[
         ("Draw Count, of Current Batch", "draw_count_of_batch"),
-        ("Batch Count, of Current Shader)", "batch_count_of_shader"),
+        ("Batch Count, of Current Shader", "batch_count_of_shader"),
         ("Batch Creation Duration", "last_batch_creation_duration")
     ],
 

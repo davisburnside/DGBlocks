@@ -1,5 +1,5 @@
 
-from ...addon_helpers.ui import ui_draw_block_panel_header
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header
 import bpy # type: ignore
 from bpy.props import StringProperty, IntProperty, BoolProperty, CollectionProperty, PointerProperty # type: ignore
 
@@ -18,7 +18,7 @@ from ...addon_config.static_settings import (
 # --------------------------------------------------------------
 from ...native_blocks import block_core
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ...addon_helpers.ui import create_ui_box_with_header
+from ...addon_helpers.ui.helpers import create_ui_box_with_header
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from ...native_blocks.block_core.core_helpers.constants import ( Core_Block_Loggers, Core_Block_Hook_Sources)
 

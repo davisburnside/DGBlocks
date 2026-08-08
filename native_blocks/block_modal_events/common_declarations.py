@@ -1,4 +1,5 @@
 
+from ...native_blocks.block_modal_events.data_structures import User_Input_Capture_Instance
 from ...addon_helpers.data_structures import (
     Hook_Source_Declaration,
     Logger_Declaration,
@@ -29,7 +30,7 @@ class Block_Loggers(String_Comparable_Mixin):
 
 class Block_RTC_Members(String_Comparable_Mixin):
     LISTENERS = RTC_Member_Declaration()
-
+    USER_INPUT_CAPTURE = RTC_Member_Declaration(User_Input_Capture_Instance())
 
 class Block_Data_Mirrors(String_Comparable_Mixin):
     LISTENER_MIRROR = RTC_Member_Data_Mirror_Declaration(

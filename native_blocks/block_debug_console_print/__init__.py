@@ -7,7 +7,7 @@ from ...addon_config.static_settings import Documentation_URLs, addon_title, add
 from ...addon_helpers.generic_tools import get_self_block_module, clear_console
 from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
 from ...addon_helpers.text_formatting_tools import make_pretty_json_string_from_data
-from ...addon_helpers.ui import ui_draw_block_panel_header
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header
 
 # Inter-block imports
 from .. import block_core

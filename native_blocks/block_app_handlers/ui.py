@@ -1,5 +1,5 @@
 
-from ...addon_helpers.ui import format_timestamp_for_ui
+from ...addon_helpers.ui.helpers import format_timestamp_for_ui
 
 # ==============================================================================================================================
 # UILIST ROW DRAW

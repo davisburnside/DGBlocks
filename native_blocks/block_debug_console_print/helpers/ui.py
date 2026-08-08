@@ -3,7 +3,7 @@ import bpy
 
 # Addon-level imports
 from ....addon_helpers.data_tools import create_simplified_list_from_csv_string
-from ....addon_helpers.ui import create_ui_box_with_header, uilayout_section_separator
+from ....addon_helpers.ui.helpers import create_ui_box_with_header, uilayout_section_separator
 
 # Inter-block imports
 from ...block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks

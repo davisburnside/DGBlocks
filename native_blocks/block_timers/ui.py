@@ -1,5 +1,5 @@
 
-from ...addon_helpers.ui import ui_draw_generic_instance_data
+from ...addon_helpers.ui.helpers import ui_draw_generic_instance_data
 
 
 def _uilist_draw_uilist_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):

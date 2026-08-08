@@ -73,7 +73,7 @@ class Shader_Instance:
     shader_creation_timestamp: int = 0
     last_batch_creation_timestamp: int = 0
     last_draw_timestamp: int = 0
-    draw_count_of_batch: int = 0
+    draw_count_of_batch: int = 0 # Resets to 0 when batch is recreated
     batch_count_of_shader: int = 0 # Resets to 0 when shader is recreated
     last_batch_creation_duration: float = 0.0
     

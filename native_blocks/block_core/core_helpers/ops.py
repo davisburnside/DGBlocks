@@ -1,7 +1,7 @@
 import os
 
 from ....addon_helpers.data_tools import simple_truncate_dict
-from ....addon_helpers.ui import ui_draw_block_panel_header
+from ....addon_helpers.ui.helpers import ui_draw_block_panel_header
 from ....addon_config.static_settings import addon_name
 import bpy # type: ignore
 

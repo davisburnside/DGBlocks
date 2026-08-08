@@ -22,7 +22,7 @@ from ..block_core.core_features.loggers import Core_Block_Loggers, get_logger
 from ..block_core.core_features.hooks import Wrapper_Hooks
 from ..block_core.core_features.control_plane import Wrapper_Control_Plane
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper  import Wrapper_Runtime_Cache
-from ...addon_helpers.ui import ui_draw_block_panel_header
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Intra-block imports

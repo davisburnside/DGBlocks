@@ -6,8 +6,8 @@ import time
 from typing import Optional
 import bpy
 
-from ..addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
-from ..addon_config.static_settings import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
+from ..generic_tools import get_Wrapper_Runtime_Cache
+from ...addon_config.static_settings import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
 
 # addon_helpers must never import from a block, so block_core's get_logger() is off-limits here.
 # Fetching the same underlying python logger by name keeps this module's output inside the

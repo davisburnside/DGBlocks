@@ -6,7 +6,7 @@ import bpy
 from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 from ...addon_helpers.generic_tools import is_block_debug_mode_enabled
-from ...addon_helpers.ui import ui_draw_block_panel_header
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header
 
 # --------------------------------------------------------------
 # Inter-block imports

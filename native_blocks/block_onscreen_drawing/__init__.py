@@ -13,7 +13,7 @@ from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
-from ...addon_helpers.ui import ui_draw_block_panel_header, draw_shared_uilist
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist
 
 # --------------------------------------------------------------
 # Intra-block imports

@@ -20,7 +20,7 @@ from .core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
 from .core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
 from .core_features.hooks.feature_wrapper import Wrapper_Hooks
 from .core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ...addon_helpers.ui import DGBLOCKS_UL_Shared_Debug_List
+from ...addon_helpers.ui.helpers import DGBLOCKS_UL_Shared_Debug_List
 
 # This hook has an inverted "downstream" dependency direction, but it still works.
 # In other words, block-console-debug-print depends on block-core, but can still call hooks in block-core. 

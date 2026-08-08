@@ -14,7 +14,7 @@ from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper imp
 
 # Intra-block imports
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .data_structures import Modal_Event_Category, RTC_Modal_Listener_Instance
+from .data_structures import Modal_Event_Category, RTC_Modal_Listener_Instance, User_Input_Capture_Instance
 
 # Aliases
 cache_key_listeners = Block_RTC_Members.LISTENERS
@@ -36,6 +36,28 @@ def is_router_running() -> bool:
 def _set_router_running(value: bool) -> None:
     global _router_is_running
     _router_is_running = value
+
+def _update_user_input_capture_instance(context, event):
+
+    user_input_capture = User_Input_Capture_Instance(
+        type = event.type,
+        mouse_x = event.mouse_x,
+        mouse_y = event.mouse_y,
+        shift = event.shift,
+        ctrl = event.ctrl,
+        alt = event.alt,
+        oskey = event.oskey,
+        value = event.value,
+        window_id = context.window.id,
+        area_id = context.area.id if context.area else None,
+        area_type = context.area.type if context.area else None,
+        mouse_x_area = event.mouse_x - context.area.x if context.area else None,
+        mouse_y_area = event.mouse_y - context.area.y if context.area else None,
+        region_type = context.region.type if context.region else None,
+        workspace_name = context.workspace.name if context.workspace else None,
+    )
+
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.USER_INPUT_CAPTURE, user_input_capture)
 
 # ==============================================================================================================================
 # EVENT CLASSIFICATION
@@ -337,6 +359,8 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
             category = classify_event(event)
             now = time.time()
             result = {"PASS_THROUGH"}
+
+            _update_user_input_capture_instance(context, event)
 
             for listener in _get_enabled_listeners_sorted():
                 if _listener_ignores_category(listener, category):

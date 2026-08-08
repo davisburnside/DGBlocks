@@ -6,7 +6,7 @@ from dataclasses import dataclass
 # --------------------------------------------------------------
 from ....addon_helpers.data_structures import  Enum_Sync_Events, RTC_FWC_Data_Mirror_Instance, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
 from ....addon_helpers.generic_tools import  is_bpy_ready
-from ....addon_helpers.ui import  ui_draw_list_headers
+from ....addon_helpers.ui.helpers import  ui_draw_list_headers
 
 # --------------------------------------------------------------
 # Inter-block imports

@@ -5,7 +5,7 @@ import bpy
 # Addon-level imports
 from ...addon_helpers.data_structures import Block_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
-from ...addon_helpers.ui import draw_shared_uilist, ui_draw_block_panel_header
+from ...addon_helpers.ui.helpers import draw_shared_uilist, ui_draw_block_panel_header
 
 # Inter-block imports
 from .. import block_core  # noqa: F401 — ensures block_core is loaded first
