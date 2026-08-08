@@ -6,7 +6,12 @@ from ....addon_config.static_settings import Documentation_URLs, addon_title
 from ....addon_helpers.ui import format_timestamp_for_ui, draw_shared_uilist, ui_draw_generic_instance_data, ui_draw_block_panel_header, ui_draw_static_list, ui_draw_subpanel
 from ....addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 
+# Sentinel passed as 'rtc_key' to dgblocks.copy_to_clipboard to request the whole Runtime Cache.
+# Defined here (not in constants.py) because constants.py imports this module
+RTC_COPY_ALL_KEY = "*"
+
 # Block-mngr UIList funcs
+
 def _uilist_blocks_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
 
     col_widths = uillist_config_instance.col_widths
@@ -60,19 +65,22 @@ def _hooks_filter_items(context, uilist_config_instance, BL_colprop):
     if not hide_unsub:
         return [True] * len(BL_colprop)
 
-    # Fetch RTC hook sources list (same order as the BL collection)
+    # Match BL rows to RTC records by hook name, never by list index.
+    # The two lists are normally in sync, but a drift must not silently disable the filter
     _dirty_wrapper_RTC = get_Wrapper_Runtime_Cache()
     RTC_hook_sources = _dirty_wrapper_RTC.get_cache(uilist_config_instance.RTC_key)
     if not RTC_hook_sources:
         return [True] * len(BL_colprop)
 
+    subscriber_counts = {h.hook_func_name: h.subscriber_count for h in RTC_hook_sources}
+
     result = []
-    for i in range(len(BL_colprop)):
-        if i < len(RTC_hook_sources):
-            result.append(RTC_hook_sources[i].subscriber_count > 0)
-        else:
-            result.append(True)
+    for BL_item in BL_colprop:
+        # Unknown hook names stay visible, so nothing is ever hidden by accident
+        count = subscriber_counts.get(BL_item.hook_func_name, 1)
+        result.append(count > 0)
     return result
+
 
 
 # ==============================================================================================================================
@@ -143,8 +151,63 @@ def _uilist_hooks_draw_row(context, container, uillist_config_instance, BL_item,
     sub.ui_units_x = col_widths[4]
     sub.prop(BL_item, "is_hook_enabled", text = "")
 
+# ==============================================================================================================================
+# RTC MEMBER SNAPSHOT HELPERS
+# ==============================================================================================================================
+
+def _rtc_member_summary(cache_value) -> str:
+    """Short 'shape' hint for one RTC member, e.g. 'list (7)' / 'dict (3)' / 'Global_Addon_State'."""
+
+    if isinstance(cache_value, dict):
+        return f"dict ({len(cache_value)})"
+    if isinstance(cache_value, (list, tuple, set)):
+        return f"{type(cache_value).__name__} ({len(cache_value)})"
+    if cache_value is None:
+        return "None"
+    return type(cache_value).__name__
+
+
+def ui_draw_rtc_members_snapshot(context, container):
+    """
+    One box per RTC member, each with a copy-to-clipboard button, plus a
+    copy-everything button at the top. Built for grabbing fast RTC snapshots.
+
+    Only the member NAME is handed to the operator — the string is generated on
+    click, so panel redraws never pay for serializing the cache.
+    """
+
+    _dirty_wrapper_RTC = get_Wrapper_Runtime_Cache()
+
+    row = container.row()
+    row.scale_y = 1.3
+    op = row.operator("dgblocks.copy_to_clipboard", text = "Copy Entire RTC", icon = "COPYDOWN")
+    op.rtc_key = RTC_COPY_ALL_KEY
+
+    all_cache_keys = _dirty_wrapper_RTC.get_all_cache_keys()
+    if not all_cache_keys:
+        container.label(text = "Runtime Cache is empty", icon = "INFO")
+        return
+
+    for cache_key in all_cache_keys:
+        cache_value = _dirty_wrapper_RTC.get_cache(cache_key)
+
+        box = container.box()
+        row = box.row()
+
+        sub = row.row()
+        sub.alignment = "LEFT"
+        sub.label(text = cache_key)
+
+        sub = row.row()
+        sub.alignment = "RIGHT"
+        sub.label(text = _rtc_member_summary(cache_value))
+        op = sub.operator("dgblocks.copy_to_clipboard", text = "", icon = "COPYDOWN")
+        op.rtc_key = cache_key
+
+
 # Logger-mngr UIList funcs
 def _uilist_loggers_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
 
     col_widths = uillist_config_instance.col_widths
     header = container.row()
@@ -226,4 +289,10 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         # Loggers subpanel
         loggers_label = f"All Loggers ({len(core_scene_props.managed_loggers)})"
         ui_draw_subpanel(context, layout, "managed_loggers", loggers_label, self._draw_loggers_subpanel_body)
+
+        # RTC members subpanel (snapshot / clipboard tooling, no BL data behind it)
+        rtc_member_count = len(get_Wrapper_Runtime_Cache().get_all_cache_keys())
+        rtc_label = f"All RTC Members ({rtc_member_count})"
+        ui_draw_subpanel(context, layout, "rtc_members", rtc_label, ui_draw_rtc_members_snapshot)
+
             

@@ -345,7 +345,9 @@ def default_data_mirror_RTC_list_update_logic(
     if core_props.debug_log_all_RTC_BL_sync_actions:
         _print_actions(data_source, data_target, filtered_actions, logger)
     
-    apply_dataclasses_to_match_collectionprop(FWC_instance, data_source, data_target, key_fields, data_fields, filtered_actions)
+    # Create/Remove actions are delegated to the FWC itself, so pass the actual class (not the RTC record)
+    apply_dataclasses_to_match_collectionprop(FWC_instance.actual_class, data_source, data_target, key_fields, data_fields, filtered_actions)
+
 
 def default_data_mirror_BL_colprop_update_logic(
         FWC_instance,

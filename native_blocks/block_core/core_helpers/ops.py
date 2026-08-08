@@ -8,6 +8,8 @@ import bpy # type: ignore
 # --------------------------------------------------------------
 from ....addon_helpers.generic_tools import force_reload_all_scripts, force_redraw_ui
 from ....addon_helpers.data_structures import Enum_Sync_Events
+from ....addon_helpers.text_formatting_tools import make_pretty_json_string_from_data
+
 
 # --------------------------------------------------------------
 # Core block imports
@@ -17,6 +19,8 @@ from ..core_features.loggers.feature_wrapper import  get_logger
 from ..core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ..core_features.control_plane.helpers import reload_flag_name
+from ..core_helpers.ui import RTC_COPY_ALL_KEY
+
 
 # --------------------------------------------------------------
 # Aliases
@@ -42,17 +46,68 @@ class DGBLOCKS_OT_Open_Help_Page(bpy.types.Operator):
         webbrowser.open(self.web_documentation_url)
         return {"FINISHED"}
 
+def op_build_rtc_snapshot_string(rtc_key: str) -> str:
+    """
+    Build a copy-pasteable string snapshot of RTC data.
+
+    'rtc_key' is either RTC_COPY_ALL_KEY (entire Runtime Cache) or the name of a
+    single RTC member. Serialization is deliberately done here (on click) rather
+    than during panel draw, so large caches never slow the UI down.
+    """
+
+    logger = get_logger(Core_Block_Loggers.UI)
+
+    if rtc_key == RTC_COPY_ALL_KEY:
+        raw_data = Wrapper_Runtime_Cache.get_all_cache()
+        header = "# DGBlocks Runtime Cache — all members"
+    else:
+        all_keys = Wrapper_Runtime_Cache.get_all_cache_keys()
+        if rtc_key not in all_keys:
+            raise KeyError(f"RTC member '{rtc_key}' does not exist")
+        raw_data = Wrapper_Runtime_Cache.get_cache(rtc_key)
+        header = f"# DGBlocks Runtime Cache — member '{rtc_key}'"
+
+    logger.debug(f"Building RTC snapshot string for '{rtc_key}'")
+    body = make_pretty_json_string_from_data(raw_data)
+    return f"{header}\n{body}"
+
+
 class DGBLOCKS_OT_Copy_To_Clipboard(bpy.types.Operator):
     bl_idname = "dgblocks.copy_to_clipboard"
     bl_label = "Copy"
     bl_description = "Copy to clipboard"
 
+    # Literal text to copy. Used whenever 'rtc_key' is left empty
     text: bpy.props.StringProperty()  # type: ignore
 
+    # Optional. RTC_COPY_ALL_KEY = whole cache, otherwise a single RTC member name.
+    # When set, the string is generated at execute-time and 'text' is ignored
+    rtc_key: bpy.props.StringProperty()  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties):
+        if properties.rtc_key == RTC_COPY_ALL_KEY:
+            return "Copy a string snapshot of the entire Runtime Cache to the clipboard"
+        if properties.rtc_key:
+            return f"Copy a string snapshot of RTC member '{properties.rtc_key}' to the clipboard"
+        return "Copy to clipboard"
+
     def execute(self, context):
-        context.window_manager.clipboard = self.text
-        self.report({'INFO'}, "Copied to clipboard")
+
+        text_to_copy = self.text
+        if self.rtc_key:
+            try:
+                text_to_copy = op_build_rtc_snapshot_string(self.rtc_key)
+            except Exception:
+                logger = get_logger(Core_Block_Loggers.UI)
+                logger.error(f"Unable to build RTC snapshot for '{self.rtc_key}'", exc_info = True)
+                self.report({'ERROR'}, f"Unable to read RTC member '{self.rtc_key}'")
+                return {'CANCELLED'}
+
+        context.window_manager.clipboard = text_to_copy
+        self.report({'INFO'}, f"Copied {len(text_to_copy)} characters to clipboard")
         return {'FINISHED'}
+
 
 class DGBLOCKS_OT_Force_Reload_Scripts(bpy.types.Operator):
     bl_idname = "dgblocks.debug_force_reload_scripts"

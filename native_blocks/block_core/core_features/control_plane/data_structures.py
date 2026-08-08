@@ -4,23 +4,32 @@ from types import ModuleType
 from typing import Optional
 import bpy
 
-from .....addon_helpers.data_structures import RTC_FWC_Instance
+from .....addon_helpers.data_structures import Enum_Sync_Events, RTC_FWC_Instance
 
 def _callback_block_debug_mode_changed(self, context):
     """
     Fired when the user toggles the Debug Mode checkbox in the All Blocks UIList.
-    Immediately sync the new value to the matching RTC_Block_Instance.
+    Pushes the new value into RTC through the standard BL→RTC data mirror sync.
     """
-    try:
-        from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache as _WRTC
-        cached_blocks = _WRTC.get_cache("REGISTRY_ALL_BLOCKS")
-        for block in cached_blocks:
-            if block.block_id == self.block_id:
-                block.debug_mode_enabled = self.debug_mode_enabled
-                _WRTC.set_cache("REGISTRY_ALL_BLOCKS", cached_blocks)
-                break
-    except Exception:
-        pass
+
+    # Imported here (not at module scope) to avoid an import cycle:
+    # constants -> ui -> ... -> control_plane.data_structures
+    from ...core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members
+    from ..runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+    from ..loggers.feature_wrapper import get_logger
+
+    # Skip further action if a sync is already in progress
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS):
+        return
+
+    logger = get_logger(Core_Block_Loggers.RTC_DATA_SYNC)
+    Wrapper_Runtime_Cache.resync_single_data_mirror(
+        event = Enum_Sync_Events.PROPERTY_UPDATE,
+        BL_is_truth_source = True,
+        cache_key = Core_Runtime_Cache_Members.REGISTRY_ALL_BLOCKS,
+        logger = logger,
+    )
+
 
 
 class DGBLOCKS_PG_Block_Record(bpy.types.PropertyGroup):
@@ -44,7 +53,9 @@ class RTC_Block_Instance:
     block_FWC_instances: list[RTC_FWC_Instance] = field(default_factory=list)
     block_RTC_member_names: list[str] = field(default_factory=list)
     is_valid: bool = field(default = True)
-    error_message: Optional[str] = field(default = None)
+    # Mirrored into a StringProperty, so this must never be None
+    error_message: str = field(default = "")
+
     is_block_enabled: bool = field(default = True)
     debug_mode_enabled: bool = field(default = False)
     block_index: int = field(default = -1)

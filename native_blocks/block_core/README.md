@@ -70,6 +70,9 @@ Thread-safe (RLock) in-memory dictionary. All transient addon data lives here.
 
 - `get_cache(key)` / `set_cache(key, value)` — Primary access methods. Accepts enum members
   directly via `get_actual_rtc_key()`.
+- `get_all_cache_keys()` / `get_all_cache()` — Read-only views over every registered RTC member.
+  Use these instead of touching `_cache` directly (powers the *All RTC Members* panel).
+
 - `resync_data_mirrors(event, BL_is_truth_source)` — Iterates all registered Data Mirrors and
   triggers the appropriate sync direction.
 - `is_cache_flagged_as_syncing(key)` / `flag_cache_as_syncing(key, bool)` — Re-entrancy guard
@@ -126,9 +129,33 @@ Wrapper_Control_Plane._remove_instance(event, block_id="block-my-feature")
 
 ---
 
+## UI Panel — `DGBLOCKS_PT_Core_Block_Panel`
+
+| Subpanel | Contents |
+|---|---|
+| General Settings | Addon toggle, sync logging, doc weblinks, RTC clear/restore |
+| All Blocks | Shared UIList over `managed_blocks` (per-block Debug Mode toggle) |
+| All Hooks | Shared UIList over `managed_hooks` + "Hide hooks with no subscribers" filter |
+| All Loggers | Shared UIList over `managed_loggers` + datetime prefix dropdown |
+| All RTC Members | One box per RTC member, each with a clipboard button, plus "Copy Entire RTC" |
+
+**All RTC Members** is a snapshot tool — it has no Blender data behind it and reads straight from
+the RTC. Each button passes only the member *name* to `dgblocks.copy_to_clipboard` via its
+`rtc_key` property; the string is produced on click by `op_build_rtc_snapshot_string()` (using
+`make_pretty_json_string_from_data`), so panel redraws never serialize the cache. Pass
+`rtc_key = RTC_COPY_ALL_KEY` to copy everything, or leave `rtc_key` empty and set `text` to copy
+a literal string.
+
+---
+
 ## Usage Notes
 
 - `block_core` is required by every other block and must always be the first block registered.
+- All three core data mirrors (blocks, hooks, loggers) use the framework's **default** two-way
+  sync. `managed_blocks` is populated from the active-blocks manifest, never authored by the
+  user, so mirror-driven create/remove of a block row is ignored with a warning — only the
+  `debug_mode_enabled` flag meaningfully travels BL→RTC.
+
 - Never remove `block_core` from the active-blocks manifest.
 - The `Wrapper_Control_Plane.init_post_bpy()` deferred init runs once per Blender session
   (guarded by `ADDON_METADATA.POST_REG_INIT_HAS_RUN`). It re-runs on file-open events.

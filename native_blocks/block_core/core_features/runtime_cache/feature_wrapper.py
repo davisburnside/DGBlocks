@@ -119,7 +119,39 @@ class Wrapper_Runtime_Cache(Abstract_Feature_Wrapper):
             cls._cache[true_key] = value
 
     @classmethod
+    def get_all_cache_keys(cls, should_use_thread_lock:bool = True) -> list[str]:
+        """
+        Names of every RTC member currently registered, sorted alphabetically.
+        Preferred over touching '_cache' directly (used by debug/snapshot UI).
+        """
+
+        with cls._lock if should_use_thread_lock else nullcontext():
+            if not cls._cache:
+                return []
+            return sorted(cls._cache.keys())
+
+    @classmethod
+    def get_all_cache(
+        cls,
+        should_copy: bool = False, # Does not guarantee a full deep copy. Members may be undefined for .copy(), and the original data is returned
+        should_use_thread_lock:bool = True # Parallel threads are bottlenecked for read/write access when this is True
+    ) -> dict:
+        """
+        Shallow snapshot of the whole cache, as {RTC member name: value}.
+        Preferred over touching '_cache' directly (used by debug/snapshot UI).
+        """
+
+        with cls._lock if should_use_thread_lock else nullcontext():
+            if not cls._cache:
+                return {}
+            all_members = dict(cls._cache)
+            if should_copy:
+                return fast_deepcopy_with_fallback(all_members)
+            return all_members
+
+    @classmethod
     def remove_cache(cls, key: str, should_use_thread_lock:bool = True):
+
 
         with cls._lock if should_use_thread_lock else nullcontext():
             true_key = get_actual_rtc_key(key, fail_gracefully = False)

@@ -172,6 +172,12 @@ class Wrapper_Hooks(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Mana
         new_cached_hook_subs = defaultdict(list)
         for hook_source_instance in cached_hook_sources:
             func_name = hook_source_instance.hook_func_name
+
+            # Recount from scratch. Without this reset, repeat rebuilds inflate the count
+            # forever and a hook that lost its last subscriber can never return to 0
+            hook_source_instance.subscriber_count = 0
+
+
             block_instances = find_blocks_owning_func_with_name(func_name, cached_blocks, logger)
             for subbed_block_instance in block_instances:
                 hook_func_ref = getattr(subbed_block_instance.block_module, func_name, None)

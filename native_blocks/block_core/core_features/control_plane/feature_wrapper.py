@@ -4,7 +4,8 @@ from types import ModuleType
 import bpy # type: ignore
 
 # Addon-level imports
-from .....addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Global_Addon_State, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
+from .....addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Global_Addon_State, Abstract_Datawrapper_Instance_Manager, Abstract_Feature_Wrapper
+
 from .....addon_helpers.data_tools import reset_propertygroup
 from .....addon_helpers.generic_tools import force_redraw_ui, get_folder_parts
 
@@ -27,7 +28,10 @@ enum_hook_post_startup = Core_Block_Hook_Sources.hook_post_startup
 # ==============================================================================================================================
 # MODULE MAIN FEATURE WRAPPER CLASS
 
-class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Datawrapper_Instance_Manager):
+# The blocks list uses the framework's DEFAULT two-way mirror sync (see Core_Data_Mirrors.BLOCKS_LIST),
+# so Abstract_BL_RTC_List_Syncronizer is deliberately NOT inherited here
+class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_Datawrapper_Instance_Manager):
+
 
     # --------------------------------------------------------------
     # Implemented from Abstract_Feature_Wrapper
@@ -77,9 +81,16 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             # The first init may have fired before the .blend file was loaded
             # (timer-based fallback). User-saved settings such as logger levels
             # must be loaded into RTC now that the real file data is available.
-            logger.info("Already completed post-bpy init — re-running BL→RTC mirror sync to load saved data")
-            event = Enum_Sync_Events.PROPERTY_UPDATE
+            logger.info("Already completed post-bpy init — re-running mirror sync to load saved data")
+
+            # Same 2-pass order as a cold start. The RTC→BL pass only aligns structure
+            # (ADDON_INIT denies Edit actions), so rows saved in the newly opened .blend keep their
+            # values and the BL→RTC pass can then load them. Without it, a file saved against a
+            # different set of blocks would feed stale rows into the BL→RTC diff
+            event = Enum_Sync_Events.ADDON_INIT
+            Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source=False, logger=logger)
             Wrapper_Runtime_Cache.resync_data_mirrors(event, BL_is_truth_source=True, logger=logger)
+
 
             # Apply the saved "Include Datetime" choice to formatters
             try:
@@ -179,14 +190,23 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # --------------------------------------------------------------
 
     @classmethod
-    def _create_instance(cls, event: Enum_Sync_Events, block_module: ModuleType):
+    def _create_instance(cls, event: Enum_Sync_Events, block_module: ModuleType = None, **mirrored_fields):
         """
         Blocks are created during addon startup/refresh. They can also be removed/recreated during runtime
         """
 
         logger = get_logger(Core_Block_Loggers.REGISTRATE)
-        
+
+        # The default BL→RTC mirror sync calls this with the mirrored key/data fields when a BL row
+        # has no RTC counterpart (e.g. a .blend saved with a different active-blocks manifest).
+        # Blocks are owned by the manifest, never by scene data, so those rows are ignored
+        if block_module is None:
+            stale_block_id = mirrored_fields.get("block_id", "<unknown>")
+            logger.warning(f"Ignoring stale saved block row '{stale_block_id}': blocks can only be created from the active-blocks manifest")
+            return
+
         block_id = None
+
         try:
 
             shallow_validate_block_module(block_module)
@@ -235,13 +255,20 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
 
     @classmethod
-    def _remove_instance(cls, event: Enum_Sync_Events, block_instance: RTC_Block_Instance):
+    def _remove_instance(cls, event: Enum_Sync_Events, block_instance: RTC_Block_Instance = None, **mirrored_fields):
 
         # Note that the Block record itself is not removed from RTC's REGISTRY_ALL_BLOCKS cache. Instead, its 'is_block_enabled' property is set to false
         # It is the only "trace" that should remain of a removed block.
 
         logger = get_logger(Core_Block_Loggers.BLOCK_MGMT)
-        
+
+        # Mirror-driven removals are ignored for the same reason as mirror-driven creations
+        if block_instance is None:
+            stale_block_id = mirrored_fields.get("block_id", "<unknown>")
+            logger.warning(f"Ignoring mirror-driven removal of block '{stale_block_id}': blocks can only be removed via the active-blocks manifest")
+            return
+
+
         logger.debug(f"Starting removal of block '{block_instance.block_id}'")
 
         _remove_block_FWC_instances(block_instance, logger)
@@ -252,35 +279,8 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
 
         logger.info(f"Finished removal of block '{block_instance.block_id}'")
 
-    # --------------------------------------------------------------
-    # Implemented from Abstract_BL_RTC_List_Syncronizer
-    # --------------------------------------------------------------
-
-    @classmethod
-    def _update_RTC_with_mirrored_BL_data(cls, event, FWC_instance, data_mirror_instance):
-        # 1-directional: BL never overwrites RTC data for blocks
-        pass
-
-
-    @classmethod
-    def _update_BL_with_mirrored_RTC_data(cls, event, FWC_instance, data_mirror_instance):
-        core_props = bpy.context.scene.dgblocks_core_props
-        cached_blocks = Wrapper_Runtime_Cache.get_cache(cache_key_blocks)
-        if cached_blocks is None:
-            return
-            
-        # Clear and repopulate BL Data. This will only happen during startup / reload
-        core_props.managed_blocks.clear()
-        for rtc_block in cached_blocks:
-            bl_block = core_props.managed_blocks.add()
-            bl_block.block_id = rtc_block.block_id
-            bl_block.is_valid = rtc_block.is_valid
-            bl_block.error_message = rtc_block.error_message if rtc_block.error_message else ""
-            bl_block.is_block_enabled = rtc_block.is_block_enabled
-            bl_block.debug_mode_enabled = rtc_block.debug_mode_enabled
-            bl_block.block_index = rtc_block.block_index
-
     # ------------------------------------------------------------------
+
     # Funcs specific to this class
     # ------------------------------------------------------------------
 

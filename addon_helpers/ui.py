@@ -1,12 +1,22 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import logging
 import time
 from typing import Optional
 import bpy
 
 from ..addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
 from ..addon_config.static_settings import min_width_for_weblink_btn_spawn, separator_width_factor, weblink_button_width_factor
+
+# addon_helpers must never import from a block, so block_core's get_logger() is off-limits here.
+# Fetching the same underlying python logger by name keeps this module's output inside the
+# core 'UI' logger (level + handlers already configured by Wrapper_Loggers)
+_UI_LOGGER_NAME = "UI"
+
+def _log_uilist_exception(message: str):
+    logging.getLogger(_UI_LOGGER_NAME).error(message, exc_info = True)
+
 
 # --------------------------------------------------------------
 # "Blind draw" functions: All drawing logic is contained inside the function
@@ -254,4 +264,9 @@ class DGBLOCKS_UL_Shared_Debug_List(bpy.types.UIList):
             flt_flags = [SHOW if show else 0 for show in show_list]
             return flt_flags, []
         except Exception:
+            # Never let a filter error break the panel, but never hide it either:
+            # a silent failure here looks identical to "the filter checkbox does nothing"
+            _log_uilist_exception(f"Filtering failed for UIList '{propname}', showing all rows")
             return [], []
+
+

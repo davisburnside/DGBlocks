@@ -48,8 +48,9 @@ class Core_Data_Mirrors(String_Comparable_Mixin):
         FWC_name = "Wrapper_Control_Plane",
         mirrored_key_field_names = ["block_id"],
         mirrored_data_field_names = ["is_valid", "error_message", "is_block_enabled", "debug_mode_enabled", "block_index"],
-        scene_colprop_path = None, # Non-standard, 1-direction sync
+        scene_colprop_path = "dgblocks_core_props.managed_blocks",
     )
+
     HOOKS_LIST = RTC_Member_Data_Mirror_Declaration(
         RTC_key = "REGISTRY_ALL_HOOK_SOURCES",
         FWC_name = "Wrapper_Hooks",
