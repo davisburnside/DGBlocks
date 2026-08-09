@@ -54,6 +54,7 @@ from .text_box import draw_text_box
 # Simple absolute positioning
 draw_text_box(
     context,
+    shader,  # Your GPU shader
     xy_point=(100, 200),
     text_lines=["Hello World", "This is a tooltip"],
     bg_color_top=(0.1, 0.1, 0.2, 0.8),
@@ -66,6 +67,7 @@ draw_text_box(
 # Corner offset with per-line formatting
 draw_text_box(
     context,
+    shader,
     corner_offset=("TOP_LEFT", some_area, 20, -20),
     text_lines=["Title", "Description text here", "Footer"],
     font_sizes=[18, 14, 12],
@@ -82,19 +84,17 @@ NOTES
 - If one is None, it defaults to (1, 1, 1, 0)
 - Text lines with empty strings are skipped
 - All positions are in Blender's pixel coordinates (Y-up)
-
-REQUIREMENTS
-------------
-- A shader with set_points(), set_colors(), and draw() methods
-- The shader should accept numpy arrays for batch processing
-- BLF font system available in Blender 5
+- Uses gpu.types.GPUShader for smooth_color gradient rendering
 """
 
 import bpy
 import blf
+import gpu
+from gpu.types import GPUBatch, GPUShader
 import numpy as np
 from mathutils import Vector
 from typing import Union, List, Tuple, Optional, Any
+
 
 # ============================================================================
 # CONSTANTS
@@ -105,6 +105,55 @@ DEFAULT_MAX_CHAR_COUNT = 80
 DEFAULT_ALIGNMENT = "left"
 DEFAULT_PADDING = 5
 DEFAULT_COLOR = (1.0, 1.0, 1.0, 0.0)
+
+
+# ============================================================================
+# SHADER HELPERS
+# ============================================================================
+
+def _draw_gradient_quad(
+    shader,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    color_top: Tuple[float, float, float, float],
+    color_bottom: Tuple[float, float, float, float]
+) -> None:
+    """
+    Draw a gradient quad using 2D_SMOOTH_COLOR shader.
+    
+    The quad is made of 2 triangles (6 vertices) with vertex colors interpolated.
+    """
+    # Define the 4 corners of the quad
+    # Order: top-left, top-right, bottom-right, bottom-left
+    vertices = np.array([
+        (x, y + height),      # 0: top-left
+        (x + width, y + height),  # 1: top-right
+        (x + width, y),       # 2: bottom-right
+        (x, y),               # 3: bottom-left
+    ], dtype=np.float32)
+    
+    # Colors for each vertex (top colors for top vertices, bottom for bottom)
+    colors = np.array([
+        color_top,    # top-left
+        color_top,    # top-right
+        color_bottom, # bottom-right
+        color_bottom, # bottom-left
+    ], dtype=np.float32)
+    
+    # Create indices for 2 triangles (triangle fan from bottom-left)
+    # Triangle 1: top-left, top-right, bottom-right
+    # Triangle 2: top-left, bottom-right, bottom-left
+    indices = np.array([
+        0, 1, 2,  # First triangle
+        0, 2, 3,  # Second triangle
+    ], dtype=np.int32)
+    
+    shader.is_enabled = True
+    shader.set_points(vertices)
+    shader.set_colors(colors)
+    shader.set_indices(indices)
 
 # ============================================================================
 # PADDING UTILITIES
@@ -439,16 +488,14 @@ def _process_text_lines(
         - padding: tuple
         - width: float
         - height: float
-        - wrapped_from: int (original line index)
+        - original_index: int
     """
     line_infos = []
-    original_line_index = -1
     
     for orig_idx, text in enumerate(text_lines):
         if not text.strip():
             continue
         
-        original_line_index += 1
         font_size = font_sizes[orig_idx]
         alignment = alignments[orig_idx]
         max_char = max_char_counts[orig_idx]
@@ -523,52 +570,6 @@ def _calculate_text_x_positions(
 
 
 # ============================================================================
-# BACKGROUND RENDERER
-# ============================================================================
-
-def _draw_background(
-    shader,
-    x: float,
-    y: float,
-    width: float,
-    height: float,
-    color_top: Tuple[float, float, float, float],
-    color_bottom: Tuple[float, float, float, float]
-) -> None:
-    """Draw a gradient background quad using the shader."""
-    # Create quad vertices (clockwise from top-left)
-    vertices = np.array([
-        [x, y + height],  # top-left
-        [x + width, y + height],  # top-right
-        [x + width, y],  # bottom-right
-        [x, y],  # bottom-left
-    ], dtype=np.float32)
-    
-    # Create UVs for gradient (v=1 at top, v=0 at bottom)
-    uvs = np.array([
-        [0.0, 1.0],  # top-left
-        [1.0, 1.0],  # top-right
-        [1.0, 0.0],  # bottom-right
-        [0.0, 0.0],  # bottom-left
-    ], dtype=np.float32)
-    
-    # Combine position and UV into single array if shader expects it
-    # Or use separate calls to set_points and set_colors
-    shader.set_points(vertices)
-    
-    # Set colors for each vertex (top colors for top vertices, bottom colors for bottom)
-    colors = np.array([
-        color_top,  # top-left
-        color_top,  # top-right
-        color_bottom,  # bottom-right
-        color_bottom,  # bottom-left
-    ], dtype=np.float32)
-    
-    shader.set_colors(colors)
-    shader.draw()
-
-
-# ============================================================================
 # MAIN DRAW FUNCTION
 # ============================================================================
 
@@ -593,7 +594,6 @@ def draw_text_box(
     
     Args:
         context: Blender context
-        shader: Shader object with set_points(), set_colors(), draw()
         text_lines: List of text strings to display
         xy_point: (x, y) absolute position (box expands downward)
         corner_offset: (corner, area_ref, offset_x, offset_y) for relative positioning
@@ -612,7 +612,7 @@ def draw_text_box(
     
     Example:
         draw_text_box(
-            context, shader,
+            context,
             text_lines=["Hello", "World"],
             xy_point=(100, 100),
             bg_color_top=(0.1, 0.1, 0.2, 0.8),
@@ -673,7 +673,7 @@ def draw_text_box(
         bottom_color = bg_color_bottom if bg_color_bottom is not None else DEFAULT_COLOR
         
         # Draw background
-        _draw_background(shader, pos_x, pos_y, box_width, box_height, top_color, bottom_color)
+        _draw_gradient_quad(shader, pos_x, pos_y, box_width, box_height, top_color, bottom_color)
     
     # Calculate line Y positions (from bottom to top)
     y_positions = _calculate_line_y_positions(
@@ -690,63 +690,9 @@ def draw_text_box(
         x = x_positions[i]
         y = y_positions[i]
         
-        # BLF uses bottom-left origin, so we need to add line height
+        # BLF uses bottom-left origin
         blf.size(font_id, info['font_size'])
         blf.position(font_id, x, y, 0.0)
         blf.draw(font_id, info['text'])
     
     return True
-
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def create_gradient_shader() -> Any:
-    """
-    Create a simple gradient shader for the text box.
-    
-    This is a helper function that creates a basic shader with the required
-    set_points(), set_colors(), and draw() methods.
-    
-    Returns:
-        Shader object or None if creation fails
-    """
-    try:
-        import gpu
-        from gpu.types import GPUShader, GPUBatch
-        
-        # Vertex shader for 2D position + UV
-        vertex_shader = """
-        uniform mat4 ModelViewProjectionMatrix;
-        in vec2 pos;
-        in vec2 uv;
-        out vec2 uv_interp;
-        void main() {
-            uv_interp = uv;
-            gl_Position = ModelViewProjectionMatrix * vec4(pos, 0.0, 1.0);
-        }
-        """
-        
-        # Fragment shader with gradient
-        fragment_shader = """
-        uniform vec4 color_top;
-        uniform vec4 color_bottom;
-        in vec2 uv_interp;
-        out vec4 fragColor;
-        void main() {
-            float t = uv_interp.y;
-            fragColor = mix(color_bottom, color_top, t);
-        }
-        """
-        
-        shader = GPUShader(vertex_shader, fragment_shader)
-        shader.set_points = lambda pts: shader.uniform_vec2("pos", pts)
-        shader.set_colors = lambda colors: None  # Not used in this shader
-        shader.draw = lambda: None  # Placeholder
-        
-        return shader
-        
-    except Exception as e:
-        print(f"Could not create gradient shader: {e}")
-        return None

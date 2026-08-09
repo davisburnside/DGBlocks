@@ -18,6 +18,54 @@ def _log_uilist_exception(message: str):
     logging.getLogger(_UI_LOGGER_NAME).error(message, exc_info = True)
 
 
+
+
+
+
+
+def find_area_by_pointer(pointer: int) -> Optional[bpy.types.Area]:
+    if not pointer:
+        return None
+    windows = bpy.context.window_manager.windows
+    if not windows:
+        return None
+    for window in windows:
+        if not window.screen:
+            continue
+        for area in window.screen.areas:
+            if area.as_pointer() == pointer:
+                return area
+    return None
+
+
+def find_window_by_pointer(pointer: int) -> Optional[bpy.types.Window]:
+    if not pointer:
+        return None
+    windows = bpy.context.window_manager.windows
+    for window in windows:
+        if window.as_pointer() == pointer:
+            return window
+    return None
+
+
+def find_region_by_pointer(pointer: int, area: Optional[bpy.types.Area] = None) -> Optional[bpy.types.Region]:
+    if not pointer:
+        return None
+    if area:
+        for region in area.regions:
+            if region.as_pointer() == pointer:
+                return region
+        return None
+    windows = bpy.context.window_manager.windows
+    for window in windows:
+        if not window.screen:
+            continue
+        for area in window.screen.areas:
+            for region in area.regions:
+                if region.as_pointer() == pointer:
+                    return region
+    return None
+
 # --------------------------------------------------------------
 # "Blind draw" functions: All drawing logic is contained inside the function
 # --------------------------------------------------------------

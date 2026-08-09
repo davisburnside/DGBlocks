@@ -37,25 +37,28 @@ def _set_router_running(value: bool) -> None:
     global _router_is_running
     _router_is_running = value
 
-def _update_user_input_capture_instance(context, event):
-
-    user_input_capture = User_Input_Capture_Instance(
-        type = event.type,
-        mouse_x = event.mouse_x,
-        mouse_y = event.mouse_y,
-        shift = event.shift,
-        ctrl = event.ctrl,
-        alt = event.alt,
-        oskey = event.oskey,
-        value = event.value,
-        window_id = context.window.id,
-        area_id = context.area.id if context.area else None,
-        area_type = context.area.type if context.area else None,
-        mouse_x_area = event.mouse_x - context.area.x if context.area else None,
-        mouse_y_area = event.mouse_y - context.area.y if context.area else None,
-        region_type = context.region.type if context.region else None,
-        workspace_name = context.workspace.name if context.workspace else None,
-    )
+def _update_user_input_capture_instance(context, event, should_clear = False):
+    """ Create new instance every event"""
+    
+    if should_clear:
+        user_input_capture = User_Input_Capture_Instance() # All None'd fields
+    else:
+        user_input_capture = User_Input_Capture_Instance(
+            mouse_x = event.mouse_x,
+            mouse_y = event.mouse_y,
+            shift = event.shift,
+            ctrl = event.ctrl,
+            alt = event.alt,
+            oskey = event.oskey,
+            value = event.value,
+            area_id = context.area.as_pointer() if context.area else None,
+            area_type = context.area.type if context.area else None,
+            mouse_x_area = event.mouse_x - context.area.x if context.area else None,
+            mouse_y_area = event.mouse_y - context.area.y if context.area else None,
+            region_type = context.region.type if context.region else None,
+            workspace_name = context.workspace.name if context.workspace else None,
+            window_id = context.window.as_pointer() if context.window else None,
+        )
 
     Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.USER_INPUT_CAPTURE, user_input_capture)
 
@@ -341,6 +344,7 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
         except Exception:
             logger.error("router end: error during end hooks", exc_info=True)
         _set_router_running(False)
+        _update_user_input_capture_instance(context, event = None, should_clear = True)
         logger.info(f"Modal event router ended (reason='{reason}')")
 
     def modal(self, context, event):

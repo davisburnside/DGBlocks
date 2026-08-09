@@ -225,8 +225,6 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
         if associated_FWC_name not in all_known_FWC_names:
             raise Exception(f"Unable to make data mirror for '{associated_RTC_key}' because feature '{associated_FWC_name}' is not present in RTC")
         
-        # FWC Validation
-
         # Validation for data container type
         cache_data_type = None
         if isinstance(mirrored_cache, list):
@@ -235,19 +233,6 @@ def _create_new_block_RTC_data_mirrors(block_declaration, logger):
             RTC_member_type = "dict"
         else:
             raise Exception(f"Invalid RTC member type for data mirror '{associated_RTC_key}', data type = '{mirrored_cache.__class__}'")
-
-        # Add data-mirror instance as child of existing FWC instance.
-        # list_idx = all_known_FWC_names.index(associated_FWC_name)
-        # associated_FWC_instance = cached_FWCs[list_idx]
-        # new_data_mirror = RTC_FWC_Data_Mirror_Instance(
-        #     associated_RTC_key,
-        #     associated_FWC_name,
-        #     RTC_member_type,
-        #     enum_val.mirrored_key_field_names,
-        #     enum_val.mirrored_data_field_names,
-        #     scene_colprop_path = enum_val.scene_colprop_path,
-        # )
-        # cached_data_mirrors.append(new_data_mirror)
 
         # Just a copy: no new fields
         data_mirror_instance = RTC_FWC_Data_Mirror_Instance(
