@@ -1,8 +1,5 @@
 """
-Text Box Renderer for Blender 5
-================================
-
-A robust, real-time text box rendering system using POST_PIXEL shaders and BLF.
+A  real-time text box rendering system using POST_PIXEL shaders and BLF.
 
 OVERVIEW
 --------
@@ -150,10 +147,10 @@ def _draw_gradient_quad(
         0, 2, 3,  # Second triangle
     ], dtype=np.int32)
     
-    shader.is_enabled = True
-    shader.set_points(vertices)
-    shader.set_colors(colors)
-    shader.set_indices(indices)
+    # shader.is_enabled = True
+    # shader.set_points(vertices)
+    # shader.set_colors(colors)
+    # shader.set_indices(indices)
 
 # ============================================================================
 # PADDING UTILITIES
@@ -673,7 +670,7 @@ def draw_text_box(
         bottom_color = bg_color_bottom if bg_color_bottom is not None else DEFAULT_COLOR
         
         # Draw background
-        _draw_gradient_quad(shader, pos_x, pos_y, box_width, box_height, top_color, bottom_color)
+        # _draw_gradient_quad(shader, pos_x, pos_y, box_width, box_height, top_color, bottom_color)
     
     # Calculate line Y positions (from bottom to top)
     y_positions = _calculate_line_y_positions(
@@ -693,6 +690,8 @@ def draw_text_box(
         # BLF uses bottom-left origin
         blf.size(font_id, info['font_size'])
         blf.position(font_id, x, y, 0.0)
+        blf.color(font_id, 1, 1, 1, 1)
         blf.draw(font_id, info['text'])
+        print(f"Drawing: '{info['text']}' at ({x:.1f}, {y:.1f}) size={info['font_size']}")
     
     return True

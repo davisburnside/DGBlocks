@@ -361,3 +361,21 @@ def _universal_draw_callback(handler_instance) -> None:
         for shader in failed_shaders:
             logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.shader_error_str}")
 
+
+
+def apply_global_opacity_multiplier(colors_array, opacity_multiplier):
+    """
+    Apply global opacity multiplier to color array's alpha channel.
+    
+    Args:
+        colors_array: numpy array of shape (n, 4) with RGBA colors
+        opacity_multiplier: float 0-1, multiplier for alpha channel
+        
+    Returns:
+        Modified colors_array with alpha multiplied
+    """
+    if opacity_multiplier < 1.0 and len(colors_array) > 0:
+        colors_array = colors_array.copy()
+        colors_array[:, 3] *= opacity_multiplier
+    return colors_array
+
