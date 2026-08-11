@@ -692,6 +692,6 @@ def draw_text_box(
         blf.position(font_id, x, y, 0.0)
         blf.color(font_id, 1, 1, 1, 1)
         blf.draw(font_id, info['text'])
-        print(f"Drawing: '{info['text']}' at ({x:.1f}, {y:.1f}) size={info['font_size']}")
+        # print(f"Drawing: '{info['text']}' at ({x:.1f}, {y:.1f}) size={info['font_size']}")
     
     return True

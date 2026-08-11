@@ -15,6 +15,8 @@ class Block_Hook_Sources(String_Comparable_Mixin):
 class Block_Loggers(String_Comparable_Mixin):    
     DRAWHANDLER_LIFECYCLE = Logger_Declaration("INFO")
     SHADER_BATCH_EVENTS   = Logger_Declaration("INFO")
+    ANIMATION_LIFECYCLE   = Logger_Declaration("INFO")
+    ANIMATION_TICK_EVENTS = Logger_Declaration("INFO")
 
 
 class Block_RTC_Members(String_Comparable_Mixin):
@@ -33,8 +35,8 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
 
 class Block_UIList_Configs(String_Comparable_Mixin):
     SHADERS_UILIST = Shared_UIList_Declaration(
-        col_names = ["Shader Name", "Phase/Region/Space", "Enabled"],
-        col_widths = [3, 3, 1],
+        col_names = ["Shader Name", "Phase/Region/Space", "Anims", "Enabled"],
+        col_widths = [3, 3, 1, 1],
         scene_parent_path = "dgblocks_onscreen_drawing_props",
         scene_colprop_path = "shader_mirror",
         scene_colprop_path_UIList_selection_idx_path = "shader_mirror_selected_idx",

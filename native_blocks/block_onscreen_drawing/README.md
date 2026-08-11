@@ -16,6 +16,10 @@ registering one Blender draw handler per `(space, region, phase)` group, creatin
 | Block | Reason |
 |---|---|
 | `block-core` | Runtime cache, loggers, hooks |
+| `block-timers` | Tick cadence for the animation sub-feature (`animations/`) |
+
+> **Registration order:** `block_timers` must appear **before** `block_onscreen_drawing`
+> in `addon_config/active_blocks.py`, since dependencies register first.
 
 ## Architecture Summary
 
@@ -80,6 +84,12 @@ fast path and never touches GPU objects.
 | `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `{}` | Collect `Shader_Definition` objects; subscribers return a list of definitions |
 | `hook_before_first_draw` | block_onscreen_drawing → subscribers | `{}` | Push initial geometry via `get_shader(uid)` after all instances are live |
 
+## Hook Subscriptions (other blocks)
+
+| Member | Source block | Purpose |
+|---|---|---|
+| `hook_get_timer_definitions` | `block-timers` | Returns one `Timer_Definition` per unique animation framerate |
+
 ## Hook Subscriptions (core hooks)
 
 *(No direct core hook subscriptions in `__init__.py`. Undo/redo is handled via `Abstract_BL_RTC_List_Syncronizer` data mirror sync in `Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data`)*
@@ -135,6 +145,27 @@ Shader_Definition(
     phase=Draw_Phase_type.POST_VIEW,
     custom_shader_class=My_Billboard_Shader,
     custom_shader_kwargs={"image_name": "my_image"},
+)
+```
+
+Optionally attach animations that should be re-created on every rebuild:
+
+```python
+Shader_Definition(
+    shader_uid="MY_LINES",
+    ...,
+    animations=[
+        Animation_Declaration(
+            animation_uid="ambient_pulse",
+            data_type=ANIM_DATA_TYPE_UNIFORMS,
+            data_name="alpha",
+            start_state=0.2,
+            end_state=1.0,
+            duration=0.6,
+            loop_mode=ANIM_LOOP_PING_PONG,
+            loop_count=0,
+        ),
+    ],
 )
 ```
 
@@ -212,7 +243,7 @@ The `enable_drawing` toggle in the panel (owned by `block_onscreen_drawing`) dri
 
 ## Validation
 
-`validate_shader_definitions()` in `helpers.py` runs all checks before any Blender state is
+`_validate_shader_definitions()` in `helpers.py` runs all checks before any Blender state is
 mutated. Checks:
 
 1. Duplicate `uid` detection across all contributing blocks
@@ -220,12 +251,76 @@ mutated. Checks:
 3. Exactly one of `builtin_shader_name` / `custom_shader_class` per definition
 4. Builtin shader name compatibility with the declared `shader_type`
 
+## Animations
+
+Lives in `animations/`. Lerps any Python-readable attribute on a `Shader_Instance`
+(batch arrays **or** cached uniform values) over time, driven by `block_timers`.
+
+**Animations are owned by their shader.** They live in `Shader_Instance._animations`
+(`uid -> Animation_Instance`), not in a separate RTC list, which means:
+
+- The API is on the shader: `shader.set_animation(decl)`, not a manager class.
+- `animation_uid` is scoped **per shader** — two shaders may both own a `"pulse"`.
+- An animation is destroyed with its shader. No orphan cleanup, no stale-uid lookups.
+
+### Declared vs imperative
+
+|  | Declared (`Shader_Definition.animations`) | Imperative (`shader.set_animation()`) |
+|---|---|---|
+| Survives a shader rebuild (undo/redo, debug toggle) | **Yes** — re-applied every rebuild | No — dies with the instance |
+| Best for | Permanent/ambient effects | Effects driven by transient state (selection, hover) |
+
+Declared animations are applied **after** `hook_before_first_draw`, so a declaration
+using `start_state=None` auto-captures real geometry rather than `None`.
+
+### Shader API (from `Animatable_Mixin`)
+
+| Method | Purpose |
+|---|---|
+| `set_animation(decl)` | **Upsert.** Creates, or updates in place *preserving phase* |
+| `add_animation(decl)` | Create only; warns if the uid is already active |
+| `cancel_animation(uid, revert=True)` | Remove; the only way to stop an infinite loop |
+| `cancel_all_animations(revert=True)` | Remove every animation on this shader |
+| `get_animation(uid)` / `has_animation(uid)` | Lookup |
+| `get_active_animations()` | Snapshot list |
+| `pause_animation(uid)` | Toggle `is_paused` |
+| `update_animation(uid, **fields)` | Patch fields, preserving phase |
+
+Phase preservation is what makes `set_animation()` the call to reach for: swapping in
+new data mid-cycle produces no visual seam, because `_elapsed_time` survives.
+
+```python
+shader = Wrapper_Shader_Manager.get_shader("SELECTION_SHADER")
+shader.set_animation(Animation_Declaration(
+    animation_uid = "SELECTION_PULSE",
+    data_type     = ANIM_DATA_TYPE_BATCH,   # or ANIM_DATA_TYPE_UNIFORMS
+    data_name     = "_colors",              # or a uniform name, e.g. "alpha"
+    start_state   = colors_bright,          # None -> auto-capture from the shader
+    end_state     = colors_dim,
+    duration      = 1.2,
+    framerate     = 30,
+    loop_mode     = ANIM_LOOP_PING_PONG,    # ONCE | REPEAT | PING_PONG
+    loop_count    = 0,                      # 0 = infinite
+))
+```
+
+### Rules
+
+1. `_indices` can never be animated (integer topology, not interpolatable).
+2. `add_animation()` ignores a uid already active on that shader; `set_animation()` upserts.
+3. A looping animation runs until `cancel_animation()` or `loop_count` exhaustion. By
+   default it lands on `end_state`; set `revert_on_finish=True` to snap back.
+4. One `bpy.app.timer` per unique framerate, shared across all animations at that rate.
+   The tick loop disables a timer once nothing is left running at its framerate.
+
 ## Loggers
 
 | Logger | Level | Usage |
 |---|---|---|
 | `DRAWHANDLER_LIFECYCLE` | `DEBUG` | Rebuild/clear events, handler registration, shader creation |
 | `SHADER_BATCH_EVENTS` | `DEBUG` | Per-frame draw failures with per-shader error details |
+| `ANIMATION_LIFECYCLE` | `DEBUG` | Animation create/update/cancel events |
+| `ANIMATION_TICK_EVENTS` | `DEBUG` | Per-tick lerp errors and timer shutdown |
 
 ## Files
 
@@ -237,6 +332,22 @@ block_onscreen_drawing/
 ├── BL_drawing_structures.py          # Space/Region/Phase enums, builtin shaders enums, validation allowlists
 ├── data_structures.py                # Shader_Definition, Shader_Instance, Drawhandler_Instance
 ├── feature_shader_manager.py         # Wrapper_Shader_Manager (_update_RTC..., _update_BL...)
-├── helpers.py                        # _rebuild_all_shaders, _clear_all_shaders, _universal_draw_callback, validate_shader_definitions
-└── ui.py                             # UIList draw helpers
+├── helpers.py                        # _rebuild_all_shaders, _clear_all_shaders, _universal_draw_callback, _validate_shader_definitions
+├── ui.py                             # UIList draw helpers
+├── builtin_shaders_and_effects/      # Reusable custom Shader_Instance subclasses
+└── animations/                       # Animation sub-feature (see "Animations" above)
+    ├── constants.py                  # ANIM_* string constants — imports nothing (leaf)
+    ├── data_structures.py            # Animation_Declaration, Animation_Instance (leaf)
+    ├── engine.py                     # lerp, tick loop, timer definitions, validation
+    └── mixin.py                      # Animatable_Mixin — the per-shader public API
 ```
+
+**Import direction inside `animations/`** is strictly one-way, which is what keeps the
+`common_declarations.py -> ui.py` chain free of cycles:
+
+```text
+constants.py  <-  data_structures.py  <-  engine.py  <-  mixin.py  <-  ../data_structures.py
+```
+
+`constants.py` and `data_structures.py` import nothing from the parent block, so
+downstream blocks can safely import declarations without pulling in the engine.

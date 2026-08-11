@@ -9,10 +9,9 @@
 from ..native_blocks import (
     block_core, 
     block_debug_console_print, 
+    block_timers, 
     block_onscreen_drawing, 
     block_app_handlers, 
-    block_timers, 
-    block_animations,
     block_geometry_actions,
     block_modal_events,
     #, block_pip_library_manager
@@ -44,10 +43,9 @@ from ..external_blocks.block_flatypus_modes_manager import block_flatypus_modes_
 _BLOCK_PACKAGES = [
     block_core,
     block_debug_console_print,
+    block_timers,              # must precede block_onscreen_drawing — animations depend on it
     block_onscreen_drawing,
     block_app_handlers,
-    block_timers,
-    block_animations,
     block_geometry_actions,
     block_modal_events,
     block_flatypus_modes_manager,

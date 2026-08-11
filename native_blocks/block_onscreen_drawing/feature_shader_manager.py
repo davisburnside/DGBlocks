@@ -1,7 +1,4 @@
 
-from collections import defaultdict
-import time
-import types
 from typing import Optional
 import bpy
 
@@ -18,9 +15,6 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from .common_declarations import  Block_Loggers, Block_RTC_Members
 from .helpers import _clear_all_shaders, _rebuild_all_shaders
 from .data_structures import Shader_Instance
-
-# Aliases
-cache_key_shaders = Block_RTC_Members.SHADERS
 
 class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer, Abstract_Shared_UIList_Draw):
 

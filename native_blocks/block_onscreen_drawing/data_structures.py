@@ -9,6 +9,7 @@ from mathutils import Matrix, Vector # type: ignore
 from gpu_extras.batch import batch_for_shader
 
 from .BL_drawing_structures import Builtin_Shader_Names, Draw_Phase_type, Draw_Region_Type, Draw_Space_Types, Shader_Types # type: ignore
+from .animations.mixin import Animatable_Mixin
 
 # ==============================================================================================================================
 # DECLARATIVE CONFIG DATACLASSES
@@ -55,9 +56,16 @@ class Shader_Definition:
     custom_shader_class: Optional[type] = None  # Shader_Instance subclass
     custom_shader_kwargs: dict = field(default_factory=dict)
 
+    # Animations that belong to this shader. Applied automatically by
+    # _rebuild_all_shaders() AFTER hook_before_first_draw has populated geometry,
+    # so declarations using start_state=None auto-capture a meaningful value.
+    # Unlike animations added imperatively via shader.set_animation(), these are
+    # re-created on every rebuild — so they survive undo/redo and debug toggles.
+    animations: list = field(default_factory=list)  # list[Animation_Declaration]
+
 
 @dataclass
-class Shader_Instance:
+class Shader_Instance(Animatable_Mixin):
 
     # Primary fields
     shader_type: str  # Enum value of 'POINTS', 'LINES', 'TRIS'
@@ -94,6 +102,10 @@ class Shader_Instance:
     _highest_index: int = -1
     _needs_new_batch: bool = True
     _uniforms: dict = field(init=False, default_factory=dict, repr=False)  # Python-side cache of all set_uniform() calls
+
+    # Animations owned by this shader (uid -> Animation_Instance). See Animatable_Mixin.
+    # Owning them here means they are destroyed with the shader — no orphan cleanup needed.
+    _animations: dict = field(init=False, default_factory=dict, repr=False)
 
     # Optional callbacks for deault shaders
     _builtin_shader_before_draw = None

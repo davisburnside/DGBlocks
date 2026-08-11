@@ -13,6 +13,7 @@ from .. import block_core  # noqa: F401 — ensures block_core is loaded first
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
+from ..block_timers.feature_timer_manager import Wrapper_Timer_Manager
 from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist
 
 # --------------------------------------------------------------
@@ -22,6 +23,9 @@ from .feature_shader_manager import Wrapper_Shader_Manager
 from .data_structures import Shader_Definition
 from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
 from .helpers import _clear_all_shaders, _rebuild_all_shaders
+from .animations.constants import ANIM_DATA_TYPE_BATCH, ANIM_LOOP_PING_PONG
+from .animations.data_structures import Animation_Declaration
+from .animations.engine import get_timer_definitions_from_animations, suppress_timer_rebuilds
 
 cache_key_shaders = Block_RTC_Members.SHADERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
@@ -164,8 +168,70 @@ def hook_get_shader_definitions():
             )
     return returned_shader_definitions
 
+
+def hook_get_timer_definitions():
+    """
+    Subscribed to block_timers' hook_get_timer_definitions.
+    Returns one Timer_Definition per unique framerate across all shader-owned
+    animations. block_timers creates one bpy.app.timer per definition returned here.
+    """
+    return get_timer_definitions_from_animations()
+
 # ==============================================================================================================================
 # UI 
+
+class DGBLOCKS_OT_Sample_Animations(bpy.types.Operator):
+    """Add a simple looping 'jitter' animation to every enabled shader"""
+    bl_idname = "dgblocks.sample_animations"
+    bl_label = "Sample Animations"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+
+        cached_shaders = Wrapper_Runtime_Cache.get_cache(cache_key_shaders) or []
+
+        applied = 0
+        skipped = 0
+        with suppress_timer_rebuilds():
+            for shader_instance in cached_shaders:
+                if not shader_instance.is_enabled:
+                    continue
+
+                # A shader whose geometry has not been pushed yet has nothing to jitter.
+                points = shader_instance._points
+                if points is None or len(points) == 0:
+                    skipped += 1
+                    continue
+
+                jittered_points = points.copy()
+                jittered_points[:] += 1
+
+                # Ping-pong so it reads as a jitter rather than a one-way drift, and
+                # set_animation() so repeated clicks retarget instead of warning.
+                shader_instance.set_animation(Animation_Declaration(
+                    animation_uid = "SAMPLE_JITTER",
+                    data_type     = ANIM_DATA_TYPE_BATCH,
+                    data_name     = "_points",
+                    end_state     = jittered_points,
+                    duration      = 0.5,
+                    framerate     = 30,
+                    loop_mode     = ANIM_LOOP_PING_PONG,
+                    loop_count    = 6,
+                    revert_on_finish = True,
+                ))
+                applied += 1
+
+        if applied:
+            Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE)
+            self.report({"INFO"}, f"Jitter added to {applied} shader(s)")
+        else:
+            self.report(
+                {"WARNING"},
+                f"No enabled shaders with geometry to animate ({skipped} had no points)",
+            )
+
+        return {"FINISHED"}
+
 
 class DGBLOCKS_UL_Shader_List(bpy.types.UIList):
     bl_idname = "DGBLOCKS_UL_Shader_List"
@@ -208,6 +274,9 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
         if not drawing_props.shader_mirror:
             layout.label(text="No active shaders", icon="INFO")
         else:
+            row = layout.row()
+            row.enabled = drawing_props.enable_drawing
+            row.operator(DGBLOCKS_OT_Sample_Animations.bl_idname, icon="PLAY")
             draw_shared_uilist(context, layout, "shader_mirror")
 
 # ==============================================================================================================================
@@ -227,10 +296,11 @@ def unregister_block_props():
 _BLOCK_DECLARATION = Block_Declaration(
     block_module = sys.modules[__name__],
     block_id = "block-onscreen-draw",
-    block_dependencies = ["block-core"],
+    block_dependencies = ["block-core", "block-timers"],
     block_bpy_classes = [
         DGBLOCKS_PG_Shader_Mirror_Row,
         DGBLOCKS_PG_Onscreen_Drawing_Props,
+        DGBLOCKS_OT_Sample_Animations,
         DGBLOCKS_UL_Shader_List,
         DGBLOCKS_PT_Debug_Drawing_Panel,
     ],

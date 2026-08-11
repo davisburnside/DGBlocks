@@ -13,14 +13,16 @@ from ...addon_helpers.data_structures import Enum_Sync_Events
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..block_timers.feature_timer_manager import Wrapper_Timer_Manager
 from .BL_drawing_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS
+from .animations.engine import suppress_timer_rebuilds
 
 # Intra-block imports
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .data_structures import Shader_Instance, Drawhandler_Instance
 
-# Aliases
-cache_key_shaders = Block_RTC_Members.SHADERS
+# --------------------------------------------------------------
+# Constants
 
 # ----------------------------------------------------------
 # Public convenience funcs
@@ -41,7 +43,7 @@ def set_draw_geometry_unoccluded():
 # ----------------------------------------------------------
 # Internal Helpers
 
-def validate_shader_definitions(shader_defs: list) -> None:
+def _validate_shader_definitions(shader_defs: list) -> None:
     """
     Run all validation checks against a list of Shader_Definition objects.
     Raises ValueError with a descriptive message if any check fails.
@@ -168,6 +170,11 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
             and undo/redo).
         6. Sync BL shader_mirror rows to reflect the current live shader set.
         7. Fire hook_before_first_draw — downstream blocks push initial geometry here.
+        8. Apply Shader_Definition.animations to the new instances.
+
+    Step 8 must run AFTER step 7: an Animation_Declaration with start_state=None
+    auto-captures its start value off the shader, so the geometry has to be in place
+    first or the capture reads None and the animation is skipped.
     """
     logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
     logger.debug("Rebuilding all Shaders")
@@ -184,7 +191,7 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
     if len(list_shaders_from_blocks) == 0:
         logger.info("No Shaders to draw, returning early")
         return
-    validate_shader_definitions(list_shaders_from_blocks)
+    _validate_shader_definitions(list_shaders_from_blocks)
 
     # Group definitions by (space, region, phase)
     groups: dict = defaultdict(list)
@@ -259,11 +266,11 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
     logger.info(f"Created {len(list_shaders_from_blocks)} Shaders across {len(rtc_draw_phases)} Draw Handlers")
 
     if sync_BL:
-        FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_shaders)
+        FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(Block_RTC_Members.SHADERS)
         Wrapper_Runtime_Cache.resync_single_data_mirror(
-            event = Enum_Sync_Events, 
+            event = event, 
             BL_is_truth_source = False,
-            cache_key = cache_key_shaders,
+            cache_key = Block_RTC_Members.SHADERS,
             FWC_instance = FWC_instance,
             data_mirror_instance = data_mirror_instance,
             actions_denied = set(),
@@ -276,6 +283,42 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
         hook_func_name=Block_Hook_Sources.hook_before_first_draw,
         should_halt_on_exception=False,
     )
+
+    # Apply declared animations LAST, now that geometry is populated, so that any
+    # declaration using start_state=None captures a real value instead of None.
+    _apply_declared_animations(list_shaders_from_blocks, rtc_shaders, logger)
+
+
+def _apply_declared_animations(shader_definitions: list, shader_instances: list, logger) -> None:
+    """
+    Attach each Shader_Definition.animations entry to its live Shader_Instance.
+
+    Declared animations are re-created on every rebuild, so they survive undo/redo,
+    debug toggles, and any other event that recreates the shader set. Animations
+    added imperatively via shader.set_animation() are NOT restored here — they live
+    only as long as the shader instance that owns them.
+
+    All the adds are wrapped in a single suppression scope so that N animations
+    cause one timer rebuild instead of N.
+    """
+    instances_by_uid = {s.shader_uid: s for s in shader_instances}
+
+    applied_count = 0
+    with suppress_timer_rebuilds():
+        for sdef in shader_definitions:
+            declared = getattr(sdef, "animations", None)
+            if not declared:
+                continue
+            shader_instance = instances_by_uid.get(sdef.shader_uid)
+            if shader_instance is None:
+                continue
+            for animation_declaration in declared:
+                shader_instance.add_animation(animation_declaration)
+                applied_count += 1
+
+    if applied_count > 0:
+        logger.info(f"Applied {applied_count} declared animation(s) across all shaders")
+        Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE)
 
 # ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
@@ -291,6 +334,7 @@ def _handle_batch_update(shader):
         shader.draw_count_of_batch = 0
         shader.batch_count_of_shader += 1
         shader._needs_new_batch = False
+
 
 def _universal_draw_callback(handler_instance) -> None:
     """
@@ -326,7 +370,9 @@ def _universal_draw_callback(handler_instance) -> None:
             shader = cached_shaders[cache_idx]
 
             # Draw the shader
-            if shader.is_enabled:
+            if not shader.is_enabled:
+                print("skip", shader_uid)
+            else:
                 shader.last_draw_timestamp = time.time()
                 shader.draw_count_of_batch += 1
 
@@ -362,7 +408,6 @@ def _universal_draw_callback(handler_instance) -> None:
             logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.shader_error_str}")
 
 
-
 def apply_global_opacity_multiplier(colors_array, opacity_multiplier):
     """
     Apply global opacity multiplier to color array's alpha channel.
@@ -378,4 +423,3 @@ def apply_global_opacity_multiplier(colors_array, opacity_multiplier):
         colors_array = colors_array.copy()
         colors_array[:, 3] *= opacity_multiplier
     return colors_array
-
