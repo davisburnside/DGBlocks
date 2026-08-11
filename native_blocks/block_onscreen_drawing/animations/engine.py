@@ -1,7 +1,6 @@
 
 import copy
 from typing import Any
-
 import bpy
 import numpy as np
 
@@ -29,7 +28,6 @@ from .data_structures import Animation_Instance
 # ==============================================================================================================================
 # VALIDATION
 # ==============================================================================================================================
-
 
 def validate_animation_declaration(decl, logger) -> bool:
     """True when the declaration is structurally usable. Logs the reason when not."""
@@ -84,7 +82,6 @@ def validate_animation_declaration(decl, logger) -> bool:
 # ==============================================================================================================================
 # LERP
 # ==============================================================================================================================
-
 
 def _lerp(start: Any, end: Any, t: float) -> Any:
     """
