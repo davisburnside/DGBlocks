@@ -29,14 +29,16 @@ class Block_Data_Mirrors(String_Comparable_Mixin):
         RTC_key = Block_RTC_Members.SHADERS.name,
         FWC_name = "Wrapper_Shader_Manager",
         mirrored_key_field_names = ["shader_uid"],
-        mirrored_data_field_names = ["is_enabled"],
+        # is_enabled is RTC-only now; BL mirror holds only the uid key + display fields, so
+        # there are no user-editable mirrored data fields (the planner never emits an Edit).
+        mirrored_data_field_names = [],
         scene_colprop_path = "dgblocks_onscreen_drawing_props.shader_mirror",
     )
 
 class Block_UIList_Configs(String_Comparable_Mixin):
     SHADERS_UILIST = Shared_UIList_Declaration(
-        col_names = ["Shader Name", "Phase/Region/Space", "Anims", "Enabled"],
-        col_widths = [3, 3, 1, 1],
+        col_names = ["Shader Name", "Type / Draw Phase", "Anims", "Batches", "Enabled"],
+        col_widths = [3, 3, 1, 1, 1],
         scene_parent_path = "dgblocks_onscreen_drawing_props",
         scene_colprop_path = "shader_mirror",
         scene_colprop_path_UIList_selection_idx_path = "shader_mirror_selected_idx",

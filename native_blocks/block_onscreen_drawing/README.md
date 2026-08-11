@@ -23,32 +23,45 @@ registering one Blender draw handler per `(space, region, phase)` group, creatin
 
 ## Architecture Summary
 
-Drawing is controlled by the `enable_drawing` scene property. Setting it `True` triggers a full
-rebuild:
+Drawing is gated by the `enable_drawing` scene property. Any change to the desired shader set
+(enabling drawing, a downstream block calling `repoll()`, toggling viewport debugging, undo/redo)
+triggers a **reconcile**, not a destroy-and-recreate:
 
-1. `_cb_enable_drawing_changed` fires → calls `_rebuild_all_shaders()`
-2. `hook_get_shader_definitions` is broadcast — each subscribed block returns a list of its `Shader_Definition` objects.
-3. Definitions are validated, grouped by `(space, region, phase)`, and turned into live
-   `Shader_Instance` objects with one Blender draw handler per group
-4. `Wrapper_Runtime_Cache.resync_single_data_mirror()` pushes the new RTC list to the BL `shader_mirror` collection to reflect the new live shader set
-5. `hook_before_first_draw` is broadcast — each subscribed block pushes initial geometry via
-   `Wrapper_Shader_Manager.get_shader(uid)`
+1. `hook_get_shader_definitions` is broadcast — each subscribed block returns a list of its
+   `Shader_Declaration` objects. This is the **authoritative** "what should exist" set.
+2. Definitions are validated and grouped by `(space, region, phase)`.
+3. `_rebuild_all_shaders()` **reuses** any existing live `Shader_Instance` whose class, shader
+   type, builtin name and draw location still match — preserving its GPU batch, cached uniforms,
+   `is_enabled` state and animations. Only *new* uids create instances; only *removed* uids are
+   destroyed. All draw handlers are re-registered (one per `(space, region, phase)` group).
+4. `_update_BL_with_mirrored_RTC_data()` pushes the live RTC set to the BL `shader_mirror`
+   collection (uid + display fields only).
+5. `hook_before_first_draw` is broadcast — subscribers push geometry via
+   `Wrapper_Shader_Manager.get_shader(uid)`.
+6. Declared animations (`Shader_Declaration.animations`) are re-applied idempotently.
 
-Setting `enable_drawing` `False` calls `_clear_all_shaders()`, which tears down all draw handlers and clears the BL `shader_mirror`.
+Setting `enable_drawing` `False` calls `_clear_all_shaders()`, which tears down all draw handlers,
+discards all `Shader_Instance` objects, and clears the BL `shader_mirror`.
 
 ### Undo / Redo — smart structural comparison
 
-Undo/redo is handled automatically by the core runtime cache mirroring system which delegates to `Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data(event)`.
+Undo/redo is handled automatically by the core runtime cache mirroring system, which delegates to
+`Wrapper_Shader_Manager._update_RTC_with_mirrored_BL_data(event)`.
 
-`_update_RTC_with_mirrored_BL_data` avoids unnecessary GPU work by comparing the current BL mirror against what is currently in the RTC:
+The BL `shader_mirror` holds only a `shader_uid` key plus display-only fields — **`is_enabled` is
+RTC-only** — so the diff planner can only ever emit `Create` / `Remove` / `Move` / `Noop`
+(never `Edit`). BL is purely a change-detector; the hooks are the source of truth for the desired
+set:
 
-1. If `enable_drawing` is `False` → calls `_clear_all_shaders()` and returns.
-2. Uses `plan_dataclasses_to_match_collectionprop` to generate a list of differences between the BL collection and RTC list.
-3. If `Create` or `Remove` actions exist (e.g. shader sets changed structure), it triggers a full `_rebuild_all_shaders()`.
-4. If only `Edit` actions exist (e.g. the user toggled `is_enabled`), it simply toggles `is_enabled` on the affected RTC instances. No draw handlers or GPU resources are recreated.
+1. If `enable_drawing` is `False` → `_clear_all_shaders()` and return.
+2. `plan_dataclasses_to_match_collectionprop` diffs the BL mirror against the RTC list.
+3. If any `Create` / `Remove` action exists (structure changed) → re-poll the hooks and reconcile
+   via `_rebuild_all_shaders()`. Surviving shaders (and their `is_enabled` + animation state) are
+   reused, not rebuilt.
+4. If only `Move` actions exist (reorder) → the RTC list is reordered in place. No GPU work.
 
-The most common undo/redo step (editing non-drawing data while drawing is active) takes the
-fast path and never touches GPU objects.
+Because reused instances survive, imperatively-added animations (`shader.set_animation(...)`) and
+per-shader visibility now carry across undo/redo and repolls instead of being discarded.
 
 ## Data Architecture
 
@@ -64,11 +77,17 @@ fast path and never touches GPU objects.
 
 | Field | Type | Notes |
 |---|---|---|
-| `uid` | `StringProperty` | Key — matches `Shader_Instance.shader_uid` |
-| `is_enabled` | `BoolProperty` | User-editable toggle; `update` callback syncs to RTC immediately |
+| `shader_uid` | `StringProperty` | Key — matches `Shader_Instance.shader_uid` |
 | `draw_space` | `StringProperty` | Display only (`Draw_Space_Types.name`) |
 | `draw_region` | `StringProperty` | Display only |
 | `draw_phase` | `StringProperty` | Display only |
+
+> **`is_enabled` is not a BL field.** It lives only on the RTC `Shader_Instance` and is toggled
+> through `DGBLOCKS_OT_Toggle_Shader` (single prop: `shader_uid`), which carries `bl_options =
+> {"INTERNAL"}` and no `UNDO` — so toggling visibility never adds an undo step. The Shaders UIList
+> renders this operator (eye icon reflecting live RTC state) plus the shader's current batch count.
+> The BL mirror exists purely to back the UIList and to detect structural changes on undo/redo;
+> it never drives RTC.
 
 ### Runtime Cache
 
@@ -81,7 +100,7 @@ fast path and never touches GPU objects.
 
 | Member | Direction | Kwargs | Purpose |
 |---|---|---|---|
-| `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `{}` | Collect `Shader_Definition` objects; subscribers return a list of definitions |
+| `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `{}` | Collect `Shader_Declaration` objects; subscribers return a list of definitions |
 | `hook_before_first_draw` | block_onscreen_drawing → subscribers | `{}` | Push initial geometry via `get_shader(uid)` after all instances are live |
 
 ## Hook Subscriptions (other blocks)
@@ -96,9 +115,13 @@ fast path and never touches GPU objects.
 
 ## Public API — `Wrapper_Shader_Manager`
 
-### `repoll()`
+### `repoll(event)`
 
-Sets `enable_drawing` to `True`, which triggers a full rebuild cycle.
+Re-polls all downstream blocks for their `Shader_Declaration`s and **reconciles** the live shader
+set against them, reusing existing `Shader_Instance` objects where possible. Safe to call whether
+or not drawing is already enabled — if drawing is off it enables it (which reconciles); if drawing
+is already on it reconciles directly. (The old behaviour of merely setting `enable_drawing = True`
+was a no-op when it was already `True`, so a downstream declaration change was silently ignored.)
 
 ### `disable_shaders()`
 
@@ -117,13 +140,13 @@ def hook_before_first_draw():
         shader.set_uniform("color", (1.0, 0.0, 0.0, 1.0))
 ```
 
-## Public API — `Shader_Definition`
+## Public API — `Shader_Declaration`
 
 Declarative descriptor. One per logical shader. Supplied by downstream blocks inside
 `hook_get_shader_definitions`.
 
 ```python
-Shader_Definition(
+Shader_Declaration(
     uid="MY_LINES",                              # unique across all blocks
     shader_type=Shader_Types.LINES,
     space=Draw_Space_Types.VIEW_3D,
@@ -137,7 +160,7 @@ For custom shaders, set `custom_shader_class` to a `Shader_Instance` subclass an
 constructor kwargs via `custom_shader_kwargs`:
 
 ```python
-Shader_Definition(
+Shader_Declaration(
     uid="MY_BILLBOARD",
     shader_type=Shader_Types.TRIS,
     space=Draw_Space_Types.VIEW_3D,
@@ -151,7 +174,7 @@ Shader_Definition(
 Optionally attach animations that should be re-created on every rebuild:
 
 ```python
-Shader_Definition(
+Shader_Declaration(
     shader_uid="MY_LINES",
     ...,
     animations=[
@@ -204,7 +227,7 @@ A `@dataclass` representing a single GPU shader pipeline. Lifecycle fully manage
 Inherit `Shader_Instance` and override `_shader_init()` to create the GPU shader, and
 `_shader_draw()` to set frame-varying uniforms before calling `super()._shader_draw()`.
 Builtin shaders call `_builtin_shader_before_draw()` / `_builtin_shader_after_draw()` around
-the draw; these can be monkeypatched via `Shader_Definition.builtin_shader_before_draw`.
+the draw; these can be monkeypatched via `Shader_Declaration.builtin_shader_before_draw`.
 
 ## Downstream Block Integration Example
 
@@ -228,7 +251,7 @@ def hook_before_first_draw():
 # my_block/constants.py
 
 SHADER_DEFS = [
-    Shader_Definition(
+    Shader_Declaration(
         uid="MY_LINES",
         shader_type=Shader_Types.LINES,
         space=Draw_Space_Types.VIEW_3D,
@@ -251,6 +274,30 @@ mutated. Checks:
 3. Exactly one of `builtin_shader_name` / `custom_shader_class` per definition
 4. Builtin shader name compatibility with the declared `shader_type`
 
+## Viewport Region Debugging
+
+`scene.dgblocks_onscreen_drawing_props.debug_props.enable_viewport_debugging` (a checkbox in the
+panel, active only while `enable_drawing` is on) draws a thin border around **every region of every
+area of every open window** — useful for seeing where each `(space, region)` actually lives.
+
+- The `hook_get_shader_definitions` subscriber walks `bpy.context.window_manager.windows` live,
+  rather than hardcoding a list, so it only ever declares real, currently-valid `(space, region)`
+  combinations. This transparently covers all editor types across all windows and picks up regions
+  such as `TOOL_HEADER` automatically. One `Shader_Declaration` is emitted per unique
+  `(space_type, region_type)`; Blender's single draw handler per space type then draws that border
+  in every matching area/window.
+- **Hover highlight (optional):** each border's `builtin_shader_before_draw` reads the optional
+  foreign RTC member `USER_INPUT_CAPTURE` (owned by `block_modal_events`, which is **not** a
+  dependency) via `get_cache("USER_INPUT_CAPTURE")` — returning `None` gracefully when that block is
+  absent. If the captured mouse position (`mouse_x`/`mouse_y`, window-space) has both fields `> 0`,
+  matches the current window (`window_id`), and falls inside the region being drawn, the border is
+  drawn green instead of magenta.
+
+> **Limitation:** `USER_INPUT_CAPTURE` is only populated while `block_modal_events`' modal router is
+> running (it is cleared to `None` when idle), so the hover color only reacts while that block's
+> modal is active. Reading the key cross-block is otherwise safe and adds no dependency.
+
+
 ## Animations
 
 Lives in `animations/`. Lerps any Python-readable attribute on a `Shader_Instance`
@@ -265,7 +312,7 @@ Lives in `animations/`. Lerps any Python-readable attribute on a `Shader_Instanc
 
 ### Declared vs imperative
 
-|  | Declared (`Shader_Definition.animations`) | Imperative (`shader.set_animation()`) |
+|  | Declared (`Shader_Declaration.animations`) | Imperative (`shader.set_animation()`) |
 |---|---|---|
 | Survives a shader rebuild (undo/redo, debug toggle) | **Yes** — re-applied every rebuild | No — dies with the instance |
 | Best for | Permanent/ambient effects | Effects driven by transient state (selection, hover) |
@@ -330,7 +377,7 @@ block_onscreen_drawing/
 ├── README.md                         # This file
 ├── common_declarations.py            # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors, Block_UIList_Configs
 ├── BL_drawing_structures.py          # Space/Region/Phase enums, builtin shaders enums, validation allowlists
-├── data_structures.py                # Shader_Definition, Shader_Instance, Drawhandler_Instance
+├── data_structures.py                # Shader_Declaration, Shader_Instance, Drawhandler_Instance
 ├── feature_shader_manager.py         # Wrapper_Shader_Manager (_update_RTC..., _update_BL...)
 ├── helpers.py                        # _rebuild_all_shaders, _clear_all_shaders, _universal_draw_callback, _validate_shader_definitions
 ├── ui.py                             # UIList draw helpers

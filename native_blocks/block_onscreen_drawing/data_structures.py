@@ -29,9 +29,9 @@ class Drawhandler_Instance:
 
 
 @dataclass
-class Shader_Definition:
+class Shader_Declaration:
     """
-    Flat descriptor for a single shader.  The caller supplies one Shader_Definition per
+    Flat descriptor for a single shader.  The caller supplies one Shader_Declaration per
     logical shader, including the space/region/phase it should be drawn in.
     Wrapper_Shader_Manager groups these by (space, region, phase) internally and registers
     one Blender draw handler per unique group.

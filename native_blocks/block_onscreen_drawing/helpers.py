@@ -45,7 +45,7 @@ def set_draw_geometry_unoccluded():
 
 def _validate_shader_definitions(shader_defs: list) -> None:
     """
-    Run all validation checks against a list of Shader_Definition objects.
+    Run all validation checks against a list of Shader_Declaration objects.
     Raises ValueError with a descriptive message if any check fails.
     All checks complete before any Blender state is mutated.
     """
@@ -55,7 +55,7 @@ def _validate_shader_definitions(shader_defs: list) -> None:
         if sdef.shader_uid in seen_uids:
             raise ValueError(
                 f"Duplicate shader uid '{sdef.shader_uid}' in definition_accumulator. "
-                f"Every Shader_Definition must have a unique uid."
+                f"Every Shader_Declaration must have a unique uid."
             )
         seen_uids.add(sdef.shader_uid)
 
@@ -156,32 +156,105 @@ def _clear_all_shaders(include_BL_data = True) -> None:
     logger.debug("clear complete")
 
 
+def _apply_builtin_callbacks(shader_instance, sdef) -> None:
+    """(Re)apply the optional before/after draw monkeypatches for a builtin shader."""
+    if sdef.builtin_shader_before_draw is not None:
+        shader_instance._builtin_shader_before_draw = types.MethodType(
+            sdef.builtin_shader_before_draw, shader_instance
+        )
+    if sdef.builtin_shader_after_draw is not None:
+        shader_instance._builtin_shader_after_draw = types.MethodType(
+            sdef.builtin_shader_after_draw, shader_instance
+        )
+
+
+def _create_shader_instance(sdef, source_block_id, logger):
+    """Create a fresh Shader_Instance (builtin or custom) from a Shader_Declaration."""
+    if sdef.custom_shader_class is not None:
+        shader_instance = sdef.custom_shader_class(
+            src_block_id = source_block_id,
+            shader_uid = sdef.shader_uid,
+            shader_type = sdef.shader_type,
+            builtin_shader_name = None,
+            draw_space = sdef.space,
+            draw_region = sdef.region,
+            draw_phase = sdef.phase,
+            **sdef.custom_shader_kwargs,
+        )
+        logger.debug(
+            f"Created custom Shader_Instance uid='{sdef.shader_uid}' "
+            f"(class={sdef.custom_shader_class.__name__}, type={sdef.shader_type})"
+        )
+    else:
+        shader_instance = Shader_Instance(
+            src_block_id = source_block_id,
+            shader_uid = sdef.shader_uid,
+            shader_type = sdef.shader_type,
+            builtin_shader_name = sdef.builtin_shader_name,
+            draw_space = sdef.space,
+            draw_region = sdef.region,
+            draw_phase = sdef.phase,
+        )
+        _apply_builtin_callbacks(shader_instance, sdef)
+        logger.debug(
+            f"Created builtin Shader_Instance uid='{sdef.shader_uid}' "
+            f"({sdef.shader_type}/{sdef.builtin_shader_name})"
+        )
+
+    shader_instance._shader_init()
+    shader_instance.shader_creation_timestamp = time.time()
+    return shader_instance
+
+
+def _can_reuse_shader(existing, sdef) -> bool:
+    """
+    True if an existing live Shader_Instance can be reused as-is for `sdef` — i.e. its
+    class, shader type, builtin name and draw location all still match. Reusing preserves
+    the GPU batch, cached uniforms, is_enabled state and imperatively-added animations
+    across a repoll / undo / redo.
+    """
+    if existing is None:
+        return False
+    expected_class = sdef.custom_shader_class or Shader_Instance
+    if type(existing) is not expected_class:
+        return False
+    if existing.shader_type != sdef.shader_type:
+        return False
+    if existing.builtin_shader_name != sdef.builtin_shader_name:
+        return False
+    if (existing.draw_space != sdef.space
+            or existing.draw_region != sdef.region
+            or existing.draw_phase != sdef.phase):
+        return False
+    return True
+
+
+
 def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
     """
-    Full rebuild cycle:
-        1. Clear existing draw handlers and shader instances.
-        2. Fire hook_get_shader_definitions — downstream blocks return Shader_Definition
-            objects.
-        3. Validate all collected definitions (uid uniqueness, valid space/region/phase
-            combos, builtin-vs-custom exclusivity, shader type compatibility).
-        4. Group by (space, region, phase), create Shader_Instances, register one Blender
-            draw handler per group.
-        5. Restore is_enabled from the BL shader_mirror (user preferences survive rebuilds
-            and undo/redo).
-        6. Sync BL shader_mirror rows to reflect the current live shader set.
-        7. Fire hook_before_first_draw — downstream blocks push initial geometry here.
-        8. Apply Shader_Definition.animations to the new instances.
+    Reconcile the live shader set against the current downstream declarations, REUSING
+    existing Shader_Instance objects wherever possible instead of destroying them.
+
+    Cycle:
+        1. Fire hook_get_shader_definitions — authoritative "what should exist" set.
+        2. Validate all collected definitions.
+        3. Tear down all existing draw handlers (cheap — they reference shaders by uid).
+        4. Destroy only shaders whose uid disappeared (cancel their animations).
+        5. Group by (space, region, phase). Reuse a compatible live Shader_Instance where
+            possible (keeps batch, uniforms, is_enabled, animations); else create a new one.
+            Register one draw handler per group (resiliently).
+        6. Sync BL shader_mirror rows (uid + display fields only) to reflect the live set.
+        7. Fire hook_before_first_draw — downstream blocks push geometry here.
+        8. Apply Shader_Declaration.animations (idempotent for reused shaders).
 
     Step 8 must run AFTER step 7: an Animation_Declaration with start_state=None
     auto-captures its start value off the shader, so the geometry has to be in place
     first or the capture reads None and the animation is skipped.
     """
     logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
-    logger.debug("Rebuilding all Shaders")
+    logger.debug("Reconciling all Shaders")
 
-    _clear_all_shaders()
-
-    # Collect Shader_Definitions from all downstream blocks
+    # Collect Shader_Definitions from all downstream blocks (authoritative desired set)
     shaders_from_blocks = Wrapper_Hooks.run_hooked_funcs(
         hook_func_name = Block_Hook_Sources.hook_get_shader_definitions,
         should_halt_on_exception=False,
@@ -189,9 +262,26 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
     list_shaders_from_blocks = sum(shaders_from_blocks.values(), []) # Simple list, order-preserving
     inverted_shaders_dict = {shader.shader_uid: key for key, shaders in shaders_from_blocks.items() for shader in shaders}
     if len(list_shaders_from_blocks) == 0:
-        logger.info("No Shaders to draw, returning early")
+        logger.info("No Shaders to draw — clearing everything")
+        _clear_all_shaders()
         return
     _validate_shader_definitions(list_shaders_from_blocks)
+
+    # Snapshot the current live instances so we can reuse them by uid
+    existing_shaders = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS) or []
+    existing_by_uid = {s.shader_uid: s for s in existing_shaders}
+    desired_uids = {sdef.shader_uid for sdef in list_shaders_from_blocks}
+
+    # Tear down every existing draw handler; instances are kept and re-grouped below.
+    existing_handlers = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.DRAW_PHASES) or []
+    for handler_instance in existing_handlers:
+        _teardown_draw_handler(handler_instance)
+
+    # Destroy only shaders whose uid is gone (frees their animations/timers).
+    for uid, shader_instance in existing_by_uid.items():
+        if uid not in desired_uids:
+            shader_instance.cancel_all_animations(revert=False)
+            logger.debug(f"Destroying removed shader uid='{uid}'")
 
     # Group definitions by (space, region, phase)
     groups: dict = defaultdict(list)
@@ -199,71 +289,61 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
         key = (sdef.space, sdef.region, sdef.phase)
         groups[key].append(sdef)
 
-    # --- Build Shader_Instances and register draw handlers ---
+    # --- Build/reuse Shader_Instances and register draw handlers ---
     rtc_draw_phases = []
     rtc_shaders = []
+    reused_uids: set = set()
     for (space, region, phase), sdefs in groups.items():
         handler_instance = Drawhandler_Instance(space=space, region=region, phase=phase)
+        group_shaders = []
         for sdef in sdefs:
             source_block_id = inverted_shaders_dict[sdef.shader_uid]
-            if sdef.custom_shader_class is not None:
-                shader_instance = sdef.custom_shader_class(
-                    src_block_id = source_block_id,
-                    shader_uid = sdef.shader_uid,
-                    shader_type = sdef.shader_type,
-                    builtin_shader_name = None,
-                    draw_space = sdef.space,
-                    draw_region = sdef.region,
-                    draw_phase = sdef.phase,
-                    **sdef.custom_shader_kwargs,
-                )
-                logger.debug(
-                    f"Created custom Shader_Instance uid='{sdef.shader_uid}' "
-                    f"(class={sdef.custom_shader_class.__name__}, type={sdef.shader_type})"
-                )
+            existing = existing_by_uid.get(sdef.shader_uid)
+            if _can_reuse_shader(existing, sdef):
+                shader_instance = existing
+                reused_uids.add(sdef.shader_uid)
+                # Re-apply monkeypatched callbacks in case the declaration changed them.
+                if sdef.custom_shader_class is None:
+                    _apply_builtin_callbacks(shader_instance, sdef)
             else:
-                shader_instance = Shader_Instance(
-                    src_block_id = source_block_id,
-                    shader_uid = sdef.shader_uid,
-                    shader_type = sdef.shader_type,
-                    builtin_shader_name = sdef.builtin_shader_name,
-                    draw_space = sdef.space,
-                    draw_region = sdef.region,
-                    draw_phase = sdef.phase,
-                )
-
-                # Monkeypatch optional before/after draw callbacks
-                if sdef.builtin_shader_before_draw is not None:
-                    shader_instance._builtin_shader_before_draw = types.MethodType(
-                        sdef.builtin_shader_before_draw, shader_instance
-                    )
-                if sdef.builtin_shader_after_draw is not None:
-                    shader_instance._builtin_shader_after_draw = types.MethodType(
-                        sdef.builtin_shader_after_draw, shader_instance
-                    )
-                logger.debug(
-                    f"Created builtin Shader_Instance uid='{sdef.shader_uid}' "
-                    f"({sdef.shader_type}/{sdef.builtin_shader_name})"
-                )
-
-            shader_instance._shader_init()
-            shader_instance.shader_creation_timestamp = time.time()
+                # Existing-but-incompatible: free its animations before replacing.
+                if existing is not None:
+                    existing.cancel_all_animations(revert=False)
+                shader_instance = _create_shader_instance(sdef, source_block_id, logger)
             handler_instance.shader_names.append(sdef.shader_uid)
-            rtc_shaders.append(shader_instance)
+            group_shaders.append(shader_instance)
 
-        # Register one Blender draw handler for this (space, region, phase) group
-        handler_instance._handle = space.value.draw_handler_add(
-            _universal_draw_callback,
-            (handler_instance,),
-            region.value,
-            phase.value,
-        )
+        # Register one Blender draw handler for this (space, region, phase) group.
+        # Some (space, region) combos are invalid for draw_handler_add and would raise;
+        # isolate the failure so one bad group can't abort the whole reconcile.
+        try:
+            handler_instance._handle = space.value.draw_handler_add(
+                _universal_draw_callback,
+                (handler_instance,),
+                region.value,
+                phase.value,
+            )
+        except Exception:
+            logger.error(
+                f"Failed to register draw handler for ({space.name}, {region}, {phase}); "
+                f"skipping this group",
+                exc_info=True,
+            )
+            for shader_instance in group_shaders:
+                if shader_instance.shader_uid not in reused_uids:
+                    shader_instance.cancel_all_animations(revert=False)
+            continue
+
         rtc_draw_phases.append(handler_instance)
+        rtc_shaders.extend(group_shaders)
         logger.debug(f"Registered draw handler for ({space.name}, {region}, {phase})")
 
     Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.DRAW_PHASES, rtc_draw_phases)
     Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.SHADERS, rtc_shaders)
-    logger.info(f"Created {len(list_shaders_from_blocks)} Shaders across {len(rtc_draw_phases)} Draw Handlers")
+    logger.info(
+        f"Reconciled {len(rtc_shaders)} Shaders across {len(rtc_draw_phases)} Draw Handlers "
+        f"({len(reused_uids)} reused)"
+    )
 
     if sync_BL:
         FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(Block_RTC_Members.SHADERS)
@@ -291,7 +371,7 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
 
 def _apply_declared_animations(shader_definitions: list, shader_instances: list, logger) -> None:
     """
-    Attach each Shader_Definition.animations entry to its live Shader_Instance.
+    Attach each Shader_Declaration.animations entry to its live Shader_Instance.
 
     Declared animations are re-created on every rebuild, so they survive undo/redo,
     debug toggles, and any other event that recreates the shader set. Animations
@@ -371,7 +451,7 @@ def _universal_draw_callback(handler_instance) -> None:
 
             # Draw the shader
             if not shader.is_enabled:
-                print("skip", shader_uid)
+                pass
             else:
                 shader.last_draw_timestamp = time.time()
                 shader.draw_count_of_batch += 1

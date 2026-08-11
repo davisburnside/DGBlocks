@@ -14,7 +14,7 @@ def _uilist_draw_uilist_row(context, container, uillist_config_instance, BL_item
 
     sub = header.row()
     sub.ui_units_x = col_widths[1]
-    drawhandler_info = f"{RTC_item.draw_phase}/{RTC_item.draw_region}/{RTC_item.draw_space}"
+    drawhandler_info = f"{RTC_item.shader_type} / {RTC_item.draw_phase}"
     sub.label(text = drawhandler_info)
 
     sub = header.row()
@@ -24,7 +24,15 @@ def _uilist_draw_uilist_row(context, container, uillist_config_instance, BL_item
 
     sub = header.row()
     sub.ui_units_x = col_widths[3]
-    sub.prop(BL_item, "is_enabled", text = "")
+    sub.label(text = str(RTC_item.batch_count_of_shader))
+
+    # is_enabled lives on the RTC instance, not BL. Draw an operator (no undo-stack entry)
+    # that toggles it by uid. The eye icon reflects the live RTC state.
+    sub = header.row()
+    sub.ui_units_x = col_widths[4]
+    eye_icon = "HIDE_OFF" if RTC_item.is_enabled else "HIDE_ON"
+    op = sub.operator("dgblocks.toggle_shader", text = "", icon = eye_icon, emboss = False)
+    op.shader_uid = RTC_item.shader_uid
 
 def _ui_show_count(list_property):
     return len(list_property)

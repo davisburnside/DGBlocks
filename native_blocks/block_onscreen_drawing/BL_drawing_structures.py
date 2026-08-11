@@ -136,7 +136,7 @@ _VALID_SPACE_REGION_PHASE_COMBOS: frozenset = frozenset({
 })
 
 # Maps each builtin shader name to the set of Shader_Types it is compatible with.
-# Used to validate Shader_Definition entries in set_state() before any Blender state is mutated.
+# Used to validate Shader_Declaration entries in set_state() before any Blender state is mutated.
 _BUILTIN_SHADER_COMPATIBLE_TYPES: dict = {
     Builtin_Shader_Names.SMOOTH_COLOR:           {Shader_Types.POINTS, Shader_Types.LINES, Shader_Types.TRIS},
     Builtin_Shader_Names.UNIFORM_COLOR:          {Shader_Types.POINTS, Shader_Types.LINES, Shader_Types.TRIS},

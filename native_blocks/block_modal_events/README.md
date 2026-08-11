@@ -25,7 +25,7 @@ controlled entirely in Python (by `priority`), rather than by Blender's coarse L
 
 > **Overlay drawing is NOT owned by this block.** Modal input-capture and GPU overlay drawing
 > are fully independent mechanisms in Blender. A listener that needs to draw should declare a
-> `Shader_Definition` through `block_onscreen_drawing` instead of registering its own draw
+> `Shader_Declaration` through `block_onscreen_drawing` instead of registering its own draw
 > handler.
 
 ## Architecture Summary

@@ -18,7 +18,7 @@ class Animation_Declaration:
     target_shader_uid field — the target is whichever shader the declaration is
     applied to. Two ways to apply one:
 
-      1. Declaratively, via Shader_Definition.animations. These are re-created
+      1. Declaratively, via Shader_Declaration.animations. These are re-created
          automatically on every shader rebuild (undo/redo, debug toggles, etc).
       2. Imperatively, via shader.set_animation(declaration). These live only as
          long as the shader instance does.
@@ -68,7 +68,7 @@ class Animation_Declaration:
        that shader. shader.set_animation() upserts instead, preserving the live
        animation's phase.
     3. A looping animation runs until cancel_animation() or loop_count exhaustion.
-    4. An animation dies with its shader. Use Shader_Definition.animations for
+    4. An animation dies with its shader. Use Shader_Declaration.animations for
        animations that must survive a rebuild.
     """
     animation_uid:     str

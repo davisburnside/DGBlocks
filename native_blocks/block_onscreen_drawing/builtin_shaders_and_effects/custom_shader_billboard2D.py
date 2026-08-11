@@ -9,8 +9,8 @@ Usage (called in the ON operator after set_state):
 
 draw() is overridden to build quad geometry, set MVP uniforms from bpy.context.region_data, and draw — no external callback needed.
 
-Setup: 'shader_uid' and 'custom_shader_kwargs' are the only Shader_Definition values you control. The other must match below:
-Shader_Definition(
+Setup: 'shader_uid' and 'custom_shader_kwargs' are the only Shader_Declaration values you control. The other must match below:
+Shader_Declaration(
     shader_uid="BILLBOARD",
     shader_type=Shader_Types.TRIS,
     space=Draw_Space_Types.VIEW_3D,
