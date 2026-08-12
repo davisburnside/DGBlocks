@@ -65,7 +65,8 @@ void main()
 
     // Alternate the stripe color across each shared-width band. fract(dot/width) runs
     // 0..1 across every period; one half of each period is color_a, the other color_b.
-    float band = fract(dot(p, dir) / stripe_width);
+    // `phase` scrolls (shifts) the bands along the stripe direction.
+    float band = fract((dot(p, dir) / stripe_width) + phase);
 
     fragColor = (band < 0.5) ? color_a : color_b;
 }
@@ -78,6 +79,7 @@ class Stripe_Shader(Shader_Instance):
     # Frame-varying draw parameters (all self-managed; set via the public setters below).
     _stripe_angle: float = field(init=False, default=0.0)      # radians
     _stripe_width: float = field(init=False, default=40.0)     # window pixels
+    _phase: float = field(init=False, default=0.0)             # 0..1 band scroll offset
     _color_a: Any = field(init=False, default=(1.0, 0.0, 1.0, 1.0))
     _color_b: Any = field(init=False, default=(0.0, 1.0, 1.0, 1.0))
 
@@ -91,6 +93,10 @@ class Stripe_Shader(Shader_Instance):
     def set_stripe_width(self, value: float) -> None:
         """Shared band width in window pixels (each stripe = half a period)."""
         self._stripe_width = max(1.0, float(value))
+
+    def set_phase(self, value: float) -> None:
+        """Stripe scroll phase along the stripe direction, hard-capped to 0.0 - 1.0."""
+        self._phase = min(1.0, max(0.0, float(value)))
 
     def set_stripe_colors(self, color_a, color_b=(0.0, 0.0, 0.0, 0.0)) -> None:
         """The two alternating stripe colors (RGBA)."""
@@ -109,6 +115,7 @@ class Stripe_Shader(Shader_Instance):
         shader_info.push_constant("FLOAT", "stripe_width")
         shader_info.push_constant("VEC4", "color_a")
         shader_info.push_constant("VEC4", "color_b")
+        shader_info.push_constant("FLOAT", "phase")
 
         shader_info.fragment_out(0, "VEC4", "fragColor")
 
@@ -145,6 +152,7 @@ class Stripe_Shader(Shader_Instance):
         self.set_uniform("stripe_width", self._stripe_width)
         self.set_uniform("color_a", self._color_a)
         self.set_uniform("color_b", self._color_b)
+        self.set_uniform("phase", self._phase)
 
         gpu.state.blend_set('ALPHA')
 

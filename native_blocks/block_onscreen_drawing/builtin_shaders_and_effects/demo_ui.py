@@ -120,6 +120,9 @@ def _ui_draw_textbox_body(context, container):
     container.prop(debug_props, "show_textbox_count")
     container.label(text="Spawn Point:")
     container.prop(debug_props, "textbox_spawn_point", expand=True)
+    _ui_draw_demo_grid(container, debug_props, [
+        "textbox_x_offset", "textbox_y_offset",
+    ])
     if not _mouse_capture_available():
         info = container.column()
         info.enabled = False
@@ -131,12 +134,20 @@ def _ui_draw_stripe_body(context, container):
 
     props = context.scene.dgblocks_onscreen_drawing_props
     debug_props = props.debug_props
+    row = get_demo_row(props, DEMO_ID_STRIPE)
+    animating = bool(row and row.is_animating)
     container.prop(debug_props, "show_stripes", toggle=True)
     sub = container.column()
-    sub.enabled = debug_props.show_stripes
+    sub.enabled = debug_props.show_stripes and not animating
     _ui_draw_demo_grid(sub, debug_props, [
         "stripe_angle", "stripe_width", "stripe_color1", "stripe_color2",
     ])
+    if row is not None:
+        attr_grid = sub.grid_flow(row_major=True, columns=0, even_columns=True, align=True)
+        for attr in row.unique_attributes:
+            value_field = "int_value" if attr.value_kind == "INT" else "float_value"
+            attr_grid.prop(attr, value_field, text=attr.display_name)
+    _ui_draw_demo_animation_controls(container, context, DEMO_ID_STRIPE)
 
 
 def _ui_draw_region_boundary_body(context, container):

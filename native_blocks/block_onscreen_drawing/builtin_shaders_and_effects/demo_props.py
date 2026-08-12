@@ -60,6 +60,7 @@ _EXAMPLE_STRIPE_UID           = "EXAMPLE_STRIPE_PATTERN"
 # Unique-attribute keys (nested per-demo CollectionProperty rows).
 ATTR_DASHED_PHASE = "phase"
 ATTR_DASHED_COUNT = "count"
+ATTR_STRIPE_PHASE = "phase"
 
 # Region types that can host a debug border. Unchecking one disables it for all areas.
 DEBUG_DRAW_REGION_TYPES = [
@@ -68,12 +69,13 @@ DEBUG_DRAW_REGION_TYPES = [
 ]
 
 # Which demos support the infinite-loop demo animation (task 3: "animate some, not all").
-_ANIMATABLE_DEMOS = {DEMO_ID_BILLBOARD, DEMO_ID_DASHED}
+_ANIMATABLE_DEMOS = {DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_STRIPE}
 
 # Animation uids applied per demo, so we can cancel exactly what we added.
 _DEMO_ANIMATION_UIDS = {
     DEMO_ID_DASHED:    ["DEMO_DASH_PHASE", "DEMO_DASH_COLOR", "DEMO_DASH_POINTS"],
     DEMO_ID_BILLBOARD: ["DEMO_BB_COLOR", "DEMO_BB_POINTS", "DEMO_BB_SIZE"],
+    DEMO_ID_STRIPE:    ["DEMO_STRIPE_PHASE"],
 }
 
 _DEBUG_BORDER_COLOR = (1.0, 0.0, 1.0, 1.0)          # Magenta — normal
@@ -93,7 +95,10 @@ _DEMO_DEFS = [
          "value_kind": "INT", "int_value": 0},
     ]},
     {"demo_id": DEMO_ID_TEXTBOX, "label": "Text Boxes", "attrs": []},
-    {"demo_id": DEMO_ID_STRIPE, "label": "Stripe Holdout", "attrs": []},
+    {"demo_id": DEMO_ID_STRIPE, "label": "Stripe Holdout", "attrs": [
+        {"attr_key": ATTR_STRIPE_PHASE, "display_name": "Phase",
+         "value_kind": "FLOAT", "float_value": 0.0},
+    ]},
 ]
 def ensure_demo_rows(props) -> None:
     """
@@ -375,6 +380,8 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
         default="TOP_LEFT",
         update=_cb_demo_props_changed,
     )
+    textbox_x_offset: bpy.props.FloatProperty(name="X Offset", description="Pixels to shift the boxes along X from the spawn anchor", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_y_offset: bpy.props.FloatProperty(name="Y Offset", description="Pixels to shift the boxes along Y from the spawn anchor", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
 
     # Stripe holdout example (screen-locked 2D stripe pattern rendered over 3D TRIs)
     show_stripes: bpy.props.BoolProperty(name="Stripe Holdout", update=_cb_demo_props_changed)  # type: ignore
@@ -474,6 +481,16 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
                         
+    def _handle_demo_stripe():
+        # phase scroll — animates only the stripe `_phase` (read as a uniform in _shader_draw),
+        # making the screen-locked bands crawl along the stripe direction.
+        shader.set_animation(Animation_Declaration(
+            animation_uid="DEMO_STRIPE_PHASE",
+            data_type=ANIM_DATA_TYPE_BATCH, data_name="_phase",
+            start_state=0.0, end_state=1.0,
+            duration=2.0, framerate=fps,
+            loop_mode=ANIM_LOOP_REPEAT, loop_count=0,
+        ))
     logger = get_logger(Block_Loggers.ANIMATION_LIFECYCLE)
     fps = float(common_row.animation_fps)
 
@@ -483,6 +500,9 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
 
         elif demo_id == DEMO_ID_BILLBOARD:
             _handle_demo_billboard_image()
+
+        elif demo_id == DEMO_ID_STRIPE:
+            _handle_demo_stripe()
 
     logger.debug(f"Applied demo animation(s) for '{demo_id}' @ {fps}Hz")
     Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE)

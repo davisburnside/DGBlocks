@@ -44,6 +44,8 @@ class Textbox_Demo_Shader(Shader_Instance):
 
     _count: int = field(init=False, default=1)
     _spawn_point: str = field(init=False, default=SPAWN_TOP_LEFT)
+    _x_offset: float = field(init=False, default=0.0)  # px offset from the spawn anchor
+    _y_offset: float = field(init=False, default=0.0)
 
     # ----------------------------------------------------------
     # Public API, unique to this shader
@@ -53,6 +55,11 @@ class Textbox_Demo_Shader(Shader_Instance):
 
     def set_spawn_point(self, value: str) -> None:
         self._spawn_point = str(value)
+
+    def set_textbox_offsets(self, x_offset: float, y_offset: float) -> None:
+        """Pixel offset applied to every box's spawn anchor (moves the whole group)."""
+        self._x_offset = float(x_offset)
+        self._y_offset = float(y_offset)
 
     # ----------------------------------------------------------
     # Private API, overriding parent class funcs
@@ -81,7 +88,8 @@ class Textbox_Demo_Shader(Shader_Instance):
         return (mx - region.x, my - region.y)
 
     def _resolve_origin(self, region, box_index):
-        """Top-left anchor (x, y) in region space for text box `box_index`."""
+        """Top-left anchor (x, y) in region space for text box `box_index`, plus the
+        user x_offset / y_offset (moves the whole group away from the spawn anchor)."""
         stack_offset = box_index * _LINE_HEIGHT
         w, h = region.width, region.height
         sp = self._spawn_point
@@ -90,19 +98,20 @@ class Textbox_Demo_Shader(Shader_Instance):
             mouse_xy = self._resolve_mouse_xy(region)
             if mouse_xy is None:
                 # Mouse capture unavailable — fall back to top-left rather than skipping.
-                return (_MARGIN, h - _MARGIN - stack_offset)
-            return (mouse_xy[0], mouse_xy[1] - stack_offset)
-
-        if sp == SPAWN_TOP_LEFT:
-            return (_MARGIN, h - _MARGIN - stack_offset)
-        if sp == SPAWN_TOP_RIGHT:
-            return (w - _MARGIN - _BOX_WIDTH_GUESS, h - _MARGIN - stack_offset)
-        if sp == SPAWN_BOTTOM_LEFT:
-            return (_MARGIN, _MARGIN + (self._count - 1 - box_index) * _LINE_HEIGHT)
-        if sp == SPAWN_BOTTOM_RIGHT:
-            return (w - _MARGIN - _BOX_WIDTH_GUESS,
+                x, y = (_MARGIN, h - _MARGIN - stack_offset)
+            else:
+                x, y = (mouse_xy[0], mouse_xy[1] - stack_offset)
+        elif sp == SPAWN_TOP_LEFT:
+            x, y = (_MARGIN, h - _MARGIN - stack_offset)
+        elif sp == SPAWN_TOP_RIGHT:
+            x, y = (w - _MARGIN - _BOX_WIDTH_GUESS, h - _MARGIN - stack_offset)
+        elif sp == SPAWN_BOTTOM_LEFT:
+            x, y = (_MARGIN, _MARGIN + (self._count - 1 - box_index) * _LINE_HEIGHT)
+        else:  # SPAWN_BOTTOM_RIGHT
+            x, y = (w - _MARGIN - _BOX_WIDTH_GUESS,
                     _MARGIN + (self._count - 1 - box_index) * _LINE_HEIGHT)
-        return (_MARGIN, h - _MARGIN - stack_offset)
+
+        return (x + self._x_offset, y + self._y_offset)
 
     def _shader_draw(self):
         # Import here to keep the module's import graph identical to before (avoids any

@@ -37,7 +37,7 @@ from .builtin_shaders_and_effects.demo_props import (
     DGBLOCKS_PG_Demo_Shader_Common,
     DGBLOCKS_PG_Debug_Shader_Region_Toggles,
     DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE,
-    ATTR_DASHED_PHASE, ATTR_DASHED_COUNT,
+    ATTR_DASHED_PHASE, ATTR_DASHED_COUNT, ATTR_STRIPE_PHASE,
     DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
     _create_region_boundary_shader_declarations,
     _polyline_from_ring,
@@ -201,6 +201,7 @@ def _hook_before_first_draw():
         if shader is not None:
             shader.set_textbox_count(debug_props.show_textbox_count)
             shader.set_spawn_point(debug_props.textbox_spawn_point)
+            shader.set_textbox_offsets(debug_props.textbox_x_offset, debug_props.textbox_y_offset)
 
     # --- Stripe holdout: a unit cube of TRIs whose stripe pattern stays screen-locked ---
     if debug_props.show_stripes:
@@ -229,6 +230,9 @@ def _hook_before_first_draw():
                 tuple(debug_props.stripe_color1),
                 tuple(debug_props.stripe_color2),
             )
+            phase_attr = row.get_attr(ATTR_STRIPE_PHASE) if row is not None else None
+            if phase_attr is not None:
+                shader.set_phase(phase_attr.get_value())
 
     # Re-attach demo animations for every animating demo. Called from hook_before_first_draw so demo animations survive a rebuild (undo/redo, eye toggles, prop edits
     for row in props.demo_settings:
