@@ -2,6 +2,8 @@
 
 import sys
 import random
+import math
+import numpy as np
 import bpy
 
 # --------------------------------------------------------------
@@ -29,13 +31,14 @@ from .animations.engine import get_timer_definitions_from_animations
 from .builtin_shaders_and_effects.custom_shader_billboard2D import Billboard_Shader, _billboard_uid_for_image
 from .builtin_shaders_and_effects.custom_shader_polyline_dash import Polyline_Dash_Shader
 from .builtin_shaders_and_effects.custom_shader_textbox_demo import Textbox_Demo_Shader
+from .builtin_shaders_and_effects.custom_shader_stripe import Stripe_Shader
 from .builtin_shaders_and_effects.demo_props import (
     DGBLOCKS_PG_Demo_Shader_Attribute,
     DGBLOCKS_PG_Demo_Shader_Common,
     DGBLOCKS_PG_Debug_Shader_Region_Toggles,
-    DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX,
+    DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE,
     ATTR_DASHED_PHASE, ATTR_DASHED_COUNT,
-    DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID,
+    DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
     _create_region_boundary_shader_declarations,
     _polyline_from_ring,
     _radial_ring,
@@ -48,7 +51,7 @@ from .builtin_shaders_and_effects.demo_props import (
 def _hook_get_shader_declarations():
     """
     Adds a debug bounding box for every region of every area of every open window, when
-    draw_region_boundaries is checked.
+    show_region_boundaries is checked.
 
     Rather than hardcoding a space/region list, we walk the live window manager so that only
     real, currently-valid (space, region) combinations are declared — this covers all editor
@@ -93,8 +96,22 @@ def _hook_get_shader_declarations():
                 custom_shader_class=Textbox_Demo_Shader,
             )
         )
+
+    # Stripe holdout: 3D TRIs rendered at viewport points, but with a screen-locked 2D stripe
+    # pattern computed in the fragment shader from window-space pixels (gl_FragCoord).
+    if _demo_shown(DEMO_ID_STRIPE) and debug_props.show_stripes:
+        shader_defs.append(
+            Shader_Declaration(
+                shader_uid=_EXAMPLE_STRIPE_UID,
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_VIEW,
+                custom_shader_class=Stripe_Shader,
+            )
+        )
     
-    if debug_props.draw_region_boundaries:
+    if debug_props.show_region_boundaries:
         shader_defs.extend(_create_region_boundary_shader_declarations(props))
 
     # Example demo shaders are independent of viewport debugging.
@@ -184,6 +201,34 @@ def _hook_before_first_draw():
         if shader is not None:
             shader.set_textbox_count(debug_props.show_textbox_count)
             shader.set_spawn_point(debug_props.textbox_spawn_point)
+
+    # --- Stripe holdout: a unit cube of TRIs whose stripe pattern stays screen-locked ---
+    if debug_props.show_stripes:
+        shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_STRIPE_UID)
+        if shader is not None:
+            row = get_demo_row(props, DEMO_ID_STRIPE)
+            scale = row.scale if row is not None else 1.0
+            corners = [
+                (-1, -1, -1), (1, -1, -1), (1, 1, -1), (-1, 1, -1),
+                (-1, -1,  1), (1, -1,  1), (1, 1,  1), (-1, 1,  1),
+            ]
+            points = np.asarray(corners, dtype=np.float32) * np.float32(scale)
+            indices = [
+                (0, 1, 2), (0, 2, 3),   # back
+                (4, 6, 5), (4, 7, 6),   # front
+                (0, 4, 5), (0, 5, 1),   # bottom
+                (2, 6, 7), (2, 7, 3),   # top
+                (0, 3, 7), (0, 7, 4),   # left
+                (1, 5, 6), (1, 6, 2),   # right
+            ]
+            shader.set_points(points)
+            shader.set_indices(indices)
+            shader.set_stripe_angle(math.radians(debug_props.stripe_angle))
+            shader.set_stripe_width(debug_props.stripe_width)
+            shader.set_stripe_colors(
+                tuple(debug_props.stripe_color1),
+                tuple(debug_props.stripe_color2),
+            )
 
     # Re-attach demo animations for every animating demo. Called from hook_before_first_draw so demo animations survive a rebuild (undo/redo, eye toggles, prop edits
     for row in props.demo_settings:

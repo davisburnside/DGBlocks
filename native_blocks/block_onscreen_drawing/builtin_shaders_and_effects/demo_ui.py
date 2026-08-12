@@ -4,7 +4,7 @@ import bpy
 from ....addon_helpers.generic_tools import force_redraw_ui
 from ....addon_helpers.ui.helpers import ui_draw_subpanel
 from ..helpers import _mouse_capture_available
-from ..builtin_shaders_and_effects.demo_props import DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEBUG_DRAW_REGION_TYPES, get_demo_row, demo_is_animatable
+from ..builtin_shaders_and_effects.demo_props import DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEBUG_DRAW_REGION_TYPES, get_demo_row, demo_is_animatable
 
 class DGBLOCKS_OT_Toggle_Demo_Animation(bpy.types.Operator):
     """
@@ -127,17 +127,29 @@ def _ui_draw_textbox_body(context, container):
         info.label(text="instance for mouse/key capture.")
 
 
+def _ui_draw_stripe_body(context, container):
+
+    props = context.scene.dgblocks_onscreen_drawing_props
+    debug_props = props.debug_props
+    container.prop(debug_props, "show_stripes", toggle=True)
+    sub = container.column()
+    sub.enabled = debug_props.show_stripes
+    _ui_draw_demo_grid(sub, debug_props, [
+        "stripe_angle", "stripe_width", "stripe_color1", "stripe_color2",
+    ])
+
+
 def _ui_draw_region_boundary_body(context, container):
     
     props = context.scene.dgblocks_onscreen_drawing_props
     debug_props = props.debug_props
-    container.prop(debug_props, "draw_region_boundaries", toggle=True)
+    container.prop(debug_props, "show_region_boundaries", toggle=True)
     region_box = container.column()
-    region_box.enabled = debug_props.draw_region_boundaries
+    region_box.enabled = debug_props.show_region_boundaries
     region_box.label(text="Region Types:")
     grid = region_box.grid_flow(row_major=True, columns=0, even_columns=True, align=True)
     for rt in DEBUG_DRAW_REGION_TYPES:
-        grid.prop(props.debug_props.region_toggles, f"region_{rt}")
+        grid.prop(props.debug_props.region_boundary_toggles, f"region_{rt}")
 
 
 
@@ -146,6 +158,7 @@ _DEMO_SUBPANELS = [
     (DEMO_ID_BILLBOARD, "2D Image Billboard", "IMAGE_DATA", _ui_draw_billboard_body),
     (DEMO_ID_DASHED,    "Dashed Polyline",    "IPO_LINEAR",  _ui_draw_dashed_body),
     (DEMO_ID_TEXTBOX,   "Text Boxes",         "SMALL_CAPS",  _ui_draw_textbox_body),
+    (DEMO_ID_STRIPE,    "Stripe Holdout",     "MOD_WIREFRAME", _ui_draw_stripe_body),
 ]
 
 

@@ -51,9 +51,11 @@ from .custom_shader_billboard2D import _billboard_uid_for_image
 DEMO_ID_BILLBOARD = "billboard"
 DEMO_ID_DASHED    = "dashed"
 DEMO_ID_TEXTBOX   = "textbox"
+DEMO_ID_STRIPE    = "stripe"
 
 _EXAMPLE_LINEDASH_UID         = "EXAMPLE_POLYLINE_DASH"
 _EXAMPLE_TEXTBOX_UID          = "EXAMPLE_TEXTBOX_DEMO"
+_EXAMPLE_STRIPE_UID           = "EXAMPLE_STRIPE_PATTERN"
 
 # Unique-attribute keys (nested per-demo CollectionProperty rows).
 ATTR_DASHED_PHASE = "phase"
@@ -91,6 +93,7 @@ _DEMO_DEFS = [
          "value_kind": "INT", "int_value": 0},
     ]},
     {"demo_id": DEMO_ID_TEXTBOX, "label": "Text Boxes", "attrs": []},
+    {"demo_id": DEMO_ID_STRIPE, "label": "Stripe Holdout", "attrs": []},
 ]
 def ensure_demo_rows(props) -> None:
     """
@@ -151,7 +154,7 @@ def _create_region_boundary_shader_declarations(props):
     any region type whose checkbox is unchecked (task 7). Walking the live window manager keeps
     us to real, currently-valid combos and picks up regions like TOOL_HEADER automatically.
     """
-    region_toggles = props.debug_props.region_toggles
+    region_boundary_toggles = props.debug_props.region_boundary_toggles
     seen_combos: set = set()
     defs = []
 
@@ -172,7 +175,7 @@ def _create_region_boundary_shader_declarations(props):
                 except KeyError:
                     continue
                 # Per-region-type toggle (task 7): unchecking disables it for all areas.
-                if not region_type_is_enabled(region_toggles, region_enum.name):
+                if not region_type_is_enabled(region_boundary_toggles, region_enum.name):
                     continue
                 # Regions with zero size (collapsed) can't host a meaningful border.
                 if region.width <= 0 or region.height <= 0:
@@ -217,9 +220,9 @@ def _radial_ring(radius, n_sides, z):
     ]
 
 
-def region_type_is_enabled(region_toggles, region_type_name: str) -> bool:
+def region_type_is_enabled(region_boundary_toggles, region_type_name: str) -> bool:
     """True if the given Draw_Region_Type name is checked (defaults True if unmodelled)."""
-    return bool(getattr(region_toggles, f"region_{region_type_name}", True))
+    return bool(getattr(region_boundary_toggles, f"region_{region_type_name}", True))
 
 
 
@@ -271,6 +274,21 @@ def _cb_demo_fps_changed(self, context):
 # ==============================================================================================================================
 # PROPERTY GROUPS
 # ==============================================================================================================================
+
+# Inject one BoolProperty per drawable region type. Done before bpy registration reads
+# __annotations__, so the properties are recognised on the class.
+class DGBLOCKS_PG_Debug_Shader_Region_Toggles(bpy.types.PropertyGroup):
+    """Per-region-type on/off checkboxes for the viewport-debug border shaders."""
+    pass
+DGBLOCKS_PG_Debug_Shader_Region_Toggles.__annotations__ = {}
+for _rt in DEBUG_DRAW_REGION_TYPES:
+    DGBLOCKS_PG_Debug_Shader_Region_Toggles.__annotations__[f"region_{_rt}"] = bpy.props.BoolProperty(
+        name=_rt.replace("_", " ").title(),
+        default=True,
+        update=cb_rebuild_shaders,
+    )
+del _rt
+
 
 class DGBLOCKS_PG_Demo_Shader_Attribute(bpy.types.PropertyGroup):
     """
@@ -358,26 +376,17 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
         update=_cb_demo_props_changed,
     )
 
+    # Stripe holdout example (screen-locked 2D stripe pattern rendered over 3D TRIs)
+    show_stripes: bpy.props.BoolProperty(name="Stripe Holdout", update=_cb_demo_props_changed)  # type: ignore
+    stripe_angle: bpy.props.FloatProperty(name="Stripe Angle", default=0.0, min=0.0, max=360.0, soft_min=0.0, soft_max=360.0, update=_cb_demo_props_changed)  # type: ignore
+    stripe_width: bpy.props.FloatProperty(name="Stripe Width", default=40.0, min=2.0, soft_max=200.0, update=_cb_demo_props_changed)  # type: ignore
+    stripe_color1: bpy.props.FloatVectorProperty(name="Stripe Color 1", subtype="COLOR", size=4, default=(1.0, 0.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
+    stripe_color2: bpy.props.FloatVectorProperty(name="Stripe Color 2", subtype="COLOR", size=4, default=(0.0, 1.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
+
     # Viewport region debugging
     # Region_toggles holds one checkbox per drawable Draw_Region_Type; unchecking one disables that border type for all areas.
-    draw_region_boundaries: bpy.props.BoolProperty(name="Draw Region Boundaries", update = _cb_demo_props_changed)  # type: ignore
-    region_toggles: bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Shader_Region_Toggles)  # type: ignore
-
-
-
-# Inject one BoolProperty per drawable region type. Done before bpy registration reads
-# __annotations__, so the properties are recognised on the class.
-class DGBLOCKS_PG_Debug_Shader_Region_Toggles(bpy.types.PropertyGroup):
-    """Per-region-type on/off checkboxes for the viewport-debug border shaders."""
-    pass
-DGBLOCKS_PG_Debug_Shader_Region_Toggles.__annotations__ = {}
-for _rt in DEBUG_DRAW_REGION_TYPES:
-    DGBLOCKS_PG_Debug_Shader_Region_Toggles.__annotations__[f"region_{_rt}"] = bpy.props.BoolProperty(
-        name=_rt.replace("_", " ").title(),
-        default=True,
-        update=cb_rebuild_shaders,
-    )
-del _rt
+    show_region_boundaries: bpy.props.BoolProperty(name="Draw Region Boundaries", update = _cb_demo_props_changed)  # type: ignore
+    region_boundary_toggles: bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Shader_Region_Toggles)  # type: ignore
 
 # ==============================================================================================================================
 # Demo Animations Control
@@ -392,6 +401,8 @@ def _resolve_demo_shader_uid(demo_id, props):
         return _EXAMPLE_LINEDASH_UID
     if demo_id == DEMO_ID_TEXTBOX:
         return _EXAMPLE_TEXTBOX_UID
+    if demo_id == DEMO_ID_STRIPE:
+        return _EXAMPLE_STRIPE_UID
     return None
 
 

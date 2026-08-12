@@ -276,13 +276,13 @@ mutated. Checks:
 
 ## Viewport Region Debugging
 
-`scene.dgblocks_onscreen_drawing_props.debug_props.draw_region_boundaries` (a checkbox in the
+`scene.dgblocks_onscreen_drawing_props.debug_props.show_region_boundaries` (a checkbox in the
 panel's **Viewport Region Debugging** sub-subpanel, active only while `enable_drawing` is on)
 draws a thin border around **every region of every area of every open window** — useful for
 seeing where each `(space, region)` actually lives. It governs **only** the border shaders — it
 no longer gates the example demo shaders (those are controlled by their own `show_shader` eyes).
 
-- **Per-region-type checkboxes:** a `grid_flow` of checkboxes (`region_toggles`, one
+- **Per-region-type checkboxes:** a `grid_flow` of checkboxes (`region_boundary_toggles`, one
   `BoolProperty` per drawable `Draw_Region_Type` — WINDOW, HEADER, TOOL_HEADER, UI, TOOLS, …)
   lets you disable individual region types for all areas at once. Unchecking one omits its
   border declaration on the next repoll.
@@ -357,6 +357,7 @@ animation drives only RTC shader state, so the Blender property values stay stat
 | **2D image billboard** | `show_img_2Dbillboard` (Image), `billboard_count`, `billboard_default_size`, `billboard_size_spread`, `billboard_location_spread`, `billboard_color_spread` + `is_animating` | Declared **only when its eye is on AND an image is set**. Draws `count` camera-facing quads with random location, size, and color. Its `shader_uid` embeds the image name so swapping images forces a fresh GPU texture. Animatable. |
 | **Dashed polyline** | `show_linedash`, `linedash_thickness`, `linedash_dash_width`, `linedash_dash_ratio`, `linedash_color`, `linedash_color2` + unique attrs `phase` (0–1, hard-capped) and cluster `count` + `is_animating` | A `Polyline_Dash_Shader` port of the legacy dashed-line shader with true Metal-safe thickness. `count` draws that many extra **disjointed, radially-symmetric ring clusters** stacked in Z above the base square — proving the polyline shader handles disjointed line clusters in one batch. Animatable. |
 | **Text boxes** | `show_textbox_count`, `textbox_spawn_point` | Draws N BLF text boxes via `draw_text_box()`, wrapped in `Textbox_Demo_Shader`. `spawn_point` is a radio (TOP_LEFT / TOP_RIGHT / BOTTOM_LEFT / BOTTOM_RIGHT / **MOUSE**). The **At Mouse** option positions boxes at the captured mouse; it requires a live `block_modal_event` instance (`USER_INPUT_CAPTURE`), otherwise the panel shows *"An active block_modal_event instance is required for mouse/key capture"*. |
+| **Stripe holdout** | `show_stripes`, `stripe_angle`, `stripe_width`, `stripe_color1`, `stripe_color2` | Draws a unit cube of TRIs at world-space points but computes an **alternating-stripe pattern purely from window-space pixels** (`gl_FragCoord.xy`) in the fragment shader. The 2D pattern is therefore screen-locked — orbiting the camera makes the static stripes *slide across* the geometry, the intended "glitchy" holdout effect. `stripe_angle` (degrees), `stripe_width` (shared band width in px), and the two stripe colors are all controllable from the panel. Non-animatable. |
 
 ### `Polyline_Dash_Shader` — Metal-safe line thickness
 
@@ -455,6 +456,7 @@ block_onscreen_drawing/
 ├── builtin_shaders_and_effects/      # Reusable custom Shader_Instance subclasses
 │   ├── custom_shader_billboard2D.py       # Billboard_Shader — camera-facing image quads
 │   ├── custom_shader_polyline_dash.py     # Polyline_Dash_Shader — dashed line, Metal-safe thickness
+│   ├── custom_shader_stripe.py            # Stripe_Shader — screen-locked window-space stripe holdout
 │   ├── custom_shader_textbox_demo.py      # Textbox_Demo_Shader — N BLF text boxes
 │   ├── legacy_custom_shader_linedash.py   # READ-ONLY reference: the old GL-line dashed shader
 │   └── simple_textbox.py                  # draw_text_box() BLF renderer (used by textbox demo)
