@@ -58,12 +58,12 @@ def force_reload_all_scripts(context, logger = None):
             logger.debug("Reactivating UI Display Modal")
         bpy.ops.script.reload()
 
-def force_redraw_ui(context:bpy.context = None):
+def force_redraw_ui(context:bpy.context = None, only_3Dviewport = True):
     
     context = context if context else bpy.context
     for window in context.window_manager.windows:
         for area in window.screen.areas:
-            if area.type == 'VIEW_3D':
+            if area.type == 'VIEW_3D' or not only_3Dviewport:
                 area.tag_redraw()
 
 def get_addon_preferences(context:bpy.context):

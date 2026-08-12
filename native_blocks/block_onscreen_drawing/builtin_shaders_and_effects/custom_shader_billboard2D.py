@@ -32,8 +32,9 @@ from gpu_extras.batch import batch_for_shader
 
 # --------------------------------------------------------------
 # Inter-block imports
-from ....native_blocks.block_onscreen_drawing.data_structures import Shader_Instance
-from ....native_blocks.block_onscreen_drawing.helpers import set_draw_geometry_occluded
+from ..BL_drawing_structures import Draw_Phase_type, Draw_Region_Type, Draw_Space_Types, Shader_Types
+from ..data_structures import Shader_Declaration, Shader_Instance
+from ..helpers import set_draw_geometry_occluded
 
 # --------------------------------------------------------------
 # Shader Constants
@@ -91,6 +92,7 @@ void main()
 }
 """
 
+# Called Every Batch Update
 def _make_billboard_verts(points_list, colors_list, sizes_list):
     """Build quad vertices (2 tris per point) for billboard rendering."""
     quad_uvs = [
@@ -126,6 +128,13 @@ def _make_billboard_verts(points_list, colors_list, sizes_list):
 
     return all_vertices, all_uvs, all_colors, all_sizes, all_indices
 
+# Called during Shader Declaration
+def _billboard_uid_for_image(image) -> str:
+    """The billboard uid embeds the image name so swapping images forces a fresh Shader_Instance
+    (and therefore a fresh GPU texture), since _can_reuse_shader() ignores custom_shader_kwargs."""
+    
+    return f"BILLBOARD_2D_{image.name}"
+
 
 # --------------------------------------------------------------
 # Shader Implementation
@@ -138,6 +147,20 @@ class Billboard_Shader(Shader_Instance):
 
     # ----------------------------------------------------------
     # Public API, unique to this shader
+
+    # called from hook_get_shader_declarations()
+    def create_declaration(image: bpy.types.Image):
+
+        dec = Shader_Declaration(
+            shader_uid=_billboard_uid_for_image(image),
+            shader_type=Shader_Types.TRIS,
+            space=Draw_Space_Types.VIEW_3D,
+            region=Draw_Region_Type.WINDOW,
+            phase=Draw_Phase_type.POST_VIEW,
+            custom_shader_class=Billboard_Shader,
+            custom_shader_kwargs={"image_name": image.name},
+        )
+        return dec
 
     def set_billboard_sizes(self, value: list) -> None:
         """Set per-billboard world-space sizes (one float per point).

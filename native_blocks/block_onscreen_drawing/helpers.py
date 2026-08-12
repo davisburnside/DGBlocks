@@ -24,8 +24,14 @@ from .data_structures import Shader_Instance, Drawhandler_Instance
 # --------------------------------------------------------------
 # Constants
 
+# Optional foreign RTC member owned by block_modal_events (NOT a dependency). Read defensively
+# via get_cache(): it returns None when that block is absent or its modal router is idle. We
+# keep the key as a named constant rather than importing the foreign enum, since importing a
+# non-dependency block is forbidden.
+_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE = "USER_INPUT_CAPTURE"
+
 # ----------------------------------------------------------
-# Public convenience funcs
+# Public helper funcs
 
 def set_draw_alpha():
     gpu.state.blend_set('ALPHA')
@@ -40,8 +46,26 @@ def set_draw_geometry_unoccluded():
     gpu.state.depth_test_set('NONE')
     gpu.state.depth_mask_set(False)
 
+
+def apply_global_opacity_multiplier(colors_array, opacity_multiplier):
+    """
+    Apply global opacity multiplier to color array's alpha channel.
+    
+    Args:
+        colors_array: numpy array of shape (n, 4) with RGBA colors
+        opacity_multiplier: float 0-1, multiplier for alpha channel
+        
+    Returns:
+        Modified colors_array with alpha multiplied
+    """
+    if opacity_multiplier < 1.0 and len(colors_array) > 0:
+        colors_array = colors_array.copy()
+        colors_array[:, 3] *= opacity_multiplier
+    return colors_array
+
+
 # ----------------------------------------------------------
-# Internal Helpers
+# Internal to Block
 
 def _validate_shader_definitions(shader_defs: list) -> None:
     """
@@ -232,14 +256,13 @@ def _can_reuse_shader(existing, sdef) -> bool:
     return True
 
 
-
 def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
     """
     Reconcile the live shader set against the current downstream declarations, REUSING
     existing Shader_Instance objects wherever possible instead of destroying them.
 
     Cycle:
-        1. Fire hook_get_shader_definitions — authoritative "what should exist" set.
+        1. Fire hook_get_shader_declarations — authoritative "what should exist" set.
         2. Validate all collected definitions.
         3. Tear down all existing draw handlers (cheap — they reference shaders by uid).
         4. Destroy only shaders whose uid disappeared (cancel their animations).
@@ -259,7 +282,7 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
 
     # Collect Shader_Definitions from all downstream blocks (authoritative desired set)
     shaders_from_blocks = Wrapper_Hooks.run_hooked_funcs(
-        hook_func_name = Block_Hook_Sources.hook_get_shader_definitions,
+        hook_func_name = Block_Hook_Sources.hook_get_shader_declarations,
         should_halt_on_exception=False,
     )
     list_shaders_from_blocks = sum(shaders_from_blocks.values(), []) # Simple list, order-preserving
@@ -403,6 +426,54 @@ def _apply_declared_animations(shader_definitions: list, shader_instances: list,
         logger.info(f"Applied {applied_count} declared animation(s) across all shaders")
         Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE)
 
+
+def _mouse_capture_available() -> bool:
+    """
+    True when the optional foreign USER_INPUT_CAPTURE RTC member reports a live mouse position
+    (task 8). Used to enable/disable the text-box 'At Mouse' spawn option. Never raises: returns
+    False when block_modal_events is absent or its modal router is idle.
+    """
+    capture = Wrapper_Runtime_Cache.get_cache(_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE)
+    if capture is None:
+        return False
+    mx = getattr(capture, "mouse_x", None)
+    my = getattr(capture, "mouse_y", None)
+    return bool(mx) and bool(my)
+
+
+def _mouse_is_over_current_region() -> bool:
+    """
+    True if the optional foreign USER_INPUT_CAPTURE RTC member reports a mouse position
+    that lies inside the region currently being drawn. Returns False (never raises) when
+    the member is absent, idle, or the mouse is in a different window.
+    """
+    capture = Wrapper_Runtime_Cache.get_cache(_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE)
+    if capture is None:
+        return False
+
+    mouse_x = getattr(capture, "mouse_x", None)
+    mouse_y = getattr(capture, "mouse_y", None)
+    # Fields are None when idle; the request specifies both must be > 0.
+    if not mouse_x or not mouse_y or mouse_x <= 0 or mouse_y <= 0:
+        return False
+
+    # A mouse can jump between Blender windows; disambiguate by window pointer when known.
+    window = bpy.context.window
+    capture_window_id = getattr(capture, "window_id", None)
+    if capture_window_id is not None and window is not None:
+        if capture_window_id != window.as_pointer():
+            return False
+
+    region = bpy.context.region
+    if region is None:
+        return False
+
+    # region.x / region.y are window-space; mouse_x / mouse_y are window-space too.
+    return (region.x <= mouse_x <= region.x + region.width
+            and region.y <= mouse_y <= region.y + region.height)
+
+
+
 # ----------------------------------------------------------
 # Drawing function used by all (builtin & custom) UI Shaders
 
@@ -490,19 +561,3 @@ def _universal_draw_callback(handler_instance) -> None:
         for shader in failed_shaders:
             logger.error(f"{shader.shader_uid.ljust(max_uid_length)} : {shader.shader_error_str}")
 
-
-def apply_global_opacity_multiplier(colors_array, opacity_multiplier):
-    """
-    Apply global opacity multiplier to color array's alpha channel.
-    
-    Args:
-        colors_array: numpy array of shape (n, 4) with RGBA colors
-        opacity_multiplier: float 0-1, multiplier for alpha channel
-        
-    Returns:
-        Modified colors_array with alpha multiplied
-    """
-    if opacity_multiplier < 1.0 and len(colors_array) > 0:
-        colors_array = colors_array.copy()
-        colors_array[:, 3] *= opacity_multiplier
-    return colors_array

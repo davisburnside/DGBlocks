@@ -8,7 +8,7 @@ from ..block_onscreen_drawing.ui import _uilist_draw_selection_details, _uilist_
 # ==============================================================================================================================
 
 class Block_Hook_Sources(String_Comparable_Mixin):
-    hook_get_shader_definitions = Hook_Source_Declaration({})
+    hook_get_shader_declarations = Hook_Source_Declaration({})
     hook_before_first_draw      = Hook_Source_Declaration({})
 
 

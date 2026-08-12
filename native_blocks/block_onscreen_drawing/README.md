@@ -5,7 +5,7 @@
 ## Purpose
 
 Manages GPU-accelerated onscreen drawing in Blender viewports. Provides a pull-based
-architecture: downstream blocks declare their shaders via `hook_get_shader_definitions`, and
+architecture: downstream blocks declare their shaders via `hook_get_shader_declarations`, and
 `Wrapper_Shader_Manager` owns the full lifecycle — grouping shaders by draw location,
 registering one Blender draw handler per `(space, region, phase)` group, creating
 `Shader_Instance` objects, and persisting per-shader `is_enabled` state in a Blender
@@ -27,7 +27,7 @@ Drawing is gated by the `enable_drawing` scene property. Any change to the desir
 (enabling drawing, a downstream block calling `repoll()`, toggling viewport debugging, undo/redo)
 triggers a **reconcile**, not a destroy-and-recreate:
 
-1. `hook_get_shader_definitions` is broadcast — each subscribed block returns a list of its
+1. `hook_get_shader_declarations` is broadcast — each subscribed block returns a list of its
    `Shader_Declaration` objects. This is the **authoritative** "what should exist" set.
 2. Definitions are validated and grouped by `(space, region, phase)`.
 3. `_rebuild_all_shaders()` **reuses** any existing live `Shader_Instance` whose class, shader
@@ -100,7 +100,7 @@ per-shader visibility now carry across undo/redo and repolls instead of being di
 
 | Member | Direction | Kwargs | Purpose |
 |---|---|---|---|
-| `hook_get_shader_definitions` | block_onscreen_drawing → subscribers | `{}` | Collect `Shader_Declaration` objects; subscribers return a list of definitions |
+| `hook_get_shader_declarations` | block_onscreen_drawing → subscribers | `{}` | Collect `Shader_Declaration` objects; subscribers return a list of definitions |
 | `hook_before_first_draw` | block_onscreen_drawing → subscribers | `{}` | Push initial geometry via `get_shader(uid)` after all instances are live |
 
 ## Hook Subscriptions (other blocks)
@@ -143,7 +143,7 @@ def hook_before_first_draw():
 ## Public API — `Shader_Declaration`
 
 Declarative descriptor. One per logical shader. Supplied by downstream blocks inside
-`hook_get_shader_definitions`.
+`hook_get_shader_declarations`.
 
 ```python
 Shader_Declaration(
@@ -237,7 +237,7 @@ the draw; these can be monkeypatched via `Shader_Declaration.builtin_shader_befo
 from ...native_blocks.block_onscreen_drawing.feature_shader_manager import Wrapper_Shader_Manager
 from .constants import MY_SHADER_DEFS
 
-def hook_get_shader_definitions():
+def hook_get_shader_declarations():
     return MY_SHADER_DEFS
 
 def hook_before_first_draw():
@@ -291,7 +291,7 @@ no longer gates the example demo shaders (those are controlled by their own `sho
   through `_rebuild_all_shaders`, so toggles reconcile reliably (fixing the earlier "sometimes
   nothing happens on disable").
 
-- The `hook_get_shader_definitions` subscriber walks `bpy.context.window_manager.windows` live,
+- The `hook_get_shader_declarations` subscriber walks `bpy.context.window_manager.windows` live,
   rather than hardcoding a list, so it only ever declares real, currently-valid `(space, region)`
   combinations. This transparently covers all editor types across all windows and picks up regions
   such as `TOOL_HEADER` automatically. One `Shader_Declaration` is emitted per unique
@@ -316,7 +316,7 @@ subpanel (drawn with `ui_draw_subpanel`). **Each demo now has its own nested sub
 whose header carries an **eye icon** bound to that demo's `show_shader` property (in
 `demo_settings`). Toggling the eye triggers a repoll, and a hidden demo is excluded from — and
 implicitly removed from — the shader list. They are self-subscribed via this block's own
-`hook_get_shader_definitions` / `hook_before_first_draw`, and controlled by
+`hook_get_shader_declarations` / `hook_before_first_draw`, and controlled by
 `scene.dgblocks_onscreen_drawing_props.debug_props` (per-shader static params) plus
 `scene.dgblocks_onscreen_drawing_props.demo_settings` (unified per-demo options — see below).
 Each is a **custom `Shader_Instance` subclass** living in `builtin_shaders_and_effects/`; the

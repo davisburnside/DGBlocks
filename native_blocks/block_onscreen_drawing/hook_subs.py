@@ -1,0 +1,210 @@
+
+
+import sys
+import random
+import bpy
+
+# --------------------------------------------------------------
+# Addon-level imports
+from ...addon_helpers.generic_tools import force_redraw_ui
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
+from ...addon_config.static_settings import Documentation_URLs, addon_title
+
+# --------------------------------------------------------------
+# Inter-block imports
+from .. import block_core  # noqa: F401 — ensures block_core is loaded first
+from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from ..block_core.core_features.loggers.feature_wrapper import get_logger
+from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist, ui_draw_subpanel
+
+# --------------------------------------------------------------
+# Intra-block imports
+from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_UIList_Configs
+from .feature_shader_manager import Wrapper_Shader_Manager
+from .data_structures import Shader_Declaration
+from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
+from .helpers import _clear_all_shaders, _rebuild_all_shaders
+from .animations.engine import get_timer_definitions_from_animations
+from .builtin_shaders_and_effects.custom_shader_billboard2D import Billboard_Shader, _billboard_uid_for_image
+from .builtin_shaders_and_effects.custom_shader_polyline_dash import Polyline_Dash_Shader
+from .builtin_shaders_and_effects.custom_shader_textbox_demo import Textbox_Demo_Shader
+from .builtin_shaders_and_effects.demo_props import (
+    DGBLOCKS_PG_Demo_Shader_Attribute,
+    DGBLOCKS_PG_Demo_Shader_Common,
+    DGBLOCKS_PG_Debug_Shader_Region_Toggles,
+    DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX,
+    ATTR_DASHED_PHASE, ATTR_DASHED_COUNT,
+    DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID,
+    _create_region_boundary_shader_declarations,
+    _polyline_from_ring,
+    _radial_ring,
+    _resolve_demo_shader_uid, _activate_demo_animation, ensure_demo_rows, 
+    get_demo_row, region_type_is_enabled, demo_is_animatable, 
+)
+
+
+# Called from self
+def _hook_get_shader_declarations():
+    """
+    Adds a debug bounding box for every region of every area of every open window, when
+    draw_region_boundaries is checked.
+
+    Rather than hardcoding a space/region list, we walk the live window manager so that only
+    real, currently-valid (space, region) combinations are declared — this covers all editor
+    types across all windows and picks up regions like TOOL_HEADER automatically. Each unique
+    (space_type, region_type) yields one Shader_Declaration; the single draw handler Blender
+    registers per space type then draws that border in every matching area/window.
+    """
+
+    props = bpy.context.scene.dgblocks_onscreen_drawing_props
+    debug_props = props.debug_props
+    shader_defs = []
+
+    def _demo_shown(demo_id):
+        row = get_demo_row(props, demo_id)
+        return row is not None and row.show_shader
+
+    image = debug_props.show_img_2Dbillboard
+    if _demo_shown(DEMO_ID_BILLBOARD) and image is not None and debug_props.billboard_count > 0:
+        shader_defs.append(Billboard_Shader.create_declaration(image) # More dynamic than the other Declarations, requires an Image 
+        )
+
+    if _demo_shown(DEMO_ID_DASHED) and debug_props.show_linedash:
+        shader_defs.append(
+            Shader_Declaration(
+                shader_uid=_EXAMPLE_LINEDASH_UID,
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_VIEW,
+                custom_shader_class=Polyline_Dash_Shader,
+            )
+        )
+
+    if _demo_shown(DEMO_ID_TEXTBOX) and debug_props.show_textbox_count > 0:
+        shader_defs.append(
+            Shader_Declaration(
+                shader_uid=_EXAMPLE_TEXTBOX_UID,
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_PIXEL,
+                custom_shader_class=Textbox_Demo_Shader,
+            )
+        )
+    
+    if debug_props.draw_region_boundaries:
+        shader_defs.extend(_create_region_boundary_shader_declarations(props))
+
+    # Example demo shaders are independent of viewport debugging.
+    return shader_defs
+
+# Called from self
+def _hook_before_first_draw():
+    """
+    Push (re)generated geometry / parameters into the live example shaders. Runs on every
+    rebuild — so every example-property edit re-randomizes the billboards and re-applies the
+    dashed-line and textbox parameters.
+    """
+    props = bpy.context.scene.dgblocks_onscreen_drawing_props
+    debug_props = props.debug_props
+
+    # --- Billboards: random location / size / color around the origin ---
+    image = debug_props.show_img_2Dbillboard
+    if image is not None and debug_props.billboard_count > 0:
+        shader = Wrapper_Shader_Manager.get_shader(_billboard_uid_for_image(image))
+        if shader is not None:
+            count = debug_props.billboard_count
+            loc_spread = debug_props.billboard_location_spread
+            size = debug_props.billboard_default_size
+            size_spread = debug_props.billboard_size_spread
+            color_spread = debug_props.billboard_color_spread
+
+            points = []
+            colors = []
+            sizes = []
+            for _ in range(count):
+                # Default location is always (0, 0, 0); location_spread jitters around it.
+                points.append((
+                    random.uniform(-loc_spread, loc_spread),
+                    random.uniform(-loc_spread, loc_spread),
+                    random.uniform(-loc_spread, loc_spread),
+                ))
+                sizes.append(max(0.0, size + random.uniform(-size_spread, size_spread)))
+                # color_spread=0 -> all white; ->1 -> fully random RGB. Alpha stays opaque.
+                base = 1.0 - color_spread
+                colors.append((
+                    base + random.uniform(0.0, color_spread),
+                    base + random.uniform(0.0, color_spread),
+                    base + random.uniform(0.0, color_spread),
+                    1.0,
+                ))
+            shader.set_points(points)
+            shader.set_colors(colors)
+            shader.set_billboard_sizes(sizes)
+
+    # --- Dashed polyline: a base square loop, PLUS N radially-symmetric ring clusters ---
+    if debug_props.show_linedash:
+        shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_LINEDASH_UID)
+        if shader is not None:
+            dash_row = get_demo_row(props, DEMO_ID_DASHED)
+
+            # Base shape: a square loop on the XY plane, as segment endpoint PAIRS.
+            corners = [(-2, -2, 0), (2, -2, 0), (2, 2, 0), (-2, 2, 0)]
+            polyline = _polyline_from_ring(corners)
+
+            # Task 2: `count` disjointed ring clusters, each an empty (n+1)-vert radially
+            # symmetric polygon, stacked at increasing Z above the base shape. This proves the
+            # polyline shader handles disjointed line clusters within a single batch.
+            count_attr = dash_row.get_attr(ATTR_DASHED_COUNT) if dash_row else None
+            cluster_count = count_attr.get_value() if count_attr else 0
+            n_sides = len(corners)  # radial symmetry uses the base shape's vertex count
+            for c in range(cluster_count):
+                z = (c + 1) * 1.5
+                ring = _radial_ring(radius=2.0, n_sides=n_sides, z=z)
+                polyline.extend(_polyline_from_ring(ring))
+
+            shader.set_polyline(polyline)
+            shader.set_line_thickness(debug_props.linedash_thickness)
+            shader.set_dash_width(debug_props.linedash_dash_width)
+            shader.set_dash_ratio(debug_props.linedash_dash_ratio)
+            shader.set_dash_colors(
+                tuple(debug_props.linedash_color),
+                tuple(debug_props.linedash_color2),
+            )
+            # Task 2: phase (0..1, hard-capped in set_phase) from the demo's unique attribute.
+            phase_attr = dash_row.get_attr(ATTR_DASHED_PHASE) if dash_row else None
+            if phase_attr is not None:
+                shader.set_phase(phase_attr.get_value())
+
+    # --- Text boxes (task 8): count + spawn point ---
+    if debug_props.show_textbox_count > 0:
+        shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_TEXTBOX_UID)
+        if shader is not None:
+            shader.set_textbox_count(debug_props.show_textbox_count)
+            shader.set_spawn_point(debug_props.textbox_spawn_point)
+
+    # Re-attach demo animations for every animating demo. Called from hook_before_first_draw so demo animations survive a rebuild (undo/redo, eye toggles, prop edits
+    for row in props.demo_settings:
+        if not row.is_animating or not demo_is_animatable(row.demo_id):
+            continue
+        uid = _resolve_demo_shader_uid(row.demo_id, props)
+        if uid is None:
+            continue
+        _, shader, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(Block_RTC_Members.SHADERS, "shader_uid", uid)
+        if shader is not None:
+            _activate_demo_animation(row.demo_id, row, shader)
+
+# Called from block_modal_events
+def _hook_get_timer_definitions():
+    """
+    Subscribed to block_timers' hook_get_timer_definitions.
+    Returns one Timer_Definition per unique framerate across all shader-owned
+    animations. block_timers creates one bpy.app.timer per definition returned here.
+    """
+    return get_timer_definitions_from_animations()
+
+# Called from block_core
+def _hook_post_startup():
+    ensure_demo_rows(bpy.context.scene.dgblocks_onscreen_drawing_props)
