@@ -19,22 +19,40 @@ Shader_Declaration(
 """
 
 from dataclasses import dataclass, field
+from typing import Any
 import bpy
 
 from ....native_blocks.block_onscreen_drawing.data_structures import Shader_Instance
-from .simple_textbox import draw_text_box
+
+# Optional foreign RTC member owned by block_modal_events (NOT a dependency). Read defensively.
+_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE = "USER_INPUT_CAPTURE"
+
+# Spawn-point identifiers (must match the EnumProperty items in __init__.py).
+SPAWN_TOP_LEFT     = "TOP_LEFT"
+SPAWN_TOP_RIGHT    = "TOP_RIGHT"
+SPAWN_BOTTOM_LEFT  = "BOTTOM_LEFT"
+SPAWN_BOTTOM_RIGHT = "BOTTOM_RIGHT"
+SPAWN_MOUSE        = "MOUSE"
+
+_MARGIN = 20
+_LINE_HEIGHT = 34
+_BOX_WIDTH_GUESS = 130  # approx px for right-aligned spawn anchoring
 
 
 @dataclass
 class Textbox_Demo_Shader(Shader_Instance):
 
     _count: int = field(init=False, default=1)
+    _spawn_point: str = field(init=False, default=SPAWN_TOP_LEFT)
 
     # ----------------------------------------------------------
     # Public API, unique to this shader
 
     def set_textbox_count(self, value: int) -> None:
         self._count = max(0, int(value))
+
+    def set_spawn_point(self, value: str) -> None:
+        self._spawn_point = str(value)
 
     # ----------------------------------------------------------
     # Private API, overriding parent class funcs
@@ -47,20 +65,62 @@ class Textbox_Demo_Shader(Shader_Instance):
         # No batch geometry; text is drawn immediately in _shader_draw().
         self._needs_new_batch = False
 
+    def _resolve_mouse_xy(self, region):
+        """
+        Window-space mouse -> region-space (x, y), or None when the foreign USER_INPUT_CAPTURE
+        member is absent/idle or the mouse is outside this region. Never raises.
+        """
+        from ...block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+        capture = Wrapper_Runtime_Cache.get_cache(_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE)
+        if capture is None:
+            return None
+        mx = getattr(capture, "mouse_x", None)
+        my = getattr(capture, "mouse_y", None)
+        if not mx or not my:
+            return None
+        return (mx - region.x, my - region.y)
+
+    def _resolve_origin(self, region, box_index):
+        """Top-left anchor (x, y) in region space for text box `box_index`."""
+        stack_offset = box_index * _LINE_HEIGHT
+        w, h = region.width, region.height
+        sp = self._spawn_point
+
+        if sp == SPAWN_MOUSE:
+            mouse_xy = self._resolve_mouse_xy(region)
+            if mouse_xy is None:
+                # Mouse capture unavailable — fall back to top-left rather than skipping.
+                return (_MARGIN, h - _MARGIN - stack_offset)
+            return (mouse_xy[0], mouse_xy[1] - stack_offset)
+
+        if sp == SPAWN_TOP_LEFT:
+            return (_MARGIN, h - _MARGIN - stack_offset)
+        if sp == SPAWN_TOP_RIGHT:
+            return (w - _MARGIN - _BOX_WIDTH_GUESS, h - _MARGIN - stack_offset)
+        if sp == SPAWN_BOTTOM_LEFT:
+            return (_MARGIN, _MARGIN + (self._count - 1 - box_index) * _LINE_HEIGHT)
+        if sp == SPAWN_BOTTOM_RIGHT:
+            return (w - _MARGIN - _BOX_WIDTH_GUESS,
+                    _MARGIN + (self._count - 1 - box_index) * _LINE_HEIGHT)
+        return (_MARGIN, h - _MARGIN - stack_offset)
+
     def _shader_draw(self):
+        # Import here to keep the module's import graph identical to before (avoids any
+        # import-time cost when the demo isn't used).
+        from .simple_textbox import draw_text_box
+
         context = bpy.context
         region = context.region
         if region is None:
             return
 
-        # Stack the boxes down the top-left corner of the region.
-        line_height = 34
         for i in range(self._count):
+            xy = self._resolve_origin(region, i)
             draw_text_box(
                 context,
                 None,  # background quad drawing is disabled inside draw_text_box; shader unused
                 text_lines=[f"Text Box #{i + 1}"],
-                xy_point=(20, region.height - 20 - i * line_height),
+                xy_point=xy,
                 font_sizes=14,
                 alignments="left",
                 min_padding=6,

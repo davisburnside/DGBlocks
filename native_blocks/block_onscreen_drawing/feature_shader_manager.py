@@ -12,6 +12,7 @@ from ..block_core.core_features.runtime_cache.data_sync_tools import plan_datacl
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 
 # Intra-block imports
+from .demo_shader_settings import ensure_demo_rows
 from .common_declarations import  Block_Loggers, Block_RTC_Members
 from .helpers import _clear_all_shaders, _rebuild_all_shaders
 from .data_structures import Shader_Instance

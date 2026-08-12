@@ -36,6 +36,7 @@ consecutive points define one line segment:
 
 from dataclasses import dataclass, field
 from typing import Any
+import numpy as np
 import bpy
 import gpu
 from gpu_extras.batch import batch_for_shader
@@ -135,7 +136,14 @@ def _make_polyline_verts(points_list):
         indices.append((o + 0, o + 1, o + 2))
         indices.append((o + 2, o + 1, o + 3))
 
-    return seg_a, seg_b, side, end_flag, indices
+    # All geometry arrays are numpy (task 1: every point/attr passed to the batch is numpy).
+    return (
+        np.asarray(seg_a, dtype=np.float32),
+        np.asarray(seg_b, dtype=np.float32),
+        np.asarray(side, dtype=np.float32),
+        np.asarray(end_flag, dtype=np.float32),
+        np.asarray(indices, dtype=np.uint32),
+    )
 
 
 
@@ -157,9 +165,17 @@ class Polyline_Dash_Shader(Shader_Instance):
     # Public API, unique to this shader
 
     def set_polyline(self, value: list) -> None:
-        """Set the polyline geometry as a flat list of segment endpoint PAIRS."""
-        self._points = list(value)
+        """Set the polyline geometry as a flat list of segment endpoint PAIRS.
+
+        Stored as a numpy float32 array (task 1) so every point handled by this shader — and
+        every array passed to batch_for_shader — is numpy. Animatable via `_points`.
+        """
+        self._points = np.asarray(value, dtype=np.float32)
         self._needs_new_batch = True
+
+    def set_phase(self, value: float) -> None:
+        """Dash scroll phase, hard-capped to 0.0 - 1.0 (task 2)."""
+        self._phase = min(1.0, max(0.0, float(value)))
 
     def set_line_thickness(self, value: float) -> None:
         self._thickness = float(value)
@@ -215,7 +231,7 @@ class Polyline_Dash_Shader(Shader_Instance):
             self._batch = None
             return
 
-        seg_a, seg_b, side, end_flag, indices = _make_polyline_verts(list(self._points))
+        seg_a, seg_b, side, end_flag, indices = _make_polyline_verts(self._points)
 
         self._batch = batch_for_shader(
             self.shader_actual,

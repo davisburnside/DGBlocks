@@ -276,9 +276,20 @@ mutated. Checks:
 
 ## Viewport Region Debugging
 
-`scene.dgblocks_onscreen_drawing_props.debug_props.enable_viewport_debugging` (a checkbox in the
-panel, active only while `enable_drawing` is on) draws a thin border around **every region of every
-area of every open window** — useful for seeing where each `(space, region)` actually lives.
+`scene.dgblocks_onscreen_drawing_props.debug_props.draw_region_boundaries` (a checkbox in the
+panel's **Viewport Region Debugging** sub-subpanel, active only while `enable_drawing` is on)
+draws a thin border around **every region of every area of every open window** — useful for
+seeing where each `(space, region)` actually lives. It governs **only** the border shaders — it
+no longer gates the example demo shaders (those are controlled by their own `show_shader` eyes).
+
+- **Per-region-type checkboxes:** a `grid_flow` of checkboxes (`region_toggles`, one
+  `BoolProperty` per drawable `Draw_Region_Type` — WINDOW, HEADER, TOOL_HEADER, UI, TOOLS, …)
+  lets you disable individual region types for all areas at once. Unchecking one omits its
+  border declaration on the next repoll.
+- **Reliable enable/disable:** `enable_drawing` now carries an `update` callback
+  (`_cb_enable_drawing_changed`), and every debug/demo/region property routes structural changes
+  through `_rebuild_all_shaders`, so toggles reconcile reliably (fixing the earlier "sometimes
+  nothing happens on disable").
 
 - The `hook_get_shader_definitions` subscriber walks `bpy.context.window_manager.windows` live,
   rather than hardcoding a list, so it only ever declares real, currently-valid `(space, region)`
@@ -301,22 +312,51 @@ area of every open window** — useful for seeing where each `(space, region)` a
 ## Built-in Example Shaders
 
 The block's own panel ships three demo shaders under a collapsible **"Shader Examples"**
-subpanel (drawn with `ui_draw_subpanel`). They are self-subscribed via this block's own
+subpanel (drawn with `ui_draw_subpanel`). **Each demo now has its own nested sub-subpanel**
+whose header carries an **eye icon** bound to that demo's `show_shader` property (in
+`demo_settings`). Toggling the eye triggers a repoll, and a hidden demo is excluded from — and
+implicitly removed from — the shader list. They are self-subscribed via this block's own
 `hook_get_shader_definitions` / `hook_before_first_draw`, and controlled by
-`scene.dgblocks_onscreen_drawing_props.debug_props`. Each is a **custom `Shader_Instance`
-subclass** living in `builtin_shaders_and_effects/`; the pure GPU/shader files are kept fully
-independent of the controlling logic — the panel and hooks only call small public setters.
+`scene.dgblocks_onscreen_drawing_props.debug_props` (per-shader static params) plus
+`scene.dgblocks_onscreen_drawing_props.demo_settings` (unified per-demo options — see below).
+Each is a **custom `Shader_Instance` subclass** living in `builtin_shaders_and_effects/`; the
+pure GPU/shader files are kept fully independent of the controlling logic — the panel and hooks
+only call small public setters. Static shader props are arranged in **width-sensitive
+`grid_flow` grids** rather than plain columns.
 
 Every example follows the same "declare-when-visible" contract: while `enable_drawing` is on,
 any property edit triggers a reconcile, which re-fires both hooks — so `hook_before_first_draw`
 re-pushes geometry on every change (the billboard example uses this to **re-randomize** on each
 edit).
 
+### Unified per-demo settings (`demo_settings`)
+
+New PropertyGroups and the demo-animation logic live in the dedicated module
+`demo_shader_settings.py`. `scene.dgblocks_onscreen_drawing_props.demo_settings` is a
+`CollectionProperty[DGBLOCKS_PG_Demo_Shader_Common]` with one row per demo (keyed by `demo_id`,
+seeded idempotently by `ensure_demo_rows()`). Each row holds options common to **all** shaders:
+
+| Field | Purpose |
+|---|---|
+| `show_shader` | Eye toggle — whether the demo shader exists at all (drives repoll) |
+| `is_animating` | Runs an infinite-loop demo animation (RTC-only; never writes BL values) |
+| `animation_fps` | Ticks/sec for the demo animation, **capped at 60** |
+| `scale` | Uniform scale hook available to all demos |
+| `unique_attributes` | Nested `CollectionProperty` of shader-unique knobs (e.g. dashed `phase`, cluster `count`) |
+
+**Demo animations (task 3/4):** each animatable demo shows an **Animate** toggle (operator
+`DGBLOCKS_OT_Toggle_Demo_Animation`, `INTERNAL`, no UNDO) and — while running — an **FPS
+slider**. Turning it on applies an infinite (`loop_count=0`) `set_animation()` mix per demo:
+the dashed shader lerps its `_phase`, `_color` and `_points`; the billboard lerps `_colors`,
+`_points` and `_sizes`. While a demo is animating, its other props render **read-only**; the
+animation drives only RTC shader state, so the Blender property values stay static. The old
+"Sample Animations" button has been removed.
+
 | Example | Property | Behaviour |
 |---|---|---|
-| **2D image billboard** | `show_img_2Dbillboard` (Image), `billboard_count`, `billboard_default_size`, `billboard_size_spread`, `billboard_location_spread`, `billboard_color_spread` | Declared **only when an image is set** (no image ⇒ shader not declared ⇒ disabled). Draws `count` camera-facing quads with random location (around origin `(0,0,0)`), size, and color. Its `shader_uid` embeds the image name so swapping images forces a fresh GPU texture. |
-| **Dashed polyline** | `show_linedash`, `linedash_thickness`, `linedash_dash_width`, `linedash_dash_ratio`, `linedash_color`, `linedash_color2` | A `Polyline_Dash_Shader` port of the legacy dashed-line shader. Unlike GL-line thickness (ignored on macOS/Metal), it expands each segment into a screen-space quad in the vertex shader, so **line thickness is honoured on every backend**. |
-| **Text boxes** | `show_textbox_count` | Draws N BLF text boxes via the existing `draw_text_box()` renderer, wrapped in `Textbox_Demo_Shader`. |
+| **2D image billboard** | `show_img_2Dbillboard` (Image), `billboard_count`, `billboard_default_size`, `billboard_size_spread`, `billboard_location_spread`, `billboard_color_spread` + `is_animating` | Declared **only when its eye is on AND an image is set**. Draws `count` camera-facing quads with random location, size, and color. Its `shader_uid` embeds the image name so swapping images forces a fresh GPU texture. Animatable. |
+| **Dashed polyline** | `show_linedash`, `linedash_thickness`, `linedash_dash_width`, `linedash_dash_ratio`, `linedash_color`, `linedash_color2` + unique attrs `phase` (0–1, hard-capped) and cluster `count` + `is_animating` | A `Polyline_Dash_Shader` port of the legacy dashed-line shader with true Metal-safe thickness. `count` draws that many extra **disjointed, radially-symmetric ring clusters** stacked in Z above the base square — proving the polyline shader handles disjointed line clusters in one batch. Animatable. |
+| **Text boxes** | `show_textbox_count`, `textbox_spawn_point` | Draws N BLF text boxes via `draw_text_box()`, wrapped in `Textbox_Demo_Shader`. `spawn_point` is a radio (TOP_LEFT / TOP_RIGHT / BOTTOM_LEFT / BOTTOM_RIGHT / **MOUSE**). The **At Mouse** option positions boxes at the captured mouse; it requires a live `block_modal_event` instance (`USER_INPUT_CAPTURE`), otherwise the panel shows *"An active block_modal_event instance is required for mouse/key capture"*. |
 
 ### `Polyline_Dash_Shader` — Metal-safe line thickness
 
@@ -408,6 +448,7 @@ block_onscreen_drawing/
 ├── common_declarations.py            # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors, Block_UIList_Configs
 ├── BL_drawing_structures.py          # Space/Region/Phase enums, builtin shaders enums, validation allowlists
 ├── data_structures.py                # Shader_Declaration, Shader_Instance, Drawhandler_Instance
+├── demo_shader_settings.py           # Demo PropertyGroups (Common/Attribute/Region toggles), demo-animation apply/cancel
 ├── feature_shader_manager.py         # Wrapper_Shader_Manager (_update_RTC..., _update_BL...)
 ├── helpers.py                        # _rebuild_all_shaders, _clear_all_shaders, _universal_draw_callback, _validate_shader_definitions
 ├── ui.py                             # UIList draw helpers

@@ -25,6 +25,7 @@ Shader_Declaration(
 
 from dataclasses import dataclass, field
 from typing import Any
+import numpy as np
 import bpy
 import gpu
 from gpu_extras.batch import batch_for_shader
@@ -139,8 +140,12 @@ class Billboard_Shader(Shader_Instance):
     # Public API, unique to this shader
 
     def set_billboard_sizes(self, value: list) -> None:
-        """Set per-billboard world-space sizes (one float per point)."""
-        self._sizes = list(value)
+        """Set per-billboard world-space sizes (one float per point).
+
+        Stored as a numpy float32 array (task 1) so it matches the numpy points/colors and can
+        be animated via the `_sizes` batch attribute.
+        """
+        self._sizes = np.asarray(value, dtype=np.float32)
         self._needs_new_batch = True
 
     # ----------------------------------------------------------
