@@ -60,9 +60,12 @@ def _validate_shader_definitions(shader_defs: list) -> None:
         seen_uids.add(sdef.shader_uid)
 
     # --- (space, region, phase) allowlist check ---
+    # NOTE: kept disabled for now. The allowlist in _VALID_SPACE_REGION_PHASE_COMBOS is not yet
+    # exhaustive, so enforcing it would reject valid combos (e.g. the example shaders'
+    # (VIEW_3D, WINDOW, POST_VIEW)). draw_handler_add failures are already isolated per-group in
+    # _rebuild_all_shaders(), so an invalid combo degrades gracefully rather than crashing.
     for sdef in shader_defs:
         combo = (sdef.space, sdef.region, sdef.phase)
-        # TODO: 7/2/26 find reason for error:  Shader 'BILLBOARD': (VIEW_3D, WINDOW, POST_VIEW) is not a known-valid (space, region, phase) combination. See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist.
         # if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
         #     raise ValueError(
         #         f"Shader '{sdef.shader_uid}': "

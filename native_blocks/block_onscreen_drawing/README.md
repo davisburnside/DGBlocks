@@ -298,6 +298,36 @@ area of every open window** — useful for seeing where each `(space, region)` a
 > modal is active. Reading the key cross-block is otherwise safe and adds no dependency.
 
 
+## Built-in Example Shaders
+
+The block's own panel ships three demo shaders under a collapsible **"Shader Examples"**
+subpanel (drawn with `ui_draw_subpanel`). They are self-subscribed via this block's own
+`hook_get_shader_definitions` / `hook_before_first_draw`, and controlled by
+`scene.dgblocks_onscreen_drawing_props.debug_props`. Each is a **custom `Shader_Instance`
+subclass** living in `builtin_shaders_and_effects/`; the pure GPU/shader files are kept fully
+independent of the controlling logic — the panel and hooks only call small public setters.
+
+Every example follows the same "declare-when-visible" contract: while `enable_drawing` is on,
+any property edit triggers a reconcile, which re-fires both hooks — so `hook_before_first_draw`
+re-pushes geometry on every change (the billboard example uses this to **re-randomize** on each
+edit).
+
+| Example | Property | Behaviour |
+|---|---|---|
+| **2D image billboard** | `show_img_2Dbillboard` (Image), `billboard_count`, `billboard_default_size`, `billboard_size_spread`, `billboard_location_spread`, `billboard_color_spread` | Declared **only when an image is set** (no image ⇒ shader not declared ⇒ disabled). Draws `count` camera-facing quads with random location (around origin `(0,0,0)`), size, and color. Its `shader_uid` embeds the image name so swapping images forces a fresh GPU texture. |
+| **Dashed polyline** | `show_linedash`, `linedash_thickness`, `linedash_dash_width`, `linedash_dash_ratio`, `linedash_color`, `linedash_color2` | A `Polyline_Dash_Shader` port of the legacy dashed-line shader. Unlike GL-line thickness (ignored on macOS/Metal), it expands each segment into a screen-space quad in the vertex shader, so **line thickness is honoured on every backend**. |
+| **Text boxes** | `show_textbox_count` | Draws N BLF text boxes via the existing `draw_text_box()` renderer, wrapped in `Textbox_Demo_Shader`. |
+
+### `Polyline_Dash_Shader` — Metal-safe line thickness
+
+The legacy shader (`legacy_custom_shader_linedash.py`, kept read-only for reference) drew
+`GL_LINES` and relied on `gpu.state.line_width_set()`, which Metal ignores — lines always
+rendered 1px on Mac. Blender's own `POLYLINE_*` builtins avoid this by expanding each segment
+into a screen-space quad and offsetting corners perpendicular to the segment by half the
+thickness; thickness then becomes real geometry. `Polyline_Dash_Shader` does exactly that and
+additionally carries the legacy dash fragment logic (`dash_width` / `udash_factor` / two colors).
+Input is a flat list of segment endpoint pairs via `set_polyline([A, B, B, C, ...])`.
+
 ## Animations
 
 Lives in `animations/`. Lerps any Python-readable attribute on a `Shader_Instance`
@@ -382,6 +412,11 @@ block_onscreen_drawing/
 ├── helpers.py                        # _rebuild_all_shaders, _clear_all_shaders, _universal_draw_callback, _validate_shader_definitions
 ├── ui.py                             # UIList draw helpers
 ├── builtin_shaders_and_effects/      # Reusable custom Shader_Instance subclasses
+│   ├── custom_shader_billboard2D.py       # Billboard_Shader — camera-facing image quads
+│   ├── custom_shader_polyline_dash.py     # Polyline_Dash_Shader — dashed line, Metal-safe thickness
+│   ├── custom_shader_textbox_demo.py      # Textbox_Demo_Shader — N BLF text boxes
+│   ├── legacy_custom_shader_linedash.py   # READ-ONLY reference: the old GL-line dashed shader
+│   └── simple_textbox.py                  # draw_text_box() BLF renderer (used by textbox demo)
 └── animations/                       # Animation sub-feature (see "Animations" above)
     ├── constants.py                  # ANIM_* string constants — imports nothing (leaf)
     ├── data_structures.py            # Animation_Declaration, Animation_Instance (leaf)

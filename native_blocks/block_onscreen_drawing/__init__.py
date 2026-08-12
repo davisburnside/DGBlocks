@@ -1,5 +1,6 @@
 
 import sys
+import random
 import bpy
 
 # --------------------------------------------------------------
@@ -14,7 +15,7 @@ from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Run
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
 from ..block_timers.feature_timer_manager import Wrapper_Timer_Manager
-from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist
+from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist, ui_draw_subpanel
 
 # --------------------------------------------------------------
 # Intra-block imports
@@ -26,6 +27,9 @@ from .helpers import _clear_all_shaders, _rebuild_all_shaders
 from .animations.constants import ANIM_DATA_TYPE_BATCH, ANIM_LOOP_PING_PONG
 from .animations.data_structures import Animation_Declaration
 from .animations.engine import get_timer_definitions_from_animations, suppress_timer_rebuilds
+from .builtin_shaders_and_effects.custom_shader_billboard2D import Billboard_Shader
+from .builtin_shaders_and_effects.custom_shader_polyline_dash import Polyline_Dash_Shader
+from .builtin_shaders_and_effects.custom_shader_textbox_demo import Textbox_Demo_Shader
 
 cache_key_shaders = Block_RTC_Members.SHADERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
@@ -36,6 +40,13 @@ cache_key_shared_uilist_declarations = Core_Runtime_Cache_Members.SHARED_UILIST_
 # keep the key as a named constant rather than importing the foreign enum, since importing a
 # non-dependency block is forbidden.
 _FOREIGN_RTC_KEY_USER_INPUT_CAPTURE = "USER_INPUT_CAPTURE"
+
+# Example-shader uids. The billboard uid embeds the image name so that swapping images forces a
+# fresh Shader_Instance (and therefore a fresh GPU texture), since _can_reuse_shader() does not
+# compare custom_shader_kwargs.
+_EXAMPLE_BILLBOARD_UID_PREFIX = "EXAMPLE_BILLBOARD_2D"
+_EXAMPLE_LINEDASH_UID = "EXAMPLE_POLYLINE_DASH"
+_EXAMPLE_TEXTBOX_UID = "EXAMPLE_TEXTBOX_DEMO"
 
 # ==============================================================================================================================
 # BL PROPERTY UPDATE CALLBACKS
@@ -54,22 +65,45 @@ def _cb_enable_drawing_changed(self, context):
         _clear_all_shaders()
 
 
-def _cb_enable_viewport_debugging_changed(self, context):
+def _cb_example_shader_props_changed(self, context):
     """
-    Fired when the viewport debugging toggle changes.
-    Rebuilds shaders so the debug borders are registered or removed.
+    Fired when any of the example-shader properties change (viewport debugging toggle, the
+    billboard image/count/spreads, the linedash controls, or the textbox count).
+
+    While drawing is enabled, this rebuilds the whole shader set. Because a rebuild re-fires
+    both hook_get_shader_definitions AND hook_before_first_draw, every property edit both
+    re-declares the affected example shaders and re-generates their (randomized) geometry —
+    which is exactly the "re-randomize on every update" behaviour the billboard example wants.
     """
     if context.scene.dgblocks_onscreen_drawing_props.enable_drawing:
-        event = Enum_Sync_Events.PROPERTY_UPDATE
-        _rebuild_all_shaders(event)
+        _rebuild_all_shaders(Enum_Sync_Events.PROPERTY_UPDATE)
 
 # ==============================================================================================================================
 # BL PROPERTY GROUPS
 
 class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
-    # show_img_2Dbillboard: bpy.props.PointerProperty(name="Billboard Image", update = _cb_enable_viewport_debugging_changed) # type: ignore
-    # show_textbox_count: bpy.props.PointerProperty(min = 0, max = 20, update = _cb_enable_viewport_debugging_changed) # type: ignore
-    enable_viewport_debugging: bpy.props.BoolProperty(name="3D Viewport Debugging", update = _cb_enable_viewport_debugging_changed)  # type: ignore
+
+    enable_viewport_debugging: bpy.props.BoolProperty(name="3D Viewport Debugging", update = _cb_example_shader_props_changed)  # type: ignore
+
+    # --- 2D image billboard example ---
+    # When no image is set the billboard shader is simply not declared (i.e. disabled).
+    show_img_2Dbillboard: bpy.props.PointerProperty(name="Billboard Image", type=bpy.types.Image, update=_cb_example_shader_props_changed)  # type: ignore
+    billboard_count: bpy.props.IntProperty(name="Count", default=12, min=0, max=500, update=_cb_example_shader_props_changed)  # type: ignore
+    billboard_default_size: bpy.props.FloatProperty(name="Size", default=0.5, min=0.0, soft_max=5.0, update=_cb_example_shader_props_changed)  # type: ignore
+    billboard_size_spread: bpy.props.FloatProperty(name="Size Spread", default=0.25, min=0.0, soft_max=5.0, update=_cb_example_shader_props_changed)  # type: ignore
+    billboard_location_spread: bpy.props.FloatProperty(name="Location Spread", default=3.0, min=0.0, soft_max=50.0, update=_cb_example_shader_props_changed)  # type: ignore
+    billboard_color_spread: bpy.props.FloatProperty(name="Color Spread", default=1.0, min=0.0, max=1.0, update=_cb_example_shader_props_changed)  # type: ignore
+
+    # --- Dashed polyline (Metal-safe thickness) example ---
+    show_linedash: bpy.props.BoolProperty(name="Dashed Polyline", update=_cb_example_shader_props_changed)  # type: ignore
+    linedash_thickness: bpy.props.FloatProperty(name="Line Thickness", default=6.0, min=1.0, soft_max=40.0, update=_cb_example_shader_props_changed)  # type: ignore
+    linedash_dash_width: bpy.props.FloatProperty(name="Dash Width", default=20.0, min=1.0, soft_max=200.0, update=_cb_example_shader_props_changed)  # type: ignore
+    linedash_dash_ratio: bpy.props.FloatProperty(name="Dash Gap Ratio", default=0.5, min=0.0, max=1.0, update=_cb_example_shader_props_changed)  # type: ignore
+    linedash_color: bpy.props.FloatVectorProperty(name="Dash Color", subtype="COLOR", size=4, default=(1.0, 1.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_example_shader_props_changed)  # type: ignore
+    linedash_color2: bpy.props.FloatVectorProperty(name="Gap Color", subtype="COLOR", size=4, default=(0.0, 0.0, 0.0, 0.0), min=0.0, max=1.0, update=_cb_example_shader_props_changed)  # type: ignore
+
+    # --- Text box example ---
+    show_textbox_count: bpy.props.IntProperty(name="Text Boxes", default=0, min=0, max=20, update=_cb_example_shader_props_changed)  # type: ignore
 
 class DGBLOCKS_PG_Shader_Mirror_Row(bpy.types.PropertyGroup):
     """
@@ -214,7 +248,136 @@ def hook_get_shader_definitions():
                         builtin_shader_before_draw=_debug_region_before_draw,
                     )
                 )
+
+    returned_shader_definitions.extend(_get_example_shader_definitions(props))
     return returned_shader_definitions
+
+
+def _billboard_uid_for_image(image) -> str:
+    """Stable per-image billboard uid so swapping the image forces a fresh texture/instance."""
+    return f"{_EXAMPLE_BILLBOARD_UID_PREFIX}_{image.name}"
+
+
+def _get_example_shader_definitions(props):
+    """
+    Declarations for the three example shaders (billboard / dashed polyline / text boxes).
+
+    All three are custom Shader_Instance subclasses drawn in VIEW_3D/WINDOW. Each is declared
+    only while its controlling property indicates it should be visible — a missing billboard
+    image, an unchecked dash toggle, or a zero textbox count simply omits the declaration, which
+    is how "no image -> shader disabled" is expressed to the pull-based manager.
+    """
+    defs = []
+    debug_props = props.debug_props
+
+    image = debug_props.show_img_2Dbillboard
+    if image is not None and debug_props.billboard_count > 0:
+        defs.append(
+            Shader_Declaration(
+                shader_uid=_billboard_uid_for_image(image),
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_VIEW,
+                custom_shader_class=Billboard_Shader,
+                custom_shader_kwargs={"image_name": image.name},
+            )
+        )
+
+    if debug_props.show_linedash:
+        defs.append(
+            Shader_Declaration(
+                shader_uid=_EXAMPLE_LINEDASH_UID,
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_VIEW,
+                custom_shader_class=Polyline_Dash_Shader,
+            )
+        )
+
+    if debug_props.show_textbox_count > 0:
+        defs.append(
+            Shader_Declaration(
+                shader_uid=_EXAMPLE_TEXTBOX_UID,
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_PIXEL,
+                custom_shader_class=Textbox_Demo_Shader,
+            )
+        )
+
+    return defs
+
+
+def hook_before_first_draw():
+    """
+    Push (re)generated geometry / parameters into the live example shaders. Runs on every
+    rebuild — so every example-property edit re-randomizes the billboards and re-applies the
+    dashed-line and textbox parameters.
+    """
+    props = bpy.context.scene.dgblocks_onscreen_drawing_props
+    debug_props = props.debug_props
+
+    # --- Billboards: random location / size / color around the origin ---
+    image = debug_props.show_img_2Dbillboard
+    if image is not None and debug_props.billboard_count > 0:
+        shader = Wrapper_Shader_Manager.get_shader(_billboard_uid_for_image(image))
+        if shader is not None:
+            count = debug_props.billboard_count
+            loc_spread = debug_props.billboard_location_spread
+            size = debug_props.billboard_default_size
+            size_spread = debug_props.billboard_size_spread
+            color_spread = debug_props.billboard_color_spread
+
+            points = []
+            colors = []
+            sizes = []
+            for _ in range(count):
+                # Default location is always (0, 0, 0); location_spread jitters around it.
+                points.append((
+                    random.uniform(-loc_spread, loc_spread),
+                    random.uniform(-loc_spread, loc_spread),
+                    random.uniform(-loc_spread, loc_spread),
+                ))
+                sizes.append(max(0.0, size + random.uniform(-size_spread, size_spread)))
+                # color_spread=0 -> all white; ->1 -> fully random RGB. Alpha stays opaque.
+                base = 1.0 - color_spread
+                colors.append((
+                    base + random.uniform(0.0, color_spread),
+                    base + random.uniform(0.0, color_spread),
+                    base + random.uniform(0.0, color_spread),
+                    1.0,
+                ))
+            shader.set_points(points)
+            shader.set_colors(colors)
+            shader.set_billboard_sizes(sizes)
+
+    # --- Dashed polyline: a simple demo path + the user-controlled dash parameters ---
+    if debug_props.show_linedash:
+        shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_LINEDASH_UID)
+        if shader is not None:
+            # Flat list of segment endpoint PAIRS forming a square loop on the XY plane.
+            corners = [(-2, -2, 0), (2, -2, 0), (2, 2, 0), (-2, 2, 0)]
+            polyline = []
+            for i in range(len(corners)):
+                polyline.append(corners[i])
+                polyline.append(corners[(i + 1) % len(corners)])
+            shader.set_polyline(polyline)
+            shader.set_line_thickness(debug_props.linedash_thickness)
+            shader.set_dash_width(debug_props.linedash_dash_width)
+            shader.set_dash_ratio(debug_props.linedash_dash_ratio)
+            shader.set_dash_colors(
+                tuple(debug_props.linedash_color),
+                tuple(debug_props.linedash_color2),
+            )
+
+    # --- Text boxes ---
+    if debug_props.show_textbox_count > 0:
+        shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_TEXTBOX_UID)
+        if shader is not None:
+            shader.set_textbox_count(debug_props.show_textbox_count)
 
 
 def hook_get_timer_definitions():
@@ -302,6 +465,46 @@ class DGBLOCKS_OT_Sample_Animations(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def _ui_draw_shader_examples_subpanel(context, container):
+    """Contents of the 'Shader Examples' subpanel. Only enabled while drawing is on."""
+    drawing_props = context.scene.dgblocks_onscreen_drawing_props
+    debug_props = drawing_props.debug_props
+
+    col = container.column()
+    col.enabled = drawing_props.enable_drawing
+
+    # Viewport region debugging
+    col.prop(debug_props, "enable_viewport_debugging", toggle=True)
+
+    # 2D image billboards
+    box = col.box()
+    box.label(text="2D Image Billboards", icon="IMAGE_DATA")
+    box.prop(debug_props, "show_img_2Dbillboard")
+    sub = box.column()
+    sub.enabled = debug_props.show_img_2Dbillboard is not None
+    sub.prop(debug_props, "billboard_count")
+    sub.prop(debug_props, "billboard_default_size")
+    sub.prop(debug_props, "billboard_size_spread")
+    sub.prop(debug_props, "billboard_location_spread")
+    sub.prop(debug_props, "billboard_color_spread")
+
+    # Dashed polyline
+    box = col.box()
+    box.prop(debug_props, "show_linedash", toggle=True)
+    sub = box.column()
+    sub.enabled = debug_props.show_linedash
+    sub.prop(debug_props, "linedash_thickness")
+    sub.prop(debug_props, "linedash_dash_width")
+    sub.prop(debug_props, "linedash_dash_ratio")
+    sub.prop(debug_props, "linedash_color")
+    sub.prop(debug_props, "linedash_color2")
+
+    # Text boxes
+    box = col.box()
+    box.label(text="Text Boxes", icon="SMALL_CAPS")
+    box.prop(debug_props, "show_textbox_count")
+
+
 class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     bl_label = ""
     bl_idname = "VIEW3D_PT_Debug_Drawing_Panel"
@@ -323,10 +526,12 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
 
         # Master enable / disable toggle
         layout.prop(drawing_props, "enable_drawing", toggle=True)
-        
-        row = layout.row()
-        row.enabled = drawing_props.enable_drawing
-        row.prop(drawing_props.debug_props, "enable_viewport_debugging", toggle=True)
+
+        # Example / debug shaders grouped under a collapsible subpanel.
+        ui_draw_subpanel(
+            context, layout, "onscreen_shader_examples", "Shader Examples",
+            _ui_draw_shader_examples_subpanel,
+        )
 
         if not drawing_props.shader_mirror:
             layout.label(text="No active shaders", icon="INFO")
