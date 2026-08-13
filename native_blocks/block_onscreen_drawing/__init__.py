@@ -1,54 +1,28 @@
 
 import sys
-import random
 import bpy
 
-# --------------------------------------------------------------
-# Addon-level imports
 from ...addon_helpers.generic_tools import force_redraw_ui
 from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist, ui_draw_subpanel
-
-# --------------------------------------------------------------
-# Inter-block imports
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..block_core.core_features.loggers.feature_wrapper import get_logger
-from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
-
-# --------------------------------------------------------------
-# Intra-block imports
 from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_UIList_Configs
+from .data_structures import DGBLOCKS_PG_Shader_Mirror_Row
 from .feature_shader_manager import Wrapper_Shader_Manager
-from .data_structures import Shader_Declaration
-from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
 from .hook_subs import _hook_before_first_draw, _hook_get_shader_declarations, _hook_get_timer_definitions, _hook_post_startup
 from .helpers import _clear_all_shaders, _rebuild_all_shaders
-from .builtin_shaders_and_effects.custom_shader_billboard2D import Billboard_Shader
-from .builtin_shaders_and_effects.custom_shader_polyline_dash import Polyline_Dash_Shader
-from .builtin_shaders_and_effects.custom_shader_textbox_demo import Textbox_Demo_Shader
 from .builtin_shaders_and_effects.demo_ui import DGBLOCKS_OT_Toggle_Demo_Animation, _ui_draw_shader_examples_subpanel
-
-from .builtin_shaders_and_effects.demo_props import (
-    DGBLOCKS_PG_Debug_Shader_Example_Props,
-    DGBLOCKS_PG_Demo_Shader_Attribute,
-    DGBLOCKS_PG_Demo_Shader_Common,
-    DGBLOCKS_PG_Debug_Shader_Region_Toggles,
-    DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX,
-    ATTR_DASHED_PHASE, ATTR_DASHED_COUNT,
-    DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID,
-    _resolve_demo_shader_uid, _activate_demo_animation, ensure_demo_rows, 
-    get_demo_row, region_type_is_enabled, demo_is_animatable, 
-)
+from .builtin_shaders_and_effects.demo_props import DGBLOCKS_PG_Debug_Shader_Example_Props, DGBLOCKS_PG_Demo_Shader_Attribute, DGBLOCKS_PG_Demo_Shader_Common, DGBLOCKS_PG_Debug_Shader_Region_Toggles
 
 # ==============================================================================================================================
-# BL PROPERTY UPDATE CALLBACKS
+# MAIN DEBUG PANEL
 
 def _cb_enable_drawing_changed(self, context):
     """
-    Fired when the enable_drawing scene property changes.
+    Fired when scene.enable_drawing property changes.
     """
-    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing(Block_RTC_Members.SHADERS):
+    if Wrapper_Runtime_Cache.is_cache_flagged_as_syncing("SHADERS"):
         return
 
     event = Enum_Sync_Events.PROPERTY_UPDATE
@@ -56,26 +30,6 @@ def _cb_enable_drawing_changed(self, context):
         _rebuild_all_shaders(event)
     else:
         _clear_all_shaders()
-
-# ==============================================================================================================================
-# BL PROPERTY GROUPS
-
-class DGBLOCKS_PG_Shader_Mirror_Row(bpy.types.PropertyGroup):
-    """
-    One persistent row per live Shader_Instance.
-    Stores only the uid key and read-only draw-location display fields
-    (space / region / phase). This exists purely to back a UIList; it never drives RTC.
-
-    is_enabled is RTC-only (on Shader_Instance) and is toggled through
-    DGBLOCKS_OT_Toggle_Shader, which does not touch the undo stack.
-    Populated and maintained by Wrapper_Shader_Manager._update_BL_with_mirrored_RTC_data().
-    """
-    
-    shader_uid:  bpy.props.StringProperty()  # type: ignore
-    draw_space:  bpy.props.StringProperty()  # type: ignore
-    draw_region: bpy.props.StringProperty()  # type: ignore
-    draw_phase:  bpy.props.StringProperty()  # type: ignore
-
 
 class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
     """

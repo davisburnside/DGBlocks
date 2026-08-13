@@ -197,3 +197,20 @@ class Shader_Instance(Animatable_Mixin):
 
         self.shader_actual.bind()
         self._batch.draw(self.shader_actual)
+
+
+class DGBLOCKS_PG_Shader_Mirror_Row(bpy.types.PropertyGroup):
+    """
+    One persistent row per live Shader_Instance.
+    Stores only the uid key and read-only draw-location display fields
+    (space / region / phase). This exists purely to back a UIList; it never drives RTC.
+
+    is_enabled is RTC-only (on Shader_Instance) and is toggled through
+    DGBLOCKS_OT_Toggle_Shader, which does not touch the undo stack.
+    Populated and maintained by Wrapper_Shader_Manager._update_BL_with_mirrored_RTC_data().
+    """
+    
+    shader_uid:  bpy.props.StringProperty()  # type: ignore
+    draw_space:  bpy.props.StringProperty()  # type: ignore
+    draw_region: bpy.props.StringProperty()  # type: ignore
+    draw_phase:  bpy.props.StringProperty()  # type: ignore
