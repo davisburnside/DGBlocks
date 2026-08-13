@@ -70,6 +70,7 @@ class DGBLOCKS_PG_Shader_Mirror_Row(bpy.types.PropertyGroup):
     DGBLOCKS_OT_Toggle_Shader, which does not touch the undo stack.
     Populated and maintained by Wrapper_Shader_Manager._update_BL_with_mirrored_RTC_data().
     """
+    
     shader_uid:  bpy.props.StringProperty()  # type: ignore
     draw_space:  bpy.props.StringProperty()  # type: ignore
     draw_region: bpy.props.StringProperty()  # type: ignore
@@ -81,14 +82,18 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
     Scene-level property group for block_onscreen_drawing.
     Stored on bpy.types.Scene.dgblocks_onscreen_drawing_props.
     """
-    enable_drawing: bpy.props.BoolProperty(name="Enable Drawing", default=False, update=_cb_enable_drawing_changed) # type: ignore
-
+    
+    enable_drawing: bpy.props.BoolProperty(name="UI Shaders Enabled", default=False, update=_cb_enable_drawing_changed) # type: ignore
     debug_props: bpy.props.PointerProperty(type = DGBLOCKS_PG_Debug_Shader_Example_Props) # type: ignore
     debug_show_examples: bpy.props.BoolProperty(name="Show Shader Examples", default=False) # type: ignore
-    # Unified per-demo settings (task 4): one DGBLOCKS_PG_Demo_Shader_Common row per demo,
-    # keyed by demo_id, each carrying show_shader / is_animating / animation_fps / scale plus a
-    # nested CollectionProperty of shader-unique attributes. Seeded by ensure_demo_rows().
+    
+    # keyed by demo_id, each carrying show_shader / is_animating / animation_fps / scale 
+    # Can also own CollectionProperty of shader-unique attributes. 
+    # Seeded by ensure_demo_rows().
     demo_settings: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Demo_Shader_Common)  # type: ignore
+    
+    # Unlike most mirrors, this contains no actual BL -> RTC sync logic. 
+    # RTC is always SoT, and is repopulated every Wrapper_Shader_Manager.repoll()
     shader_mirror: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Shader_Mirror_Row)  # type: ignore
     shader_mirror_selected_idx: bpy.props.IntProperty()  # type: ignore
 
@@ -150,12 +155,13 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         drawing_props = context.scene.dgblocks_onscreen_drawing_props
-
-        # Idempotently seed the per-demo settings rows (safe to call from draw).
-        # ensure_demo_rows(drawing_props)
+        all_shaders = Wrapper_Shader_Manager.get_all_shaders()
 
         # Master enable / disable toggle
-        layout.prop(drawing_props, "enable_drawing", toggle=True)
+        row = layout.row()
+        # row.enabled = len(all_shaders) > 0
+        row.scale_y = 2
+        row.prop(drawing_props, "enable_drawing", toggle = True)
 
         # Example / debug shaders grouped under a collapsible subpanel. Each demo is now its own
         # nested sub-subpanel with an eye toggle; per-demo animation toggles replace the old
@@ -166,7 +172,8 @@ class DGBLOCKS_PT_Debug_Drawing_Panel(bpy.types.Panel):
         )
 
         if not drawing_props.shader_mirror:
-            layout.label(text="No active shaders", icon="INFO")
+            box = layout.box()
+            box.label(text="No active shaders", icon="INFO")
         else:
             draw_shared_uilist(context, layout, "shader_mirror")
 

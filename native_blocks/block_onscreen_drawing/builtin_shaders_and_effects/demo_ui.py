@@ -63,6 +63,7 @@ def _ui_draw_demo_animation_controls(container, context, demo_id):
     if row_data is None or not demo_is_animatable(demo_id):
         return
     anim_row = container.row(align=True)
+    anim_row.prop(row_data, "animation_fps", slider=True)
     op = anim_row.operator(
         DGBLOCKS_OT_Toggle_Demo_Animation.bl_idname,
         text="Stop Animation" if row_data.is_animating else "Animate",
@@ -72,23 +73,25 @@ def _ui_draw_demo_animation_controls(container, context, demo_id):
     op.demo_id = demo_id
     # FPS slider sits on the same row as the toggle and stays usable whether or not
     # the animation is currently running (it caps at 60 via the property definition).
-    anim_row.prop(row_data, "animation_fps", slider=True)
+    
 
-
+_shader_billboard_attrs = [
+        "billboard_count", "billboard_default_size", "billboard_size_spread",
+        "billboard_location_spread", "billboard_color_spread",
+    ]
 def _ui_draw_billboard_body(context, container):
     props = context.scene.dgblocks_onscreen_drawing_props
     debug_props = props.debug_props
     row = get_demo_row(props, DEMO_ID_BILLBOARD)
     animating = bool(row and row.is_animating)
 
-    container.prop(debug_props, "show_img_2Dbillboard")
+    row = container.row()
+    row.alert = debug_props.show_img_2Dbillboard is None
+    row.prop(debug_props, "show_img_2Dbillboard")
     sub = container.column()
-    # Read-only while animating (task 3) or when no image is set.
+    # Read-only while animating or  no image is set.
     sub.enabled = (debug_props.show_img_2Dbillboard is not None) and not animating
-    _ui_draw_demo_grid(sub, debug_props, [
-        "billboard_count", "billboard_default_size", "billboard_size_spread",
-        "billboard_location_spread", "billboard_color_spread",
-    ])
+    _ui_draw_demo_grid(sub, debug_props, _shader_billboard_attrs)
     _ui_draw_demo_animation_controls(container, context, DEMO_ID_BILLBOARD)
 
 
@@ -180,7 +183,11 @@ def _ui_draw_shader_examples_subpanel(context, container):
     drawing_props = context.scene.dgblocks_onscreen_drawing_props
 
     col = container.column()
-    col.enabled = drawing_props.enable_drawing
+    # col.enabled = drawing_props.enable_drawing
+    
+    row = col.row()
+    row.alignment = "CENTER"
+    row.label(text = "Demonstrations of UI Shaders and Animations")
 
     for demo_id, label, body_fn in _DEMO_SUBPANELS:
         header, body = ui_draw_subpanel(

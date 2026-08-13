@@ -51,6 +51,13 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
         """Return the live Shader_Instance for a given uid, or None if not found."""
         _, shader, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(Block_RTC_Members.SHADERS, "shader_uid", uid)
         return shader
+    
+    @classmethod
+    def get_all_shaders(cls, active_only:bool = False) -> list[Shader_Instance]:
+        shaders = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.SHADERS)
+        if active_only:
+            shaders = [s for s in shaders if s.is_enabled]
+        return shaders
 
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation
@@ -59,7 +66,6 @@ class Wrapper_Shader_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Sync
     def _init_wrapper(cls) -> bool:
         logger = get_logger(Block_Loggers.DRAWHANDLER_LIFECYCLE)
         logger.debug("Wrapper_Shader_Manager init")
-
         return True
 
 
