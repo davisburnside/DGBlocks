@@ -47,6 +47,12 @@ from .builtin_shaders_and_effects.demo_props import (
 )
 
 
+def _demo_shown(props, demo_id):
+    """True when the demo's common settings row has its show_shader (eye) toggle on."""
+    row = get_demo_row(props, demo_id)
+    return row is not None and row.show_shader
+
+
 # Called from self
 def _hook_get_shader_declarations():
     """
@@ -64,16 +70,12 @@ def _hook_get_shader_declarations():
     debug_props = props.debug_props
     shader_defs = []
 
-    def _demo_shown(demo_id):
-        row = get_demo_row(props, demo_id)
-        return row is not None and row.show_shader
-
     image = debug_props.show_img_2Dbillboard
-    if _demo_shown(DEMO_ID_BILLBOARD) and image is not None and debug_props.billboard_count > 0:
+    if _demo_shown(props, DEMO_ID_BILLBOARD) and image is not None and debug_props.billboard_count > 0:
         shader_defs.append(Billboard_Shader.create_declaration(image) # More dynamic than the other Declarations, requires an Image 
         )
 
-    if _demo_shown(DEMO_ID_DASHED) and debug_props.show_linedash:
+    if _demo_shown(props, DEMO_ID_DASHED):
         shader_defs.append(
             Shader_Declaration(
                 shader_uid=_EXAMPLE_LINEDASH_UID,
@@ -85,7 +87,7 @@ def _hook_get_shader_declarations():
             )
         )
 
-    if _demo_shown(DEMO_ID_TEXTBOX) and debug_props.show_textbox_count > 0:
+    if _demo_shown(props, DEMO_ID_TEXTBOX) and debug_props.show_textbox_count > 0:
         shader_defs.append(
             Shader_Declaration(
                 shader_uid=_EXAMPLE_TEXTBOX_UID,
@@ -99,7 +101,7 @@ def _hook_get_shader_declarations():
 
     # Stripe holdout: 3D TRIs rendered at viewport points, but with a screen-locked 2D stripe
     # pattern computed in the fragment shader from window-space pixels (gl_FragCoord).
-    if _demo_shown(DEMO_ID_STRIPE) and debug_props.show_stripes:
+    if _demo_shown(props, DEMO_ID_STRIPE):
         shader_defs.append(
             Shader_Declaration(
                 shader_uid=_EXAMPLE_STRIPE_UID,
@@ -162,7 +164,7 @@ def _hook_before_first_draw():
             shader.set_billboard_sizes(sizes)
 
     # --- Dashed polyline: a base square loop, PLUS N radially-symmetric ring clusters ---
-    if debug_props.show_linedash:
+    if _demo_shown(props, DEMO_ID_DASHED):
         shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_LINEDASH_UID)
         if shader is not None:
             dash_row = get_demo_row(props, DEMO_ID_DASHED)
@@ -204,7 +206,7 @@ def _hook_before_first_draw():
             shader.set_textbox_offsets(debug_props.textbox_x_offset, debug_props.textbox_y_offset)
 
     # --- Stripe holdout: a unit cube of TRIs whose stripe pattern stays screen-locked ---
-    if debug_props.show_stripes:
+    if _demo_shown(props, DEMO_ID_STRIPE):
         shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_STRIPE_UID)
         if shader is not None:
             row = get_demo_row(props, DEMO_ID_STRIPE)

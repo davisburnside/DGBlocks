@@ -70,9 +70,9 @@ def _ui_draw_demo_animation_controls(container, context, demo_id):
         depress=row_data.is_animating,
     )
     op.demo_id = demo_id
-    if row_data.is_animating:
-        # Task 4: FPS slider (capped at 60 by the property definition).
-        container.prop(row_data, "animation_fps", slider=True)
+    # FPS slider sits on the same row as the toggle and stays usable whether or not
+    # the animation is currently running (it caps at 60 via the property definition).
+    anim_row.prop(row_data, "animation_fps", slider=True)
 
 
 def _ui_draw_billboard_body(context, container):
@@ -98,9 +98,8 @@ def _ui_draw_dashed_body(context, container):
     debug_props = props.debug_props
     row = get_demo_row(props, DEMO_ID_DASHED)
     animating = bool(row and row.is_animating)
-    container.prop(debug_props, "show_linedash", toggle=True)
     sub = container.column()
-    sub.enabled = debug_props.show_linedash and not animating
+    sub.enabled = not animating
     _ui_draw_demo_grid(sub, debug_props, [
         "linedash_thickness", "linedash_dash_width", "linedash_dash_ratio",
         "linedash_color", "linedash_color2",
@@ -136,9 +135,8 @@ def _ui_draw_stripe_body(context, container):
     debug_props = props.debug_props
     row = get_demo_row(props, DEMO_ID_STRIPE)
     animating = bool(row and row.is_animating)
-    container.prop(debug_props, "show_stripes", toggle=True)
     sub = container.column()
-    sub.enabled = debug_props.show_stripes and not animating
+    sub.enabled = not animating
     _ui_draw_demo_grid(sub, debug_props, [
         "stripe_angle", "stripe_width", "stripe_color1", "stripe_color2",
     ])
@@ -164,12 +162,12 @@ def _ui_draw_region_boundary_body(context, container):
 
 
 
-# Maps each demo to (label, icon, body-draw fn) so the panel iterates generically.
+# Maps each demo to (label, body-draw fn) so the panel iterates generically.
 _DEMO_SUBPANELS = [
-    (DEMO_ID_BILLBOARD, "2D Image Billboard", "IMAGE_DATA", _ui_draw_billboard_body),
-    (DEMO_ID_DASHED,    "Dashed Polyline",    "IPO_LINEAR",  _ui_draw_dashed_body),
-    (DEMO_ID_TEXTBOX,   "Text Boxes",         "SMALL_CAPS",  _ui_draw_textbox_body),
-    (DEMO_ID_STRIPE,    "Stripe Holdout",     "MOD_WIREFRAME", _ui_draw_stripe_body),
+    (DEMO_ID_BILLBOARD, "2D Image Billboard", _ui_draw_billboard_body),
+    (DEMO_ID_DASHED,    "Dashed Polyline",    _ui_draw_dashed_body),
+    (DEMO_ID_TEXTBOX,   "Text Boxes",         _ui_draw_textbox_body),
+    (DEMO_ID_STRIPE,    "Stripe Holdout",     _ui_draw_stripe_body),
 ]
 
 
@@ -184,13 +182,13 @@ def _ui_draw_shader_examples_subpanel(context, container):
     col = container.column()
     col.enabled = drawing_props.enable_drawing
 
-    for demo_id, label, icon, body_fn in _DEMO_SUBPANELS:
+    for demo_id, label, body_fn in _DEMO_SUBPANELS:
         header, body = ui_draw_subpanel(
             context, col, f"onscreen_demo_{demo_id}", "", body_fn,
         )
-        # Header: eye toggle + label + icon.
+        # Header: eye toggle + label.
         _ui_draw_demo_header_eye(header, context, demo_id)
-        header.label(text=label, icon=icon)
+        header.label(text=label)
 
     # Viewport region debugging as its own sub-subpanel.
     ui_draw_subpanel(

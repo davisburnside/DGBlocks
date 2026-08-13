@@ -116,7 +116,7 @@ class Textbox_Demo_Shader(Shader_Instance):
     def _shader_draw(self):
         # Import here to keep the module's import graph identical to before (avoids any
         # import-time cost when the demo isn't used).
-        from .simple_textbox import draw_text_box
+        from .simple_textbox import draw_text_box, measure_text_box
 
         context = bpy.context
         region = context.region
@@ -124,11 +124,24 @@ class Textbox_Demo_Shader(Shader_Instance):
             return
 
         for i in range(self._count):
-            xy = self._resolve_origin(region, i)
+            text_lines = [f"Text Box #{i + 1}"]
+            if self._spawn_point == SPAWN_MOUSE:
+                mouse_xy = self._resolve_mouse_xy(region)
+                if mouse_xy is None:
+                    # Mouse capture unavailable — fall back to top-left rather than skipping.
+                    xy = (_MARGIN, region.height - _MARGIN - i * _LINE_HEIGHT)
+                else:
+                    # Center each box on the mouse; stagger additional boxes below it.
+                    box_w, box_h = measure_text_box(text_lines, font_sizes=14, min_padding=6)
+                    center_x = mouse_xy[0]
+                    center_y = mouse_xy[1] - i * _LINE_HEIGHT
+                    xy = (center_x - box_w / 2.0, center_y - box_h / 2.0)
+            else:
+                xy = self._resolve_origin(region, i)
             draw_text_box(
                 context,
                 None,  # background quad drawing is disabled inside draw_text_box; shader unused
-                text_lines=[f"Text Box #{i + 1}"],
+                text_lines=text_lines,
                 xy_point=xy,
                 font_sizes=14,
                 alignments="left",

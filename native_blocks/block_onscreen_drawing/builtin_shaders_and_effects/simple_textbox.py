@@ -570,6 +570,41 @@ def _calculate_text_x_positions(
 # MAIN DRAW FUNCTION
 # ============================================================================
 
+def measure_text_box(
+    text_lines: List[str],
+    font_sizes: Union[int, List[int], None] = None,
+    alignments: Union[str, List[str], None] = None,
+    max_char_count: Union[int, List[int], None] = None,
+    min_padding: Union[int, float, tuple, list] = DEFAULT_PADDING,
+    font_id: int = 0,
+) -> Tuple[float, float]:
+    """
+    Measure the pixel width / height a text box with the given lines would occupy, WITHOUT
+    drawing anything. Used to center a box on a reference point (e.g. the mouse cursor).
+
+    Returns:
+        (box_width, box_height) — both 0.0 when there is nothing to draw.
+    """
+    text_lines = [line for line in text_lines if line.strip()]
+    if not text_lines:
+        return 0.0, 0.0
+
+    num_lines = len(text_lines)
+    font_sizes = _normalize_parameter(font_sizes, num_lines, DEFAULT_FONT_SIZE, "font_sizes")
+    alignments = _normalize_parameter(alignments, num_lines, DEFAULT_ALIGNMENT, "alignments")
+    max_char_counts = _normalize_parameter(max_char_count, num_lines, DEFAULT_MAX_CHAR_COUNT, "max_char_count")
+    box_padding, line_paddings = _resolve_padding_parameters(min_padding, num_lines)
+
+    line_infos = _process_text_lines(
+        text_lines, font_sizes, alignments, max_char_counts, line_paddings, font_id
+    )
+    if not line_infos:
+        return 0.0, 0.0
+
+    box_width, box_height, _ = _calculate_box_dimensions(line_infos, box_padding)
+    return box_width, box_height
+
+
 def draw_text_box(
     context,
     shader,

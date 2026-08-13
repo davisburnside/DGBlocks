@@ -358,7 +358,6 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
     billboard_color_spread: bpy.props.FloatProperty(name="Color Spread", default=1.0, min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
 
     # Dashed polyline (Metal-safe thickness) example
-    show_linedash: bpy.props.BoolProperty(name="Dashed Polyline", update=_cb_demo_props_changed)  # type: ignore
     linedash_thickness: bpy.props.FloatProperty(name="Line Thickness", default=6.0, min=1.0, soft_max=40.0, update=_cb_demo_props_changed)  # type: ignore
     linedash_dash_width: bpy.props.FloatProperty(name="Dash Width", default=20.0, min=1.0, soft_max=200.0, update=_cb_demo_props_changed)  # type: ignore
     linedash_dash_ratio: bpy.props.FloatProperty(name="Dash Gap Ratio", default=0.5, min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
@@ -384,7 +383,6 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
     textbox_y_offset: bpy.props.FloatProperty(name="Y Offset", description="Pixels to shift the boxes along Y from the spawn anchor", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
 
     # Stripe holdout example (screen-locked 2D stripe pattern rendered over 3D TRIs)
-    show_stripes: bpy.props.BoolProperty(name="Stripe Holdout", update=_cb_demo_props_changed)  # type: ignore
     stripe_angle: bpy.props.FloatProperty(name="Stripe Angle", default=0.0, min=0.0, max=360.0, soft_min=0.0, soft_max=360.0, update=_cb_demo_props_changed)  # type: ignore
     stripe_width: bpy.props.FloatProperty(name="Stripe Width", default=40.0, min=2.0, soft_max=200.0, update=_cb_demo_props_changed)  # type: ignore
     stripe_color1: bpy.props.FloatVectorProperty(name="Stripe Color 1", subtype="COLOR", size=4, default=(1.0, 0.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
