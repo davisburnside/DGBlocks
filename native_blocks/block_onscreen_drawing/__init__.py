@@ -14,6 +14,7 @@ from .hook_subs import _hook_before_first_draw, _hook_get_shader_declarations, _
 from .helpers import _clear_all_shaders, _rebuild_all_shaders
 from .builtin_shaders_and_effects.demo_ui import DGBLOCKS_OT_Toggle_Demo_Animation, _ui_draw_shader_examples_subpanel
 from .builtin_shaders_and_effects.demo_props import DGBLOCKS_PG_Debug_Shader_Example_Props, DGBLOCKS_PG_Demo_Shader_Attribute, DGBLOCKS_PG_Demo_Shader_Common, DGBLOCKS_PG_Debug_Shader_Region_Toggles
+from .ui import DGBLOCKS_OT_Control_Animation
 
 # ==============================================================================================================================
 # MAIN DEBUG PANEL
@@ -159,6 +160,7 @@ _BLOCK_DECLARATION = Block_Declaration(
         DGBLOCKS_PG_Onscreen_Drawing_Props,
         DGBLOCKS_OT_Toggle_Shader,
         DGBLOCKS_OT_Toggle_Demo_Animation,
+        DGBLOCKS_OT_Control_Animation,
         DGBLOCKS_PT_Debug_Drawing_Panel,
     ],
     block_feature_wrapper_classes = [Wrapper_Shader_Manager],

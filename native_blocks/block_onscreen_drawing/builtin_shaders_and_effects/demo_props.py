@@ -49,13 +49,14 @@ from .custom_shader_billboard2D import _billboard_uid_for_image
 # ==============================================================================================================================
 
 DEMO_ID_BILLBOARD = "billboard"
-DEMO_ID_DASHED    = "dashed"
-DEMO_ID_TEXTBOX   = "textbox"
-DEMO_ID_STRIPE    = "stripe"
+DEMO_ID_DASHED = "dashed"
+DEMO_ID_TEXTBOX = "textbox"
+DEMO_ID_STRIPE = "stripe"
+DEMO_ID_REGION_BOUNDS = "region_bounds"
 
-_EXAMPLE_LINEDASH_UID         = "EXAMPLE_POLYLINE_DASH"
-_EXAMPLE_TEXTBOX_UID          = "EXAMPLE_TEXTBOX_DEMO"
-_EXAMPLE_STRIPE_UID           = "EXAMPLE_STRIPE_PATTERN"
+_EXAMPLE_LINEDASH_UID = "EXAMPLE_POLYLINE_DASH"
+_EXAMPLE_TEXTBOX_UID = "EXAMPLE_TEXTBOX_DEMO"
+_EXAMPLE_STRIPE_UID = "EXAMPLE_STRIPE_PATTERN"
 
 # Unique-attribute keys (nested per-demo CollectionProperty rows).
 ATTR_DASHED_PHASE = "phase"
@@ -94,11 +95,12 @@ _DEMO_DEFS = [
         {"attr_key": ATTR_DASHED_COUNT, "display_name": "Cluster Count",
          "value_kind": "INT", "int_value": 0},
     ]},
-    {"demo_id": DEMO_ID_TEXTBOX, "label": "Text Boxes", "attrs": []},
     {"demo_id": DEMO_ID_STRIPE, "label": "Stripe Holdout", "attrs": [
         {"attr_key": ATTR_STRIPE_PHASE, "display_name": "Phase",
          "value_kind": "FLOAT", "float_value": 0.0},
     ]},
+    {"demo_id": DEMO_ID_TEXTBOX, "label": "Text Boxes", "attrs": []},
+    {"demo_id": DEMO_ID_REGION_BOUNDS, "label": "Region Boundaries", "attrs": []},
 ]
 def ensure_demo_rows(props) -> None:
     """
@@ -390,7 +392,6 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
 
     # Viewport region debugging
     # Region_toggles holds one checkbox per drawable Draw_Region_Type; unchecking one disables that border type for all areas.
-    show_region_boundaries: bpy.props.BoolProperty(name="Draw Region Boundaries", update = _cb_demo_props_changed)  # type: ignore
     region_boundary_toggles: bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Shader_Region_Toggles)  # type: ignore
 
 # ==============================================================================================================================

@@ -4,7 +4,7 @@ import bpy
 from ....addon_helpers.generic_tools import force_redraw_ui
 from ....addon_helpers.ui.helpers import ui_draw_subpanel
 from ..helpers import _mouse_capture_available
-from ..builtin_shaders_and_effects.demo_props import DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEBUG_DRAW_REGION_TYPES, get_demo_row, demo_is_animatable
+from ..builtin_shaders_and_effects.demo_props import DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEMO_ID_REGION_BOUNDS, DEBUG_DRAW_REGION_TYPES, get_demo_row, demo_is_animatable
 
 class DGBLOCKS_OT_Toggle_Demo_Animation(bpy.types.Operator):
     """
@@ -155,9 +155,7 @@ def _ui_draw_region_boundary_body(context, container):
     
     props = context.scene.dgblocks_onscreen_drawing_props
     debug_props = props.debug_props
-    container.prop(debug_props, "show_region_boundaries", toggle=True)
     region_box = container.column()
-    region_box.enabled = debug_props.show_region_boundaries
     region_box.label(text="Region Types:")
     grid = region_box.grid_flow(row_major=True, columns=0, even_columns=True, align=True)
     for rt in DEBUG_DRAW_REGION_TYPES:
@@ -171,6 +169,7 @@ _DEMO_SUBPANELS = [
     (DEMO_ID_DASHED,    "Dashed Polyline",    _ui_draw_dashed_body),
     (DEMO_ID_TEXTBOX,   "Text Boxes",         _ui_draw_textbox_body),
     (DEMO_ID_STRIPE,    "Stripe Holdout",     _ui_draw_stripe_body),
+    (DEMO_ID_REGION_BOUNDS, "All Region Boundaries", _ui_draw_region_boundary_body),
 ]
 
 
@@ -183,7 +182,7 @@ def _ui_draw_shader_examples_subpanel(context, container):
     drawing_props = context.scene.dgblocks_onscreen_drawing_props
 
     col = container.column()
-    # col.enabled = drawing_props.enable_drawing
+    col.enabled = drawing_props.enable_drawing
     
     row = col.row()
     row.alignment = "CENTER"
@@ -197,9 +196,6 @@ def _ui_draw_shader_examples_subpanel(context, container):
         _ui_draw_demo_header_eye(header, context, demo_id)
         header.label(text=label)
 
-    # Viewport region debugging as its own sub-subpanel.
-    ui_draw_subpanel(
-        context, col, "onscreen_viewport_debug", "All Region Boundaries",
-        _ui_draw_region_boundary_body,
-    )
+    # (The "All Region Boundaries" sub-subpanel is now one of the demo rows above so it is
+    # grouped with the other four shaders — it has no animatable properties.)
 

@@ -36,7 +36,7 @@ from .builtin_shaders_and_effects.demo_props import (
     DGBLOCKS_PG_Demo_Shader_Attribute,
     DGBLOCKS_PG_Demo_Shader_Common,
     DGBLOCKS_PG_Debug_Shader_Region_Toggles,
-    DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE,
+    DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEMO_ID_REGION_BOUNDS,
     ATTR_DASHED_PHASE, ATTR_DASHED_COUNT, ATTR_STRIPE_PHASE,
     DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
     _create_region_boundary_shader_declarations,
@@ -55,16 +55,6 @@ def _demo_shown(props, demo_id):
 
 # Called from self
 def _hook_get_shader_declarations():
-    """
-    Adds a debug bounding box for every region of every area of every open window, when
-    show_region_boundaries is checked.
-
-    Rather than hardcoding a space/region list, we walk the live window manager so that only
-    real, currently-valid (space, region) combinations are declared — this covers all editor
-    types across all windows and picks up regions like TOOL_HEADER automatically. Each unique
-    (space_type, region_type) yields one Shader_Declaration; the single draw handler Blender
-    registers per space type then draws that border in every matching area/window.
-    """
 
     props = bpy.context.scene.dgblocks_onscreen_drawing_props
     debug_props = props.debug_props
@@ -72,8 +62,7 @@ def _hook_get_shader_declarations():
 
     image = debug_props.show_img_2Dbillboard
     if _demo_shown(props, DEMO_ID_BILLBOARD) and image is not None and debug_props.billboard_count > 0:
-        shader_defs.append(Billboard_Shader.create_declaration(image) # More dynamic than the other Declarations, requires an Image 
-        )
+        shader_defs.append(Billboard_Shader.create_declaration(image)) # More dynamic than the other Declarations, requires an Image 
 
     if _demo_shown(props, DEMO_ID_DASHED):
         shader_defs.append(
@@ -113,7 +102,7 @@ def _hook_get_shader_declarations():
             )
         )
     
-    if debug_props.show_region_boundaries:
+    if _demo_shown(props, DEMO_ID_REGION_BOUNDS):
         shader_defs.extend(_create_region_boundary_shader_declarations(props))
 
     # Example demo shaders are independent of viewport debugging.

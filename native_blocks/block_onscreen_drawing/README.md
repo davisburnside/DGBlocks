@@ -89,6 +89,13 @@ per-shader visibility now carry across undo/redo and repolls instead of being di
 > The BL mirror exists purely to back the UIList and to detect structural changes on undo/redo;
 > it never drives RTC.
 
+Selecting a shader opens a collapsible **"Shader Details"** sub-subpanel (defaults closed) under
+the Shaders UIList. It shows the shader's draw/timing statistics plus, when the shader owns any
+animations, an **Animations** box — one row per animation with its UID, the attribute/field being
+animated (`data_name`), current **% completion** (per current cycle), loop progress, and state.
+Each row also has a **pause/resume** (🗐/▶) and a **kill** (✕) operator (`DGBLOCKS_OT_Control_Animation`,
+RTC-only, no undo step) that drive the shader's animation via the `Animatable_Mixin` API.
+
 ### Runtime Cache
 
 | RTC Key | Type | Purpose |
@@ -275,12 +282,6 @@ mutated. Checks:
 4. Builtin shader name compatibility with the declared `shader_type`
 
 ## Viewport Region Debugging
-
-`scene.dgblocks_onscreen_drawing_props.debug_props.show_region_boundaries` (a checkbox in the
-panel's **Viewport Region Debugging** sub-subpanel, active only while `enable_drawing` is on)
-draws a thin border around **every region of every area of every open window** — useful for
-seeing where each `(space, region)` actually lives. It governs **only** the border shaders — it
-no longer gates the example demo shaders (those are controlled by their own `show_shader` eyes).
 
 - **Per-region-type checkboxes:** a `grid_flow` of checkboxes (`region_boundary_toggles`, one
   `BoolProperty` per drawable `Draw_Region_Type` — WINDOW, HEADER, TOOL_HEADER, UI, TOOLS, …)
