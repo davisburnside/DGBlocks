@@ -162,7 +162,7 @@ def _hook_before_first_draw():
             corners = [(-2, -2, 0), (2, -2, 0), (2, 2, 0), (-2, 2, 0)]
             polyline = _polyline_from_ring(corners)
 
-            # Task 2: `count` disjointed ring clusters, each an empty (n+1)-vert radially
+            # count disjointed ring clusters, each an empty (n+1)-vert radially
             # symmetric polygon, stacked at increasing Z above the base shape. This proves the
             # polyline shader handles disjointed line clusters within a single batch.
             count_attr = dash_row.get_attr(ATTR_DASHED_COUNT) if dash_row else None
@@ -170,9 +170,9 @@ def _hook_before_first_draw():
             n_sides = len(corners)  # radial symmetry uses the base shape's vertex count
             for c in range(cluster_count):
                 z = (c + 1) * 1.5
+                n_sides += 1
                 ring = _radial_ring(radius=2.0, n_sides=n_sides, z=z)
                 polyline.extend(_polyline_from_ring(ring))
-
             shader.set_polyline(polyline)
             shader.set_line_thickness(debug_props.linedash_thickness)
             shader.set_dash_width(debug_props.linedash_dash_width)
@@ -181,16 +181,17 @@ def _hook_before_first_draw():
                 tuple(debug_props.linedash_color),
                 tuple(debug_props.linedash_color2),
             )
-            # Task 2: phase (0..1, hard-capped in set_phase) from the demo's unique attribute.
             phase_attr = dash_row.get_attr(ATTR_DASHED_PHASE) if dash_row else None
             if phase_attr is not None:
                 shader.set_phase(phase_attr.get_value())
 
-    # --- Text boxes (task 8): count + spawn point ---
+    # --- Text boxes : count + spawn point ---
     if debug_props.show_textbox_count > 0:
         shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_TEXTBOX_UID)
         if shader is not None:
-            shader.set_textbox_count(debug_props.show_textbox_count)
+            shader.clear_lines()
+            for i in range(debug_props.show_textbox_count):
+                shader.add_line(f"Text Box #{i + 1}")
             shader.set_spawn_point(debug_props.textbox_spawn_point)
             shader.set_textbox_offsets(debug_props.textbox_x_offset, debug_props.textbox_y_offset)
 
