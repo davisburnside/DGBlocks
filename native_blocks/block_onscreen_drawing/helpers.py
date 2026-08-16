@@ -285,6 +285,13 @@ def _rebuild_all_shaders(event: Enum_Sync_Events, sync_BL = True) -> None:
         hook_func_name = Block_Hook_Sources.hook_get_shader_declarations,
         should_halt_on_exception=False,
     )
+
+    # ensure correct type
+    for key, value in shaders_from_blocks.items():
+        if value is None or not isinstance(value, list):
+            shaders_from_blocks[key] = []
+
+    # rebuild shaders
     list_shaders_from_blocks = sum(shaders_from_blocks.values(), []) # Simple list, order-preserving
     inverted_shaders_dict = {shader.shader_uid: key for key, shaders in shaders_from_blocks.items() for shader in shaders}
     if len(list_shaders_from_blocks) == 0:

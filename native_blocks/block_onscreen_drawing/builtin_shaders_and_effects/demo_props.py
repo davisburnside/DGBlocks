@@ -53,10 +53,12 @@ DEMO_ID_DASHED = "dashed"
 DEMO_ID_TEXTBOX = "textbox"
 DEMO_ID_STRIPE = "stripe"
 DEMO_ID_REGION_BOUNDS = "region_bounds"
+DEMO_ID_ANNOTATED = "annotated_lines"
 
 _EXAMPLE_LINEDASH_UID = "EXAMPLE_POLYLINE_DASH"
 _EXAMPLE_TEXTBOX_UID = "EXAMPLE_TEXTBOX_DEMO"
 _EXAMPLE_STRIPE_UID = "EXAMPLE_STRIPE_PATTERN"
+_EXAMPLE_ANNOTATED_UID = "EXAMPLE_ANNOTATED_LINES"
 
 # Unique-attribute keys (nested per-demo CollectionProperty rows).
 ATTR_DASHED_PHASE = "phase"
@@ -70,13 +72,15 @@ DEBUG_DRAW_REGION_TYPES = [
 ]
 
 # Which demos support the infinite-loop demo animation (task 3: "animate some, not all").
-_ANIMATABLE_DEMOS = {DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_STRIPE}
+_ANIMATABLE_DEMOS = {DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_STRIPE, DEMO_ID_ANNOTATED}
 
 # Animation uids applied per demo, so we can cancel exactly what we added.
 _DEMO_ANIMATION_UIDS = {
     DEMO_ID_DASHED:    ["DEMO_DASH_PHASE", "DEMO_DASH_COLOR", "DEMO_DASH_POINTS"],
     DEMO_ID_BILLBOARD: ["DEMO_BB_COLOR", "DEMO_BB_POINTS", "DEMO_BB_SIZE"],
     DEMO_ID_STRIPE:    ["DEMO_STRIPE_PHASE"],
+    DEMO_ID_ANNOTATED: ["DEMO_ANN_POINTS", "DEMO_ANN_COLORS", "DEMO_ANN_Z_BOOST",
+                        "DEMO_ANN_ARROW_LENGTH", "DEMO_ANN_ARROW_ANGLE"],
 }
 
 _DEBUG_BORDER_COLOR = (1.0, 0.0, 1.0, 1.0)          # Magenta — normal
@@ -99,6 +103,7 @@ _DEMO_DEFS = [
         {"attr_key": ATTR_STRIPE_PHASE, "display_name": "Phase",
          "value_kind": "FLOAT", "float_value": 0.0},
     ]},
+    {"demo_id": DEMO_ID_ANNOTATED, "label": "Annotated Lines", "attrs": []},
     {"demo_id": DEMO_ID_TEXTBOX, "label": "Text Boxes", "attrs": []},
     {"demo_id": DEMO_ID_REGION_BOUNDS, "label": "Region Boundaries", "attrs": []},
 ]
@@ -390,6 +395,12 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
     stripe_color1: bpy.props.FloatVectorProperty(name="Stripe Color 1", subtype="COLOR", size=4, default=(1.0, 0.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
     stripe_color2: bpy.props.FloatVectorProperty(name="Stripe Color 2", subtype="COLOR", size=4, default=(0.0, 1.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
 
+    # Annotated smooth-color polyline (with z-boost + arrowheads) example
+    annotated_line_thickness: bpy.props.FloatProperty(name="Line Thickness", default=6.0, min=1.0, soft_max=40.0, update=_cb_demo_props_changed)  # type: ignore
+    annotated_arrow_length_px: bpy.props.FloatProperty(name="Arrow Length", default=15.0, min=0.0, soft_max=50.0, update=_cb_demo_props_changed)  # type: ignore
+    annotated_arrow_angle: bpy.props.FloatProperty(name="Arrow Angle", default=30.0, min=0.0, max=90.0, update=_cb_demo_props_changed)  # type: ignore
+    annotated_z_boost: bpy.props.FloatProperty(name="Z Boost", default=0.001, min=-0.01, max=0.01, update=_cb_demo_props_changed)  # type: ignore
+
     # Viewport region debugging
     # Region_toggles holds one checkbox per drawable Draw_Region_Type; unchecking one disables that border type for all areas.
     region_boundary_toggles: bpy.props.PointerProperty(type=DGBLOCKS_PG_Debug_Shader_Region_Toggles)  # type: ignore
@@ -409,6 +420,8 @@ def _resolve_demo_shader_uid(demo_id, props):
         return _EXAMPLE_TEXTBOX_UID
     if demo_id == DEMO_ID_STRIPE:
         return _EXAMPLE_STRIPE_UID
+    if demo_id == DEMO_ID_ANNOTATED:
+        return _EXAMPLE_ANNOTATED_UID
     return None
 
 
@@ -490,6 +503,56 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             duration=2.0, framerate=fps,
             loop_mode=ANIM_LOOP_REPEAT, loop_count=0,
         ))
+
+    def _handle_demo_annotated_lines():
+        # Points: gentle pulsing scale of the cluster positions
+        pts = getattr(shader, "_points", None)
+        if pts is not None and len(pts):
+            end_pts = np.asarray(pts, dtype=np.float32) * np.float32(1.1)
+            shader.set_animation(Animation_Declaration(
+                animation_uid="DEMO_ANN_POINTS",
+                data_type=ANIM_DATA_TYPE_BATCH, data_name="_points",
+                end_state=end_pts, duration=1.5, framerate=fps,
+                loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
+            ))
+        # Colors: pulse toward a dimmer variant
+        colors = getattr(shader, "_colors", None)
+        if colors is not None and len(colors):
+            end_colors = np.asarray(colors, dtype=np.float32).copy()
+            end_colors[:, :3] *= 0.3
+            shader.set_animation(Animation_Declaration(
+                animation_uid="DEMO_ANN_COLORS",
+                data_type=ANIM_DATA_TYPE_BATCH, data_name="_colors",
+                end_state=end_colors, duration=1.0, framerate=fps,
+                loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
+            ))
+        # viewport_z_boost: oscillates so lines pop over / sink behind the mesh
+        z_start = shader._viewport_z_boost
+        shader.set_animation(Animation_Declaration(
+            animation_uid="DEMO_ANN_Z_BOOST",
+            data_type=ANIM_DATA_TYPE_BATCH, data_name="_viewport_z_boost",
+            start_state=z_start, end_state=z_start + 0.003,
+            duration=2.0, framerate=fps,
+            loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
+        ))
+        # arrow_length_px: oscillates between current value and 0 (arrows fade)
+        al_start = shader._arrow_length_px
+        shader.set_animation(Animation_Declaration(
+            animation_uid="DEMO_ANN_ARROW_LENGTH",
+            data_type=ANIM_DATA_TYPE_BATCH, data_name="_arrow_length_px",
+            start_state=al_start, end_state=0.0,
+            duration=1.5, framerate=fps,
+            loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
+        ))
+        # arrow_angle: oscillates 15 deg <-> 45 deg
+        shader.set_animation(Animation_Declaration(
+            animation_uid="DEMO_ANN_ARROW_ANGLE",
+            data_type=ANIM_DATA_TYPE_BATCH, data_name="_arrow_angle",
+            start_state=15.0, end_state=45.0,
+            duration=3.0, framerate=fps,
+            loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
+        ))
+
     logger = get_logger(Block_Loggers.ANIMATION_LIFECYCLE)
     fps = float(common_row.animation_fps)
 
@@ -502,6 +565,9 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
 
         elif demo_id == DEMO_ID_STRIPE:
             _handle_demo_stripe()
+
+        elif demo_id == DEMO_ID_ANNOTATED:
+            _handle_demo_annotated_lines()
 
     logger.debug(f"Applied demo animation(s) for '{demo_id}' @ {fps}Hz")
     Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE)

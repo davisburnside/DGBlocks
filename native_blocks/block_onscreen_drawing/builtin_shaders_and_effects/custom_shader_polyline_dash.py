@@ -44,6 +44,7 @@ from gpu_extras.batch import batch_for_shader
 # --------------------------------------------------------------
 # Inter-block imports
 from ....native_blocks.block_onscreen_drawing.data_structures import Shader_Instance
+from .polyline_geometry_utils import SEGMENT_CORNERS, segment_quad_indices
 
 # --------------------------------------------------------------
 # Shader Constants
@@ -125,16 +126,15 @@ def _make_polyline_verts(points_list):
         a = points_list[2 * i]
         b = points_list[2 * i + 1]
 
-        # 4 corners: (A, +1), (A, -1), (B, +1), (B, -1)
-        for corner_end, corner_side in ((0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0)):
+        # 4 corners: (A, +1), (A, -1), (B, +1), (B, -1) — shared pattern from polyline_geometry_utils
+        for corner_end, corner_side in SEGMENT_CORNERS:
             seg_a.append(a)
             seg_b.append(b)
             end_flag.append(corner_end)
             side.append(corner_side)
 
-        o = i * 4
-        indices.append((o + 0, o + 1, o + 2))
-        indices.append((o + 2, o + 1, o + 3))
+        # 2 triangles per quad — shared via segment_quad_indices
+        indices.extend(segment_quad_indices(i * 4))
 
     # All geometry arrays are numpy (task 1: every point/attr passed to the batch is numpy).
     return (

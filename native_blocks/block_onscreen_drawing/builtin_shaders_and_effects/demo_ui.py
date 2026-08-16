@@ -4,7 +4,7 @@ import bpy
 from ....addon_helpers.generic_tools import force_redraw_ui
 from ....addon_helpers.ui.helpers import ui_draw_subpanel
 from ..helpers import _mouse_capture_available
-from ..builtin_shaders_and_effects.demo_props import DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEMO_ID_REGION_BOUNDS, DEBUG_DRAW_REGION_TYPES, get_demo_row, demo_is_animatable
+from ..builtin_shaders_and_effects.demo_props import DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEMO_ID_REGION_BOUNDS, DEMO_ID_ANNOTATED, DEBUG_DRAW_REGION_TYPES, get_demo_row, demo_is_animatable
 
 class DGBLOCKS_OT_Toggle_Demo_Animation(bpy.types.Operator):
     """
@@ -151,6 +151,22 @@ def _ui_draw_stripe_body(context, container):
     _ui_draw_demo_animation_controls(container, context, DEMO_ID_STRIPE)
 
 
+def _ui_draw_annotated_body(context, container):
+    props = context.scene.dgblocks_onscreen_drawing_props
+    debug_props = props.debug_props
+    row = get_demo_row(props, DEMO_ID_ANNOTATED)
+    animating = bool(row and row.is_animating)
+    sub = container.column()
+    sub.enabled = not animating
+    _ui_draw_demo_grid(sub, debug_props, [
+        "annotated_line_thickness",
+        "annotated_arrow_length_px",
+        "annotated_arrow_angle",
+        "annotated_z_boost",
+    ])
+    _ui_draw_demo_animation_controls(container, context, DEMO_ID_ANNOTATED)
+
+
 def _ui_draw_region_boundary_body(context, container):
     
     props = context.scene.dgblocks_onscreen_drawing_props
@@ -169,6 +185,7 @@ _DEMO_SUBPANELS = [
     (DEMO_ID_DASHED,    "Dashed Polyline",    _ui_draw_dashed_body),
     (DEMO_ID_TEXTBOX,   "Text Boxes",         _ui_draw_textbox_body),
     (DEMO_ID_STRIPE,    "Stripe Holdout",     _ui_draw_stripe_body),
+    (DEMO_ID_ANNOTATED,   "Annotated Lines",     _ui_draw_annotated_body),
     (DEMO_ID_REGION_BOUNDS, "All Region Boundaries", _ui_draw_region_boundary_body),
 ]
 

@@ -6,44 +6,29 @@ import math
 import numpy as np
 import bpy
 
-# --------------------------------------------------------------
-# Addon-level imports
-from ...addon_helpers.generic_tools import force_redraw_ui
-from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
-from ...addon_config.static_settings import Documentation_URLs, addon_title
-
-# --------------------------------------------------------------
-# Inter-block imports
-from .. import block_core  # noqa: F401 — ensures block_core is loaded first
+from .. import block_core 
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-from ..block_core.core_features.loggers.feature_wrapper import get_logger
-from ..block_core.core_helpers.constants import Core_Block_Loggers, Core_Runtime_Cache_Members # type: ignore
-from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist, ui_draw_subpanel
-
-# --------------------------------------------------------------
-# Intra-block imports
-from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_UIList_Configs
+from .common_declarations import Block_RTC_Members
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .data_structures import Shader_Declaration
-from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Builtin_Shader_Names, Shader_Types
-from .helpers import _clear_all_shaders, _rebuild_all_shaders
+from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Shader_Types
 from .animations.engine import get_timer_definitions_from_animations
+from .helpers import set_draw_geometry_occluded
 from .builtin_shaders_and_effects.custom_shader_billboard2D import Billboard_Shader, _billboard_uid_for_image
 from .builtin_shaders_and_effects.custom_shader_polyline_dash import Polyline_Dash_Shader
+from .builtin_shaders_and_effects.custom_shader_polyline_annotated import Polyline_Annotated_Shader
 from .builtin_shaders_and_effects.custom_shader_textbox_demo import Textbox_Demo_Shader
 from .builtin_shaders_and_effects.custom_shader_stripe import Stripe_Shader
 from .builtin_shaders_and_effects.demo_props import (
-    DGBLOCKS_PG_Demo_Shader_Attribute,
-    DGBLOCKS_PG_Demo_Shader_Common,
-    DGBLOCKS_PG_Debug_Shader_Region_Toggles,
+    _EXAMPLE_ANNOTATED_UID,
     DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEMO_ID_REGION_BOUNDS,
+    DEMO_ID_ANNOTATED,
     ATTR_DASHED_PHASE, ATTR_DASHED_COUNT, ATTR_STRIPE_PHASE,
-    DEBUG_DRAW_REGION_TYPES, _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
+    _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
     _create_region_boundary_shader_declarations,
-    _polyline_from_ring,
-    _radial_ring,
+    _polyline_from_ring, _radial_ring,
     _resolve_demo_shader_uid, _activate_demo_animation, ensure_demo_rows, 
-    get_demo_row, region_type_is_enabled, demo_is_animatable, 
+    get_demo_row, demo_is_animatable, 
 )
 
 
@@ -102,6 +87,20 @@ def _hook_get_shader_declarations():
             )
         )
     
+    # Annotated smooth-color polyline demo with z-boost and arrowheads
+    if _demo_shown(props, DEMO_ID_ANNOTATED):
+        shader_defs.append(
+            Shader_Declaration(
+                shader_uid=_EXAMPLE_ANNOTATED_UID,
+                shader_type=Shader_Types.TRIS,
+                space=Draw_Space_Types.VIEW_3D,
+                region=Draw_Region_Type.WINDOW,
+                phase=Draw_Phase_type.POST_VIEW,
+                custom_shader_class=Polyline_Annotated_Shader,
+                builtin_shader_before_draw= set_draw_geometry_occluded
+            )
+        )
+
     if _demo_shown(props, DEMO_ID_REGION_BOUNDS):
         shader_defs.extend(_create_region_boundary_shader_declarations(props))
 
@@ -225,6 +224,37 @@ def _hook_before_first_draw():
             phase_attr = row.get_attr(ATTR_STRIPE_PHASE) if row is not None else None
             if phase_attr is not None:
                 shader.set_phase(phase_attr.get_value())
+
+    # --- Annotated smooth-color polyline: 3 random clusters, 2-8 points each ---
+    if _demo_shown(props, DEMO_ID_ANNOTATED):
+        shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_ANNOTATED_UID)
+        if shader is not None:
+            ann_row = get_demo_row(props, DEMO_ID_ANNOTATED)
+            ann_scale = ann_row.scale if ann_row is not None else 1.0
+
+            clusters_points = []
+            clusters_colors = []
+            for _c in range(3):
+                n = random.randint(2, 8)
+                cluster_pts = [
+                    (random.uniform(-3.0, 3.0) * ann_scale,
+                     random.uniform(-3.0, 3.0) * ann_scale,
+                     random.uniform(-2.0, 2.0) * ann_scale)
+                    for _ in range(n)
+                ]
+                cluster_cols = [
+                    (random.uniform(0.0, 1.0), random.uniform(0.0, 1.0),
+                     random.uniform(0.0, 1.0), 1.0)
+                    for _ in range(n)
+                ]
+                clusters_points.append(cluster_pts)
+                clusters_colors.append(cluster_cols)
+
+            shader.set_polyline_clusters(clusters_points, clusters_colors)
+            shader.set_line_thickness(debug_props.annotated_line_thickness)
+            shader.set_viewport_z_boost(debug_props.annotated_z_boost)
+            shader.set_arrow_length_px(debug_props.annotated_arrow_length_px)
+            shader.set_arrow_angle(debug_props.annotated_arrow_angle)
 
     # Re-attach demo animations for every animating demo. Called from hook_before_first_draw so demo animations survive a rebuild (undo/redo, eye toggles, prop edits
     for row in props.demo_settings:
