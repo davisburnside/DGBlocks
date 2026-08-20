@@ -97,16 +97,8 @@ class DGBLOCKS_PG_Modal_Events_Props(bpy.types.PropertyGroup):
 # HOOK SUBSCRIBERS
 
 def hook_post_startup():
-    """
-    Fired once after full addon init and bpy context is ready. This is the safe point to invoke
-    the router modal operator (bpy.ops modal invocation needs a valid window/area context).
-    """
-    try:
-        modal_props = bpy.context.scene.dgblocks_modal_events_props
-    except AttributeError:
-        return
-    if modal_props.enable_modal:
-        start_router()
+    "Ensure modal is never on at startup"
+    bpy.context.scene.dgblocks_modal_events_props.enable_modal = False
 
 def hook_before_blocks_reload():
     bpy.context.scene.dgblocks_modal_events_props.enable_modal = False

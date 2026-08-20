@@ -35,11 +35,6 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # Public API
 
     @classmethod
-    def enable_and_poll_for_modal_listeners(cls):
-        """Set enable_modal = True, which starts the router (it reads listeners live from RTC)."""
-        bpy.context.scene.dgblocks_modal_events_props.enable_modal = True
-
-    @classmethod
     def disable_modal(cls):
         """Set enable_modal = False; the router self-terminates on its next received event."""
         bpy.context.scene.dgblocks_modal_events_props.enable_modal = False
@@ -60,11 +55,6 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         the running router picks up the new listener set immediately on its next event.
         """
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
-        try:
-            bpy.context.scene.dgblocks_modal_events_props
-        except AttributeError:
-            logger.warning("repoll: bpy.context.scene not available, skipping")
-            return
         logger.debug("repoll: rebuilding listener registry")
         _rebuild_all_listeners(event)
 
@@ -75,16 +65,10 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     def _init_wrapper(cls) -> bool:
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
         logger.debug("Wrapper_Modal_Manager._init_wrapper")
-
-        # A modal does not survive file load — the previous router (if any) is already dead.
-        event = Enum_Sync_Events.ADDON_INIT
-
+        
         # Always rebuild the listener registry so the UIList reflects subscribing blocks.
+        event = Enum_Sync_Events.ADDON_INIT
         _rebuild_all_listeners(event, sync_BL=False)
-
-        # NOTE: the router operator is NOT started here. bpy.ops modal invocation needs a ready
-        # window/area context, which is not guaranteed during init_post_bpy. The router is
-        # (re)started from the hook_post_startup subscriber in __init__.py instead.
         return True
 
 
@@ -92,7 +76,6 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     def _remove_wrapper(cls) -> None:
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
         logger.debug("Wrapper_Modal_Manager._remove_wrapper — clearing listeners")
-        # The router (if running) self-terminates once enable_modal is gone / on unregister.
         _clear_all_listeners()
 
     # ----------------------------------------------------------

@@ -29,12 +29,43 @@ modules_to_reload = [
     (name, module) for name, module in all_sys_modules
     if name.startswith(f"{__name__}.") or name == __name__]
 
-# Sort by depth (most dots = deepest), reload leaves first
-modules_to_reload.sort(key=lambda x: x[0].count('.'), reverse=True) 
+# Sorting purely by dotted-name depth ("more nested folder = reload first") is NOT a
+# reliable proxy for the actual import-dependency graph: a shallow, foundational module
+# (e.g. block_core's Wrapper_Runtime_Cache) can tie or lose a depth-sort against a
+# deeply-nested consumer module that imports it, causing the consumer to rebind its
+# `from ... import Wrapper_Runtime_Cache` name to the STALE pre-reload class object while
+# other consumers rebind to the NEW one. Different modules then hold genuinely different
+# class objects (different `_cache` dict, different identity) despite there being only
+# one canonical source file.
+#
+# Fix: reload every module under native_blocks/ and addon_helpers/ FIRST (in their own
+# depth order), since the block architecture guarantees these are foundational and never
+# import from external_blocks/unfinished_blocks/feature blocks. Only after all foundational
+# modules have been fully re-executed do we reload everything else (external_blocks,
+# unfinished_blocks, addon_config, and the addon root __init__ itself). This ensures every
+# feature-block module's `from ...core_features... import Wrapper_Runtime_Cache` (and
+# similar) line reruns AFTER the source class has already been rebuilt, so every consumer
+# rebinds to the SAME, current class object.
 
-# Refresh modules
-for name, module in modules_to_reload: 
+def _is_foundational_module(module_name: str) -> bool:
+    return (
+        module_name.startswith(f"{__name__}.native_blocks.")
+        or module_name.startswith(f"{__name__}.addon_helpers.")
+    )
+
+foundational_modules = [m for m in modules_to_reload if _is_foundational_module(m[0])]
+other_modules = [m for m in modules_to_reload if not _is_foundational_module(m[0])]
+
+# Within each group, deepest-path-first still helps avoid needing a second manual reload.
+foundational_modules.sort(key=lambda x: x[0].count('.'), reverse=True)
+other_modules.sort(key=lambda x: x[0].count('.'), reverse=True)
+
+# Refresh modules: foundational (native_blocks/addon_helpers) group first, then the rest.
+for name, module in foundational_modules:
     importlib.reload(module)
+for name, module in other_modules:
+    importlib.reload(module)
+
 
 # ==============================================================================================================================
 # ADDON-LEVEL & CORE-BLOCK IMPORTS
