@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 import time
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 # ==============================================================================================================================
 # EVENT CLASSIFICATION
@@ -27,6 +27,16 @@ class Modal_Event_Category(StrEnum):
     KEYBOARD    = auto()
     WINDOW      = auto()
     OTHER       = auto()
+
+
+class Modal_Listener_End_Reason(StrEnum):
+    """Why a listener left the live modal-listener registry."""
+
+    FINISHED = "FINISHED"
+    CANCELLED = "CANCELLED"
+    DEFINITION_REMOVED = "DEFINITION_REMOVED"
+    ROUTER_SHUTDOWN = "ROUTER_SHUTDOWN"
+    ADDON_SHUTDOWN = "ADDON_SHUTDOWN"
 
 
 @dataclass
@@ -103,6 +113,10 @@ class Modal_Listener_Definition:
     before_modal_start: Optional[Callable] = None
     before_modal_end:   Optional[Callable] = None
 
+    # Empty means the listener is valid regardless of the active workspace tool. Values refer
+    # to logical Modal_Workspace_Tool_Definition.tool_id values, not expanded placement ids.
+    workspace_tool_ids: tuple[str, ...] = ()
+
     # Per-event-category opt-outs
     ignore_mouse_click_events: bool = False
     ignore_mouse_move:         bool = False
@@ -125,6 +139,7 @@ class RTC_Modal_Listener_Instance:
     # Status
     is_enabled: bool = True
     current_event: User_Input_Capture_Instance = None
+    workspace_tool_ids: tuple[str, ...] = ()
 
     # Per-event-category opt-outs (mirrored from the definition)
     ignore_mouse_click_events: bool = False
@@ -144,3 +159,61 @@ class RTC_Modal_Listener_Instance:
     _on_event:           Optional[Callable] = field(init=False, default=None, repr=False)
     _before_modal_start: Optional[Callable] = field(init=False, default=None, repr=False)
     _before_modal_end:   Optional[Callable] = field(init=False, default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class Modal_Listener_End_Info:
+    """Immutable snapshot broadcast after a listener leaves the live registry."""
+
+    src_block_id: str
+    priority: int
+    is_enabled: bool
+    workspace_tool_ids: tuple[str, ...]
+    event_count: int
+    last_return: Optional[str]
+    modal_start_timestamp: float
+    last_event_timestamp: float
+    listener_error_str: Optional[str]
+
+
+@dataclass(frozen=True)
+class Modal_Workspace_Tool_Placement:
+    """One concrete editor/mode placement for a logical workspace tool."""
+
+    space_type: str = "VIEW_3D"
+    context_mode: Optional[str] = "OBJECT"
+    keymap: Optional[tuple] = None
+
+
+@dataclass(frozen=True)
+class Modal_Workspace_Tool_Definition:
+    """Logical tool declaration expanded to one WorkSpaceTool per placement at startup."""
+
+    tool_id: str
+    label: str
+    placements: tuple[Modal_Workspace_Tool_Placement, ...]
+    description: str = ""
+    icon: Optional[str] = "ops.generic.select"
+    image_icon_name: Optional[str] = None
+    keymap: Optional[tuple] = None
+    widget: Optional[str] = None
+    cursor: Optional[str] = None
+    after: frozenset[str] = frozenset()
+    separator: bool = False
+    group: bool = False
+    draw_settings: Optional[Callable] = None
+
+
+@dataclass
+class RTC_Modal_Workspace_Tool_Instance:
+    """One registered concrete WorkSpaceTool placement; runtime-only and never BL-mirrored."""
+
+    src_block_id: str
+    logical_tool_id: str
+    concrete_tool_id: str
+    space_type: str
+    context_mode: Optional[str]
+    image_icon_name: Optional[str]
+    fallback_icon: str
+    icon_handle: str
+    actual_tool_class: Any

@@ -25,13 +25,12 @@ from .common_declarations import (
     Block_UIList_Configs,
 )
 from .feature_modal_manager import Wrapper_Modal_Manager
-from .data_structures import Modal_Listener_Definition
+from .data_structures import Modal_Listener_Definition, Modal_Listener_End_Reason
 from .helpers import (
     DGBLOCKS_OT_Modal_Event_Router,
-    _rebuild_all_listeners,
-    start_router,
-    request_router_stop,
+    end_all_listeners,
 )
+from .workspace_tools import register_declared_workspace_tools, unregister_all_workspace_tools
 
 cache_key_listeners = Block_RTC_Members.LISTENERS
 cache_key_data_mirrors = Core_Runtime_Cache_Members.REGISTRY_ALL_DATA_MIRRORS
@@ -51,16 +50,6 @@ def _cb_is_enabled_changed(self, context):
     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_listeners)
     Wrapper_Modal_Manager._update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
 
-
-def _cb_enable_modal_changed(self, context):
-    """
-    Fired when the enable_modal scene property changes.
-    Starting it launches the router operator; clearing it lets the router self-terminate.
-    """
-    if self.enable_modal:
-        start_router()
-    else:
-        request_router_stop()
 
 # ==============================================================================================================================
 # BL PROPERTY GROUPS
@@ -85,11 +74,6 @@ class DGBLOCKS_PG_Modal_Events_Props(bpy.types.PropertyGroup):
     Scene-level property group for block_modal_events.
     Stored on bpy.types.Scene.dgblocks_modal_events_props.
     """
-    enable_modal: bpy.props.BoolProperty(  # type: ignore
-        name="Enable Modal",
-        default=False,
-        update=_cb_enable_modal_changed,
-    )
     listener_mirror: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Modal_Listener_Row)  # type: ignore
     listener_mirror_selected_idx: bpy.props.IntProperty()  # type: ignore
 
@@ -97,11 +81,14 @@ class DGBLOCKS_PG_Modal_Events_Props(bpy.types.PropertyGroup):
 # HOOK SUBSCRIBERS
 
 def hook_post_startup():
-    "Ensure modal is never on at startup"
-    bpy.context.scene.dgblocks_modal_events_props.enable_modal = False
+    """Rebuild static tools and restart listeners after startup or a file load."""
+    end_all_listeners(Modal_Listener_End_Reason.ROUTER_SHUTDOWN)
+    register_declared_workspace_tools()
+    Wrapper_Modal_Manager.repoll(Enum_Sync_Events.ADDON_INIT)
 
 def hook_before_blocks_reload():
-    bpy.context.scene.dgblocks_modal_events_props.enable_modal = False
+    end_all_listeners(Modal_Listener_End_Reason.ROUTER_SHUTDOWN)
+    unregister_all_workspace_tools()
 
 # ==============================================================================================================================
 # UI
@@ -134,9 +121,6 @@ class DGBLOCKS_PT_Modal_Events_Panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         modal_props = context.scene.dgblocks_modal_events_props
-
-        # Master enable / disable toggle
-        layout.prop(modal_props, "enable_modal", toggle=True)
 
         if not modal_props.listener_mirror:
             layout.label(text="No modal listeners", icon="INFO")

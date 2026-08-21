@@ -98,6 +98,16 @@ class Wrapper_Control_Plane(Abstract_Feature_Wrapper, Abstract_Datawrapper_Insta
             except Exception:
                 desired_dt = "NONE"
             Wrapper_Loggers.update_logger_formatters(desired_dt)
+
+            # File-load initialization is a real post-startup lifecycle pass too. Re-fire the
+            # final-init hook after the newly loaded Scene data has been mirrored so resources
+            # that Blender does not preserve across files (notably modal operators) can restart.
+            logger.info("Re-running final-init hooks after file load")
+            Wrapper_Hooks.run_hooked_funcs(
+                hook_func_name=enum_hook_post_startup,
+                should_halt_on_exception=False,
+            )
+            force_redraw_ui(bpy.context)
             return
 
         # 0: (Debugging) clear all saved properties if needed

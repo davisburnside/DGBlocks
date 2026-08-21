@@ -4,239 +4,225 @@
 
 ## Purpose
 
-Runs a single, always-on Blender **modal operator** ("the router") and fans every captured
-mouse / keyboard / scroll / window event out to downstream blocks as ordered, per-block
-**listeners**. Provides a pull-based architecture: downstream blocks declare their interest via
-`hook_get_modal_listener_definitions`, and `Wrapper_Modal_Manager` owns the full lifecycle —
-creating `RTC_Modal_Listener_Instance` records, dispatching events in deterministic priority
-order, aggregating return values, and persisting per-listener `is_enabled` state in a Blender
-`CollectionProperty` UIList so preferences survive undo/redo.
+Owns one Blender modal router and fans raw input events out to ordered logical listeners. Downstream
+blocks declare listeners through `hook_get_modal_listener_definitions`; the block owns their RTC
+records, per-listener enable toggles, dispatch order, crash isolation, and lifecycle notifications.
 
-This is the **single-router / many-logical-subscribers** model: there is exactly one real
-`{'RUNNING_MODAL'}` operator on Blender's modal stack. Ordering and event consumption are
-controlled entirely in Python (by `priority`), rather than by Blender's coarse LIFO +
-`PASS_THROUGH` stack semantics.
+The block also owns an optional, RTC-only registry of toolbar `WorkSpaceTool`s. Tool declarations
+are collected from downstream blocks during `hook_post_startup`. A logical declaration may
+cover several editor/mode placements and is expanded to one concrete Blender tool per placement.
 
 ## Dependencies
 
 | Block | Reason |
 |---|---|
-| `block-core` | Runtime cache, loggers, hooks |
+| `block-core` | Runtime cache, hooks, loggers, registration lifecycle |
 
-> **Overlay drawing is NOT owned by this block.** Modal input-capture and GPU overlay drawing
-> are fully independent mechanisms in Blender. A listener that needs to draw should declare a
-> `Shader_Declaration` through `block_onscreen_drawing` instead of registering its own draw
-> handler.
+Overlay drawing is not owned here. Use `block-onscreen-draw` for GPU overlays.
 
-## Architecture Summary
+## Modal lifecycle
 
-Modal capture is controlled by the `enable_modal` scene property:
+There is no master `enable_modal` property and no `_router_is_running` flag.
 
-1. The **listener registry** is (re)built independently of `enable_modal` by
-   `_rebuild_all_listeners()`, which fires `hook_get_modal_listener_definitions`. Each
-   subscribing block returns a **single-element** list containing one `Modal_Listener_Definition`
-   (the listener is keyed by the source block id — one listener per block).
-2. Setting `enable_modal = True` invokes the router operator `DGBLOCKS_OT_Modal_Event_Router`,
-   which calls `modal_handler_add(self)` and returns `{'RUNNING_MODAL'}`. It fires each enabled
-   listener's `before_modal_start` callback and broadcasts the `hook_modal_started` hook.
-3. On every event, the router classifies it (see *Event Categories*), then dispatches to each
-   enabled listener (skipping any whose matching `ignore_*` flag is set) in ascending `priority`
-   order, calling `on_event(listener_instance, context, event)`.
-4. Setting `enable_modal = False` lets the router self-terminate on its **next received event**
-   (firing each `before_modal_end` and broadcasting `hook_modal_ended`).
+1. `Wrapper_Modal_Manager.repoll(event)` fires `hook_get_modal_listener_definitions` and rebuilds
+   the RTC listener registry.
+2. An empty -> non-empty registry transition invokes `DGBLOCKS_OT_Modal_Event_Router`.
+3. Invocation uses a consistent `window/screen/VIEW_3D area/WINDOW region` context override. This
+   is required when repoll is reached from a timer or `bpy.ops.dgblocks.reload_all_blocks()`.
+4. A running router reads the listener registry live, so non-empty -> non-empty rebuilds do not
+   restart it.
+5. An empty registry makes the router finish on its next event.
 
-The router reads listeners **live** from the RTC every event, so a rebuild while the modal is
-running takes effect immediately without restarting the modal.
+Each router also retains the identity of the listener-list object it started with. Reload/file-load
+recovery replaces that object; a stale pre-reload router detects the generation mismatch and exits
+instead of dispatching alongside the replacement. This is not a global running-state flag.
 
-### Return value aggregation
+Individual listeners may still be toggled with `listener_mirror[].is_enabled`. A disabled listener
+remains registered, so disabling all listeners does not itself repoll or remove them.
 
-Each listener's `on_event` returns a Blender modal return set, or `None` (treated as
-`{'PASS_THROUGH'}`). The router default is `{'PASS_THROUGH'}` (non-blocking). The **first**
-listener (in priority order) to return a non-`PASS_THROUGH` value **wins** for that event and
-short-circuits the remaining listeners. If a listener returns `{'FINISHED'}` or `{'CANCELLED'}`,
-the router ends.
+### Listener return values
+
+Listeners run in ascending `(priority, src_block_id)` order.
+
+| Return | Behavior |
+|---|---|
+| `None` / `{'PASS_THROUGH'}` | Continue to the next listener |
+| `{'RUNNING_MODAL'}` | Consume the event and short-circuit remaining listeners |
+| `{'FINISHED'}` | Remove only the returning listener; do not repoll |
+| `{'CANCELLED'}` | Remove only the returning listener; do not repoll |
+
+After `FINISHED`/`CANCELLED`, the BL mirror is refreshed directly from RTC. If no listener remains,
+the shared router ends; otherwise it returns `RUNNING_MODAL` and remains active.
+
+### Listener end reasons
+
+`hook_modal_listener_ended(context, reason, listener_info)` is broadcast after a listener ends.
+`listener_info` is an immutable `Modal_Listener_End_Info` snapshot; it does not expose the removed
+mutable RTC record.
+
+| Reason | Meaning |
+|---|---|
+| `FINISHED` | Listener returned `{'FINISHED'}` |
+| `CANCELLED` | Listener returned `{'CANCELLED'}` |
+| `DEFINITION_REMOVED` | A later repoll no longer returned that listener |
+| `ROUTER_SHUTDOWN` | Router/reload preparation ended listeners |
+| `ADDON_SHUTDOWN` | Block/add-on teardown ended listeners |
+
+`before_modal_end(listener, context, reason)` runs before the broadcast for that listener.
+`hook_modal_ended(context, reason)` remains a router-level notification.
 
 ### Crash isolation
 
-If a listener's `on_event` raises, the router **disables that listener**
-(`is_enabled = False`, records `listener_error_str`) and keeps running — one misbehaving block
-cannot take down the modal or the other listeners. The router's own `modal()` body is fully
-wrapped so no exception escapes into Blender's event callback.
+An exception from `on_event` records `listener_error_str`, disables only that listener, and logs
+the exception. Exceptions never escape the router callback.
 
-### Startup / file load
+## Listener declarations
 
-A modal operator does not survive a file load, and Blender exposes no API to enumerate running
-modals. The router is therefore (re)started from the `hook_post_startup` subscriber (when
-`enable_modal` is `True`), which runs once the bpy context is ready — `_init_wrapper` only
-rebuilds the listener registry, it does **not** invoke the operator (context may not be ready
-during `init_post_bpy`).
-
-### Undo / Redo — smart structural comparison
-
-Same pattern as `block_timers` / `block_onscreen_drawing`, via
-`Wrapper_Modal_Manager._update_RTC_with_mirrored_BL_data`:
-
-1. Uses `plan_dataclasses_to_match_collectionprop` to diff the BL mirror vs the RTC list.
-2. If `Create` or `Remove` actions exist → full `_rebuild_all_listeners()`.
-3. If only `Edit` actions (e.g. `is_enabled` toggled) → toggles `is_enabled` on the affected RTC
-   instance. The running router picks this up live — no restart required.
-
-## Event Categories
-
-Each incoming event is classified into one coarse category, mapped to one per-listener
-`ignore_*` flag:
-
-| Category | Maps to flag | Example `event.type`s |
-|---|---|---|
-| `MOUSE_CLICK` | `ignore_mouse_click_events` | `LEFTMOUSE`, `RIGHTMOUSE`, `MIDDLEMOUSE`, `BUTTON4/5MOUSE` |
-| `MOUSE_MOVE`  | `ignore_mouse_move` | `MOUSEMOVE`, `INBETWEEN_MOUSEMOVE` |
-| `SCROLL`      | `ignore_scroll_events` | `WHEELUP/DOWNMOUSE`, `TRACKPADPAN`, `TRACKPADZOOM` |
-| `KEYBOARD`    | `ignore_keyboard_events` | all key types |
-| `WINDOW`      | `ignore_window_events` | `WINDOW_DEACTIVATE` |
-| `OTHER`       | *(none — always delivered)* | `NDOF_MOTION`, etc. |
-
-This block does **not** add a modal event timer, so listeners never receive `TIMER` events.
-Use `block_timers` for time-based work.
-
-## Data Architecture
-
-### Blender Data
-
-| Property path | Type | Purpose |
-|---|---|---|
-| `scene.dgblocks_modal_events_props.enable_modal` | `BoolProperty` | Master on/off toggle; starts/stops the router |
-| `scene.dgblocks_modal_events_props.listener_mirror` | `CollectionProperty[DGBLOCKS_PG_Modal_Listener_Row]` | Per-listener BL persistence |
-| `scene.dgblocks_modal_events_props.listener_mirror_selected_idx` | `IntProperty` | Active UIList selection index |
-
-**`DGBLOCKS_PG_Modal_Listener_Row` fields:**
-
-| Field | Type | Notes |
-|---|---|---|
-| `src_block_id` | `StringProperty` | Key — matches `RTC_Modal_Listener_Instance.src_block_id` |
-| `priority` | `IntProperty` | Display only |
-| `is_enabled` | `BoolProperty` | User-editable toggle; `update` callback syncs to RTC immediately |
-
-### Runtime Cache
-
-| RTC Key | Type | Purpose |
-|---|---|---|
-| `LISTENERS` | `list[RTC_Modal_Listener_Instance]` | All live listener instances, sorted by `(priority, src_block_id)` |
-
-### Data Mirrors
-
-| Mirror | Key fields | Data fields | Scene path |
-|---|---|---|---|
-| `LISTENER_MIRROR` | `["src_block_id"]` | `["is_enabled"]` | `dgblocks_modal_events_props.listener_mirror` |
-
-## Hook Sources
-
-| Member | Direction | Kwargs | Purpose |
-|---|---|---|---|
-| `hook_get_modal_listener_definitions` | block_modal_events → subscribers | `{}` | Collect `Modal_Listener_Definition` objects; subscribers return a single-element list |
-| `hook_modal_started` | block_modal_events → subscribers | `{context}` | Broadcast once when the router starts |
-| `hook_modal_ended` | block_modal_events → subscribers | `{context, reason}` | Broadcast once when the router stops (`reason` ∈ `"disabled"`, `"listener_requested"`) |
-
-## Public API — `Wrapper_Modal_Manager`
-
-### `enable_and_poll_for_modal_listeners()`
-Sets `enable_modal` to `True`, starting the router.
-
-### `disable_modal()`
-Sets `enable_modal` to `False`; the router self-terminates on its next event.
-
-### `get_listener(src_block_id: str) -> RTC_Modal_Listener_Instance | None`
-Returns the live listener instance for a block id, or `None`.
-
-### `repoll(event)`
-Re-polls all listener definitions and rebuilds the RTC registry + BL mirror. Does not
-start/stop the router; the running router picks up the new set immediately.
-
-## Public API — `Modal_Listener_Definition`
-
-Declarative descriptor. **One per block.** Supplied inside `hook_get_modal_listener_definitions`.
+Each downstream block may return at most one listener because `src_block_id` is the key.
 
 ```python
-Modal_Listener_Definition(
-    priority = 0,                       # lower = dispatched earlier
-    on_event = _my_on_event,            # (listener_instance, context, event) -> set | None
-    before_modal_start = _my_on_start,  # optional: (listener_instance, context) -> None
-    before_modal_end   = _my_on_end,    # optional: (listener_instance, context, reason) -> None
-    ignore_mouse_click_events = False,
-    ignore_mouse_move         = False,
-    ignore_scroll_events      = False,
-    ignore_keyboard_events    = False,
-    ignore_window_events      = False,
-)
-```
-
-## Public API — `RTC_Modal_Listener_Instance`
-
-A `@dataclass` representing one block's live subscription. Managed by `Wrapper_Modal_Manager`.
-
-| Field | Type | Description |
-|---|---|---|
-| `src_block_id` | `str` | Unique key — the subscribing block's id |
-| `priority` | `int` | Dispatch order (ascending) |
-| `is_enabled` | `bool` | Toggle on/off; synced from BL mirror on undo/redo |
-| `event_count` | `int` | Events delivered since last rebuild |
-| `last_return` | `str \| None` | Stringified last return value |
-| `modal_start_timestamp` | `float` | Set at true router start |
-| `last_event_timestamp` | `float` | Updated each delivered event |
-| `listener_error_str` | `str \| None` | Last exception message; set + disables on crash |
-
-## Downstream Block Integration Example
-
-```python
-# my_block/__init__.py
-
 from ...native_blocks.block_modal_events.data_structures import Modal_Listener_Definition
 
-def _on_modal_event(listener_instance, context, event):
-    if event.type == 'G' and event.value == 'PRESS':
-        # handle the key, consume the event
-        return {'RUNNING_MODAL'}
-    return {'PASS_THROUGH'}
-
-def _before_modal_start(listener_instance, context):
-    print("Modal router started — my listener is live")
-
 def hook_get_modal_listener_definitions():
-    return [
-        Modal_Listener_Definition(
-            priority = 10,
-            on_event = _on_modal_event,
-            before_modal_start = _before_modal_start,
-            ignore_mouse_move = True,   # don't get spammed by MOUSEMOVE
-        )
-    ]
+    return [Modal_Listener_Definition(
+        priority=10,
+        on_event=_on_modal_event,
+        before_modal_start=_on_start,
+        before_modal_end=_on_end,
+        workspace_tool_ids=("flatypus.assembly_select",),
+        ignore_scroll_events=True,
+    )]
 ```
 
-> **Note:** `block-modal-events` must be listed in your block's `_BLOCK_DEPENDENCIES` if you
-> import its data structures or call `Wrapper_Modal_Manager`.
+`workspace_tool_ids=()` means the listener is eligible regardless of the active custom tool.
+Otherwise all IDs must resolve to preregistered logical tool declarations and the listener is
+dispatched only while one of those logical tools is active. An unknown ID disables the listener
+and records an error.
 
-## Validation
+## Workspace tools
 
-`validate_listener_definitions()` in `helpers.py` runs before any RTC/bpy state is mutated:
+### Declaration hook
 
-1. At most **one** definition per block (the listener is keyed by `src_block_id`).
-2. `on_event` is callable.
+Downstream blocks may implement `hook_get_modal_workspace_tool_definitions()`:
 
-## Loggers
+```python
+from ...native_blocks.block_modal_events.data_structures import (
+    Modal_Workspace_Tool_Definition,
+    Modal_Workspace_Tool_Placement,
+)
 
-| Logger | Level | Usage |
+def hook_get_modal_workspace_tool_definitions():
+    return [Modal_Workspace_Tool_Definition(
+        tool_id="flatypus.assembly_select",
+        label="Assembly Select",
+        description="Select Flatypus assembly entities",
+        image_icon_name="Flatypus Assembly Select Icon",
+        icon="ops.generic.select",  # fallback
+        placements=(
+            Modal_Workspace_Tool_Placement("VIEW_3D", "OBJECT"),
+            Modal_Workspace_Tool_Placement("VIEW_3D", "EDIT_MESH"),
+        ),
+        after=frozenset({"builtin.select_box"}),
+        separator=True,
+        group=True,
+    )]
+```
+
+### Multiple modes and areas
+
+A single **DGBlocks logical declaration** can contain multiple `placements`. Blender itself allows
+only one scalar `bl_space_type` and `bl_context_mode` on each concrete `WorkSpaceTool`, so the
+manager expands the logical declaration into one generated class per placement. Placement IDs are
+deterministic, for example:
+
+```text
+flatypus.assembly_select.view_3d.object
+flatypus.assembly_select.view_3d.edit_mesh
+```
+
+Use explicit placements. DGBlocks does not pass an `ALL` mode to Blender.
+
+### Registration and persistence
+
+- Tools are collected and registered during this block's `hook_post_startup`.
+- Referenced operators have already been registered at that point.
+- Registrations are stored in RTC member `MODAL_WORKSPACE_TOOLS`.
+- There is intentionally no Blender-data mirror or UIList for tools.
+- Tools are unregistered before block reload and during wrapper removal.
+- Tools remain registered while their runtime listeners are absent; an active dormant tool is
+  harmless and is not automatically replaced with another user tool.
+
+### Image datablock icons
+
+`image_icon_name` refers to an existing `bpy.data.images` name. The manager gets a datablock icon
+value through `bpy.types.UILayout.icon(image)` and bridges it into Blender's toolbar icon cache.
+If the image is absent or has no usable icon, `icon` is used; the default fallback is
+`ops.generic.select`.
+
+The cache bridge is necessary because `WorkSpaceTool.bl_icon` publicly accepts only a Blender
+toolbar `.dat` icon handle, not an Image datablock or integer `icon_value`.
+
+```python
+resolved_count = Wrapper_Modal_Manager.refresh_icons()
+```
+
+`refresh_icons()` retries every Image-backed tool, updates Blender's immutable toolbar `ToolDef`
+records, redraws areas, and returns the number resolved.
+
+### Current routing limitation
+
+Tool references currently provide **active-tool gating** for the existing raw modal router. A raw
+`modal_handler_add` callback still receives window events before DGBlocks performs geometric UI
+checks; merely registering a tool cannot prove that a gizmo or another modal operator claimed an
+event. The next phase is a tested tool-keymap forwarding operator, especially for `MOUSEMOVE`.
+Until then, downstream viewport interactions must retain `is_event_over_viewport()`.
+
+## Data architecture
+
+### Blender data
+
+| Path | Purpose |
+|---|---|
+| `scene.dgblocks_modal_events_props.listener_mirror` | Per-listener `is_enabled` persistence |
+| `scene.dgblocks_modal_events_props.listener_mirror_selected_idx` | UIList selection |
+
+### Runtime cache
+
+| RTC key | Type | Purpose |
 |---|---|---|
-| `MODAL_LIFECYCLE` | `INFO` | Router start/stop, rebuild/clear, start/end callbacks |
-| `MODAL_EVENTS` | `INFO` | Per-event dispatch and per-listener `on_event` failures |
+| `LISTENERS` | `list[RTC_Modal_Listener_Instance]` | Live ordered listeners |
+| `USER_INPUT_CAPTURE` | `User_Input_Capture_Instance` | Latest raw event metadata |
+| `MODAL_WORKSPACE_TOOLS` | `list[RTC_Modal_Workspace_Tool_Instance]` | Concrete registered tool placements |
+
+Only `LISTENERS` has a BL mirror, keyed by `src_block_id` and mirroring `is_enabled`.
+
+## Public API
+
+| Method | Description |
+|---|---|
+| `Wrapper_Modal_Manager.repoll(event)` | Rebuild listeners; activate router on empty -> non-empty transition |
+| `Wrapper_Modal_Manager.get_listener(src_block_id)` | Return one live listener or `None` |
+| `Wrapper_Modal_Manager.refresh_icons()` | Retry Image-backed toolbar icons; return resolved count |
+
+## Startup and file load
+
+Core's persistent `load_post` handler calls `Wrapper_Control_Plane.init_post_bpy()` after a
+`.blend` load. The already-initialized branch reruns mirror sync and then fires `hook_post_startup`.
+Modal events uses that pass to end any stale Python listeners with `ROUTER_SHUTDOWN`, recollect
+tools (including Image icons from the newly loaded file), repoll listeners, and restart the router
+under a valid 3D-view context override.
 
 ## Files
 
 ```text
 block_modal_events/
-├── __init__.py               # Block declaration, BL props, UIList, panel, update callbacks, hook_post_startup
-├── README.md                 # This file
-├── common_declarations.py    # Block_Hook_Sources, Block_Loggers, Block_RTC_Members, Block_Data_Mirrors, Block_UIList_Configs
-├── data_structures.py        # Modal_Event_Category, Modal_Listener_Definition, RTC_Modal_Listener_Instance
-├── feature_modal_manager.py  # Wrapper_Modal_Manager (_update_RTC..., _update_BL..., public API)
-├── helpers.py                # Router operator, event classification/dispatch, rebuild/clear, validation
-└── ui.py                     # UIList row + details draw helpers
+├── __init__.py
+├── common_declarations.py
+├── data_structures.py
+├── feature_modal_manager.py
+├── helpers.py
+├── modal_interaction.py
+├── ui.py
+├── workspace_tools.py
+└── README.md
 ```

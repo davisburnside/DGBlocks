@@ -14,28 +14,17 @@ from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper imp
 
 # Intra-block imports
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .data_structures import Modal_Event_Category, RTC_Modal_Listener_Instance, User_Input_Capture_Instance
+from .data_structures import (
+    Modal_Event_Category,
+    Modal_Listener_End_Info,
+    Modal_Listener_End_Reason,
+    RTC_Modal_Listener_Instance,
+    User_Input_Capture_Instance,
+)
+from .workspace_tools import get_active_logical_tool_id
 
 # Aliases
 cache_key_listeners = Block_RTC_Members.LISTENERS
-
-# ==============================================================================================================================
-# ROUTER RUNNING STATE
-# ==============================================================================================================================
-# A modal operator does not survive a file reload, and Blender exposes no API to enumerate
-# running modals. We track the single router operator's running state here so we never invoke
-# it twice and can detect that it must be re-launched after load/register.
-
-_router_is_running: bool = False
-
-
-def is_router_running() -> bool:
-    return _router_is_running
-
-
-def _set_router_running(value: bool) -> None:
-    global _router_is_running
-    _router_is_running = value
 
 def _update_user_input_capture_instance(context, event, should_clear = False):
     """ Create new instance every event"""
@@ -151,7 +140,89 @@ def _clear_all_listeners(include_BL_data: bool = True) -> None:
     logger.debug("_clear_all_listeners: complete")
 
 
-def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> None:
+def _listener_end_info(listener: RTC_Modal_Listener_Instance) -> Modal_Listener_End_Info:
+    return Modal_Listener_End_Info(
+        src_block_id=listener.src_block_id,
+        priority=listener.priority,
+        is_enabled=listener.is_enabled,
+        workspace_tool_ids=listener.workspace_tool_ids,
+        event_count=listener.event_count,
+        last_return=listener.last_return,
+        modal_start_timestamp=listener.modal_start_timestamp,
+        last_event_timestamp=listener.last_event_timestamp,
+        listener_error_str=listener.listener_error_str,
+    )
+
+
+def _sync_listener_mirror_from_RTC() -> None:
+    """Refresh the existing BL mirror without polling listener definitions."""
+    try:
+        modal_props = bpy.context.scene.dgblocks_modal_events_props
+    except (AttributeError, ReferenceError):
+        return
+
+    listeners = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
+    Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.LISTENERS, True)
+    try:
+        modal_props.listener_mirror.clear()
+        for listener in listeners:
+            row = modal_props.listener_mirror.add()
+            row.src_block_id = listener.src_block_id
+            row.priority = listener.priority
+            row.is_enabled = listener.is_enabled
+        modal_props.listener_mirror_selected_idx = min(
+            modal_props.listener_mirror_selected_idx,
+            max(0, len(listeners) - 1),
+        )
+    finally:
+        Wrapper_Runtime_Cache.flag_cache_as_syncing(Block_RTC_Members.LISTENERS, False)
+
+
+def _notify_listener_ended(listener, context, reason: Modal_Listener_End_Reason) -> None:
+    logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
+    try:
+        if listener._before_modal_end is not None:
+            listener._before_modal_end(listener, context, reason.value)
+    except Exception:
+        logger.error(f"before_modal_end failed for '{listener.src_block_id}'", exc_info=True)
+
+    try:
+        Wrapper_Hooks.run_hooked_funcs(
+            hook_func_name=Block_Hook_Sources.hook_modal_listener_ended,
+            should_halt_on_exception=False,
+            context=context,
+            reason=reason.value,
+            listener_info=_listener_end_info(listener),
+        )
+    except Exception:
+        logger.error(
+            f"Unable to publish listener-ended hook for '{listener.src_block_id}'",
+            exc_info=True,
+        )
+
+
+def _remove_listener(listener, context, reason: Modal_Listener_End_Reason, sync_BL=True) -> None:
+    _notify_listener_ended(listener, context, reason)
+    listeners = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
+    # Preserve list identity so the shared router generation remains valid for survivors.
+    listeners[:] = [item for item in listeners if item is not listener]
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.LISTENERS, listeners)
+    if sync_BL:
+        _sync_listener_mirror_from_RTC()
+
+
+def end_all_listeners(reason: Modal_Listener_End_Reason, context=None, include_BL_data=True) -> None:
+    """End all current listeners without polling downstream definitions."""
+    context = context or bpy.context
+    listeners = list(Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or [])
+    for listener in listeners:
+        _notify_listener_ended(listener, context, reason)
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.LISTENERS, [])
+    if include_BL_data:
+        _sync_listener_mirror_from_RTC()
+
+
+def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> tuple[bool, bool]:
     """
     Full rebuild cycle:
         1. Clear existing RTC_Modal_Listener_Instance objects.
@@ -162,13 +233,15 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> Non
         5. Restore is_enabled from the BL listener_mirror (user preference survives rebuilds).
         6. Sync BL listener_mirror rows to reflect the current live listener set.
 
-    Note: this rebuilds the listener registry only. It does NOT start/stop the router operator
-    (that is controlled by the enable_modal scene property). Listeners are read live from the
-    RTC by the router on every event, so a rebuild while the modal is running takes effect
-    immediately without restarting the modal.
+    Returns ``(had_listeners, has_listeners)`` so the public repoll API can launch the router
+    only for an empty -> non-empty transition. The running router reads the rebuilt list live.
     """
     logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
     logger.debug("_rebuild_all_listeners: starting")
+
+    old_registry = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
+    old_listeners = list(old_registry)
+    had_listeners = bool(old_listeners)
 
     # Capture current is_enabled before clearing, so user toggles survive the rebuild
     modal_props = bpy.context.scene.dgblocks_modal_events_props
@@ -187,10 +260,20 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> Non
 
     if not defs_by_block or sum(len(v) for v in defs_by_block.values()) == 0:
         logger.info("_rebuild_all_listeners: no Modal_Listener_Definitions returned, returning early")
-        modal_props.enable_modal = False
-        return
+        for listener in old_listeners:
+            _notify_listener_ended(listener, bpy.context, Modal_Listener_End_Reason.DEFINITION_REMOVED)
+        if sync_BL:
+            _sync_listener_mirror_from_RTC()
+        return had_listeners, False
 
     validate_listener_definitions(defs_by_block)
+
+    declared_block_ids = {block_id for block_id, defs in defs_by_block.items() if defs}
+    for listener in old_listeners:
+        if listener.src_block_id not in declared_block_ids:
+            _notify_listener_ended(
+                listener, bpy.context, Modal_Listener_End_Reason.DEFINITION_REMOVED
+            )
 
     # Build RTC_Modal_Listener_Instances (one per block)
     rtc_listeners = []
@@ -204,6 +287,7 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> Non
             src_block_id              = block_id,
             priority                  = d.priority,
             is_enabled                = is_enabled,
+            workspace_tool_ids        = tuple(d.workspace_tool_ids),
             ignore_mouse_click_events = d.ignore_mouse_click_events,
             ignore_mouse_move         = d.ignore_mouse_move,
             ignore_scroll_events      = d.ignore_scroll_events,
@@ -221,23 +305,18 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> Non
     # Stable, deterministic dispatch order: ascending priority, then block id
     rtc_listeners.sort(key=lambda i: (i.priority, i.src_block_id))
 
-    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.LISTENERS, rtc_listeners)
+    if had_listeners:
+        # Keep the live router's generation token valid for a normal non-empty rebuild.
+        old_registry[:] = rtc_listeners
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.LISTENERS, old_registry)
+    else:
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.LISTENERS, rtc_listeners)
     logger.info(f"_rebuild_all_listeners: created {len(rtc_listeners)} listener(s)")
 
     if sync_BL:
-        FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_listeners)
-        Wrapper_Runtime_Cache.resync_single_data_mirror(
-            event=Enum_Sync_Events,
-            BL_is_truth_source=False,
-            cache_key=cache_key_listeners,
-            FWC_instance=FWC_instance,
-            data_mirror_instance=data_mirror_instance,
-            actions_denied=set(),
-            logger=logger,
-        )
-        
-    if not modal_props.enable_modal:
-        modal_props.enable_modal = True
+        _sync_listener_mirror_from_RTC()
+
+    return had_listeners, bool(rtc_listeners)
 
 # ==============================================================================================================================
 # ROUTER START / STOP HELPERS
@@ -250,28 +329,36 @@ def _get_enabled_listeners_sorted() -> list:
     return enabled
 
 
-def start_router() -> None:
-    """Invoke the single router modal operator if it is not already running."""
+def _find_view3d_window_override():
+    """Return a consistent window/screen/VIEW_3D/WINDOW tuple, or None."""
+    wm = getattr(bpy.context, "window_manager", None)
+    if wm is None:
+        return None
+    for window in wm.windows:
+        screen = window.screen
+        for area in screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            region = next((r for r in area.regions if r.type == "WINDOW"), None)
+            if region is not None:
+                return {"window": window, "screen": screen, "area": area, "region": region}
+    return None
+
+
+def start_router() -> bool:
+    """Invoke the router in a valid 3D-view context; return whether invocation succeeded."""
     logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
-
-    if _router_is_running:
-        logger.debug("start_router: router already running, skipping")
-        return
-
     try:
-        bpy.ops.dgblocks.modal_event_router("INVOKE_DEFAULT")
+        override = _find_view3d_window_override()
+        if override is None:
+            logger.warning("start_router: no VIEW_3D WINDOW context is currently available")
+            return False
+        with bpy.context.temp_override(**override):
+            result = bpy.ops.dgblocks.modal_event_router("INVOKE_DEFAULT")
+        return result == {"RUNNING_MODAL"}
     except Exception:
         logger.error("start_router: failed to invoke router operator", exc_info=True)
-
-
-def request_router_stop() -> None:
-    """
-    Request the router to stop. The router self-terminates on its next received event when it
-    sees enable_modal == False. (Disabling typically resolves within one mouse-move.)
-    """
-    logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
-    logger.debug("request_router_stop: router will terminate on next event")
-    # Nothing to invoke here — DGBLOCKS_OT_Modal_Event_Router.modal() checks enable_modal.
+        return False
 
 
 def _fire_before_modal_start(context) -> None:
@@ -289,16 +376,6 @@ def _fire_before_modal_start(context) -> None:
             logger.error(f"before_modal_start failed for '{listener.src_block_id}'", exc_info=True)
 
 
-def _fire_before_modal_end(context, reason: str) -> None:
-    logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
-    for listener in _get_enabled_listeners_sorted():
-        if listener._before_modal_end is None:
-            continue
-        try:
-            listener._before_modal_end(listener, context, reason)
-        except Exception:
-            logger.error(f"before_modal_end failed for '{listener.src_block_id}'", exc_info=True)
-
 # ==============================================================================================================================
 # ROUTER MODAL OPERATOR — single instance, fans events to ordered logical listeners
 # ==============================================================================================================================
@@ -312,9 +389,14 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
     def invoke(self, context, event):
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
 
-        if is_router_running():
-            logger.debug("router invoke: already running, cancelling duplicate")
+        listeners = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
+        if not listeners:
+            logger.debug("router invoke: no listeners")
             return {"CANCELLED"}
+
+        # The registry object is the router generation token. Rebuild/reload replaces the list,
+        # allowing a stale pre-reload modal to identify itself without a global running flag.
+        self._listener_registry = listeners
 
         try:
             _fire_before_modal_start(context)
@@ -327,14 +409,12 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
             logger.error("router invoke: error during start hooks", exc_info=True)
 
         context.window_manager.modal_handler_add(self)
-        _set_router_running(True)
         logger.info("Modal event router started")
         return {"RUNNING_MODAL"}
 
     def _end(self, context, reason: str):
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
         try:
-            _fire_before_modal_end(context, reason)
             Wrapper_Hooks.run_hooked_funcs(
                 hook_func_name=Block_Hook_Sources.hook_modal_ended,
                 should_halt_on_exception=False,
@@ -343,7 +423,6 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
             )
         except Exception:
             logger.error("router end: error during end hooks", exc_info=True)
-        _set_router_running(False)
         _update_user_input_capture_instance(context, event = None, should_clear = True)
         logger.info(f"Modal event router ended (reason='{reason}')")
 
@@ -351,13 +430,12 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
         logger = get_logger(Block_Loggers.MODAL_EVENTS)
 
         try:
-            # Master toggle off → terminate (fires end hooks)
-            try:
-                enabled = context.scene.dgblocks_modal_events_props.enable_modal
-            except AttributeError:
-                enabled = False
-            if not enabled:
-                self._end(context, "disabled")
+            current_listeners = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
+            if current_listeners is not self._listener_registry:
+                self._end(context, Modal_Listener_End_Reason.ROUTER_SHUTDOWN.value)
+                return {"FINISHED"}
+            if not current_listeners:
+                self._end(context, Modal_Listener_End_Reason.ROUTER_SHUTDOWN.value)
                 return {"FINISHED"}
 
             category = classify_event(event)
@@ -366,8 +444,15 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
 
             _update_user_input_capture_instance(context, event)
 
+            ending_listener = None
+            active_logical_tool_id = get_active_logical_tool_id(context)
             for listener in _get_enabled_listeners_sorted():
                 if _listener_ignores_category(listener, category):
+                    continue
+                if (
+                    listener.workspace_tool_ids
+                    and active_logical_tool_id not in listener.workspace_tool_ids
+                ):
                     continue
 
                 try:
@@ -390,12 +475,22 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
                 # First non-PASS_THROUGH return wins and short-circuits remaining listeners
                 if ret and ret != {"PASS_THROUGH"}:
                     result = ret
+                    ending_listener = listener
                     break
 
-            # A listener may end the modal explicitly
+            # FINISHED/CANCELLED remove only the returning logical listener. They never trigger
+            # another declaration poll and never terminate unrelated listeners.
             if result in ({"FINISHED"}, {"CANCELLED"}):
-                self._end(context, "listener_requested")
-                return result
+                reason = (
+                    Modal_Listener_End_Reason.FINISHED
+                    if result == {"FINISHED"}
+                    else Modal_Listener_End_Reason.CANCELLED
+                )
+                _remove_listener(ending_listener, context, reason)
+                if not (Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []):
+                    self._end(context, Modal_Listener_End_Reason.ROUTER_SHUTDOWN.value)
+                    return {"FINISHED"}
+                return {"RUNNING_MODAL"}
 
             return result
 

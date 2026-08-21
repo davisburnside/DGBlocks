@@ -19,11 +19,18 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 # Intra-block imports
 from .common_declarations import Block_Loggers, Block_RTC_Members
 from .helpers import (
-    _clear_all_listeners,
     _rebuild_all_listeners,
+    _sync_listener_mirror_from_RTC,
+    end_all_listeners,
+    start_router,
 )
 
-from .data_structures import RTC_Modal_Listener_Instance
+from .data_structures import Modal_Listener_End_Reason, RTC_Modal_Listener_Instance
+from .workspace_tools import (
+    get_registered_logical_tool_ids,
+    refresh_workspace_tool_icons,
+    unregister_all_workspace_tools,
+)
 
 # Aliases
 cache_key_listeners = Block_RTC_Members.LISTENERS
@@ -35,9 +42,9 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     # Public API
 
     @classmethod
-    def disable_modal(cls):
-        """Set enable_modal = False; the router self-terminates on its next received event."""
-        bpy.context.scene.dgblocks_modal_events_props.enable_modal = False
+    def refresh_icons(cls) -> int:
+        """Retry Image-backed workspace-tool icons and return the resolved count."""
+        return refresh_workspace_tool_icons()
 
     @classmethod
     def get_listener(cls, src_block_id: str) -> Optional[RTC_Modal_Listener_Instance]:
@@ -51,12 +58,28 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     def repoll(cls, event) -> None:
         """
         Public API for dependent blocks to trigger a re-poll of all modal listener definitions.
-        Rebuilds the RTC listener registry (and BL mirror). Does not start/stop the router;
-        the running router picks up the new listener set immediately on its next event.
+        Rebuilds the RTC listener registry and starts the router on an empty -> non-empty
+        transition. A running router reads rebuilt listeners live without restarting.
         """
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
         logger.debug("repoll: rebuilding listener registry")
-        _rebuild_all_listeners(event)
+        had_listeners, has_listeners = _rebuild_all_listeners(event)
+
+        registered_tool_ids = get_registered_logical_tool_ids()
+        for listener in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []:
+            unknown_ids = set(listener.workspace_tool_ids) - registered_tool_ids
+            if unknown_ids:
+                listener.is_enabled = False
+                listener.listener_error_str = (
+                    "Unknown modal workspace tool id(s): " + ", ".join(sorted(unknown_ids))
+                )
+                logger.error(
+                    f"Listener '{listener.src_block_id}' disabled: {listener.listener_error_str}"
+                )
+        _sync_listener_mirror_from_RTC()
+
+        if has_listeners and not had_listeners:
+            start_router()
 
     # ----------------------------------------------------------
     # Abstract_Feature_Wrapper implementation
@@ -76,7 +99,8 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     def _remove_wrapper(cls) -> None:
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
         logger.debug("Wrapper_Modal_Manager._remove_wrapper — clearing listeners")
-        _clear_all_listeners()
+        end_all_listeners(Modal_Listener_End_Reason.ADDON_SHUTDOWN)
+        unregister_all_workspace_tools()
 
     # ----------------------------------------------------------
     # Abstract_BL_RTC_List_Syncronizer implementation
