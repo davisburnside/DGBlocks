@@ -104,7 +104,8 @@ class Modal_Listener_Definition:
     {'FINISHED'}, {'CANCELLED'}) or None (treated as {'PASS_THROUGH'}). The first listener
     (in ascending priority order) to return a non-PASS_THROUGH value wins for that event.
 
-    before_modal_start / before_modal_end are called once, at true router start / stop:
+    before_modal_start / before_modal_end are called once per listener lifecycle. Unbound listeners
+    start with the raw router; tool-bound listeners start on their first forwarded tool event:
         before_modal_start(listener_instance, context) -> None
         before_modal_end(listener_instance, context, reason: str) -> None
     """
@@ -114,7 +115,7 @@ class Modal_Listener_Definition:
     before_modal_end:   Optional[Callable] = None
 
     # Empty means the listener is valid regardless of the active workspace tool. Values refer
-    # to logical Modal_Workspace_Tool_Definition.tool_id values, not expanded placement ids.
+    # to logical Workspace_Tool_Definition.tool_id values, not expanded placement ids.
     workspace_tool_ids: tuple[str, ...] = ()
 
     # Per-event-category opt-outs
@@ -177,7 +178,7 @@ class Modal_Listener_End_Info:
 
 
 @dataclass(frozen=True)
-class Modal_Workspace_Tool_Placement:
+class Workspace_Tool_Placement:
     """One concrete editor/mode placement for a logical workspace tool."""
 
     space_type: str = "VIEW_3D"
@@ -186,15 +187,29 @@ class Modal_Workspace_Tool_Placement:
 
 
 @dataclass(frozen=True)
-class Modal_Workspace_Tool_Definition:
+class Workspace_Tool_Listener_Event:
+    """One active-tool keymap event forwarded to matching modal listeners."""
+
+    type: str
+    value: str = "ANY"
+    shift: bool = False
+    ctrl: bool = False
+    alt: bool = False
+    oskey: bool = False
+    any: bool = False
+
+
+@dataclass(frozen=True)
+class Workspace_Tool_Definition:
     """Logical tool declaration expanded to one WorkSpaceTool per placement at startup."""
 
     tool_id: str
     label: str
-    placements: tuple[Modal_Workspace_Tool_Placement, ...]
+    placements: tuple[Workspace_Tool_Placement, ...]
     description: str = ""
     icon: Optional[str] = "ops.generic.select"
     image_icon_name: Optional[str] = None
+    listener_events: tuple[Workspace_Tool_Listener_Event, ...] = ()
     keymap: Optional[tuple] = None
     widget: Optional[str] = None
     cursor: Optional[str] = None
@@ -205,7 +220,7 @@ class Modal_Workspace_Tool_Definition:
 
 
 @dataclass
-class RTC_Modal_Workspace_Tool_Instance:
+class RTC_Workspace_Tool_Instance:
     """One registered concrete WorkSpaceTool placement; runtime-only and never BL-mirrored."""
 
     src_block_id: str
@@ -217,3 +232,11 @@ class RTC_Modal_Workspace_Tool_Instance:
     fallback_icon: str
     icon_handle: str
     actual_tool_class: Any
+
+
+# Compatibility aliases for the API introduced while this block was modal-specific. The generic
+# names above are canonical so the declarations also describe tools with ordinary non-modal
+# operator keymaps.
+Modal_Workspace_Tool_Placement = Workspace_Tool_Placement
+Modal_Workspace_Tool_Definition = Workspace_Tool_Definition
+RTC_Modal_Workspace_Tool_Instance = RTC_Workspace_Tool_Instance

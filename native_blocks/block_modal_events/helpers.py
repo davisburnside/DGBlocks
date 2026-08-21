@@ -233,15 +233,16 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> tup
         5. Restore is_enabled from the BL listener_mirror (user preference survives rebuilds).
         6. Sync BL listener_mirror rows to reflect the current live listener set.
 
-    Returns ``(had_listeners, has_listeners)`` so the public repoll API can launch the router
-    only for an empty -> non-empty transition. The running router reads the rebuilt list live.
+    Returns ``(had_unbound_listeners, has_unbound_listeners)`` so the public repoll API launches
+    the raw router only when a listener without workspace-tool bindings needs it. Tool-bound
+    listeners receive events from their active tool keymaps instead.
     """
     logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
     logger.debug("_rebuild_all_listeners: starting")
 
     old_registry = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
     old_listeners = list(old_registry)
-    had_listeners = bool(old_listeners)
+    had_unbound_listeners = any(not listener.workspace_tool_ids for listener in old_listeners)
 
     # Capture current is_enabled before clearing, so user toggles survive the rebuild
     modal_props = bpy.context.scene.dgblocks_modal_events_props
@@ -264,7 +265,7 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> tup
             _notify_listener_ended(listener, bpy.context, Modal_Listener_End_Reason.DEFINITION_REMOVED)
         if sync_BL:
             _sync_listener_mirror_from_RTC()
-        return had_listeners, False
+        return had_unbound_listeners, False
 
     validate_listener_definitions(defs_by_block)
 
@@ -305,7 +306,7 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> tup
     # Stable, deterministic dispatch order: ascending priority, then block id
     rtc_listeners.sort(key=lambda i: (i.priority, i.src_block_id))
 
-    if had_listeners:
+    if old_listeners:
         # Keep the live router's generation token valid for a normal non-empty rebuild.
         old_registry[:] = rtc_listeners
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.LISTENERS, old_registry)
@@ -316,7 +317,8 @@ def _rebuild_all_listeners(event: Enum_Sync_Events, sync_BL: bool = True) -> tup
     if sync_BL:
         _sync_listener_mirror_from_RTC()
 
-    return had_listeners, bool(rtc_listeners)
+    has_unbound_listeners = any(not listener.workspace_tool_ids for listener in rtc_listeners)
+    return had_unbound_listeners, has_unbound_listeners
 
 # ==============================================================================================================================
 # ROUTER START / STOP HELPERS
@@ -327,6 +329,11 @@ def _get_enabled_listeners_sorted() -> list:
     enabled = [l for l in listeners if l.is_enabled]
     enabled.sort(key=lambda i: (i.priority, i.src_block_id))
     return enabled
+
+
+def _has_unbound_listeners() -> bool:
+    listeners = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
+    return any(not listener.workspace_tool_ids for listener in listeners)
 
 
 def _find_view3d_window_override():
@@ -361,19 +368,114 @@ def start_router() -> bool:
         return False
 
 
-def _fire_before_modal_start(context) -> None:
+def _start_listener_if_needed(listener, context) -> None:
     logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
-    now = time.time()
-    for listener in _get_enabled_listeners_sorted():
-        listener.modal_start_timestamp = now
-        if listener._before_modal_start is None:
-            continue
+    if listener.modal_start_timestamp != 0.0:
+        return
+    listener.modal_start_timestamp = time.time()
+    if listener._before_modal_start is not None:
         try:
             listener._before_modal_start(listener, context)
         except Exception as e:
             listener.listener_error_str = get_exception_last_n_lines(2, e)
             listener.is_enabled = False
             logger.error(f"before_modal_start failed for '{listener.src_block_id}'", exc_info=True)
+
+
+def _fire_before_modal_start(context) -> None:
+    for listener in _get_enabled_listeners_sorted():
+        if not listener.workspace_tool_ids:
+            _start_listener_if_needed(listener, context)
+
+
+def dispatch_event_to_listeners(context, event, logical_tool_id: str | None = None):
+    """Dispatch one event through the shared listener pipeline.
+
+    ``logical_tool_id=None`` is the raw-router path and intentionally selects only unbound
+    listeners. A concrete logical id is the WorkSpaceTool keymap path and selects only listeners
+    that reference that id. This makes the two event sources mutually exclusive.
+    """
+    logger = get_logger(Block_Loggers.MODAL_EVENTS)
+    category = classify_event(event)
+    now = time.time()
+    result = {"PASS_THROUGH"}
+
+    _update_user_input_capture_instance(context, event)
+
+    ending_listener = None
+    for listener in _get_enabled_listeners_sorted():
+        if _listener_ignores_category(listener, category):
+            continue
+        if logical_tool_id is None:
+            if listener.workspace_tool_ids:
+                continue
+        elif logical_tool_id not in listener.workspace_tool_ids:
+            continue
+
+        _start_listener_if_needed(listener, context)
+        if not listener.is_enabled:
+            continue
+
+        try:
+            ret = listener._on_event(listener, context, event)
+        except Exception as e:
+            listener.listener_error_str = get_exception_last_n_lines(2, e)
+            listener.is_enabled = False
+            logger.error(
+                f"on_event failed for '{listener.src_block_id}' — listener disabled",
+                exc_info=True,
+            )
+            continue
+
+        listener.event_count += 1
+        listener.last_event_timestamp = now
+        if ret:
+            listener.last_return = str(ret)
+
+        if ret and ret != {"PASS_THROUGH"}:
+            result = ret
+            ending_listener = listener
+            break
+
+    if result in ({"FINISHED"}, {"CANCELLED"}):
+        reason = (
+            Modal_Listener_End_Reason.FINISHED
+            if result == {"FINISHED"}
+            else Modal_Listener_End_Reason.CANCELLED
+        )
+        _remove_listener(ending_listener, context, reason)
+
+    return result
+
+
+class DGBLOCKS_OT_Workspace_Tool_Listener_Event(bpy.types.Operator):
+    """Forward one active WorkSpaceTool keymap event to matching logical listeners."""
+
+    bl_idname = "dgblocks.workspace_tool_listener_event"
+    bl_label = "DGBlocks Workspace Tool Listener Event"
+    bl_options = {"INTERNAL"}
+
+    logical_tool_id: bpy.props.StringProperty(options={"HIDDEN"})  # type: ignore
+
+    def invoke(self, context, event):
+        logger = get_logger(Block_Loggers.MODAL_EVENTS)
+        try:
+            # Guard against stale keymap entries and direct operator calls. Blender normally only
+            # reaches this through the active tool's keymap.
+            if get_active_logical_tool_id(context) != self.logical_tool_id:
+                return {"PASS_THROUGH"}
+
+            result = dispatch_event_to_listeners(
+                context, event, logical_tool_id=self.logical_tool_id
+            )
+            # This is a one-shot keymap operator, not a Blender modal handler. RUNNING_MODAL means
+            # "consume this event" at listener level and therefore maps to FINISHED here.
+            if result == {"PASS_THROUGH"} or not result:
+                return {"PASS_THROUGH"}
+            return {"FINISHED"}
+        except Exception:
+            logger.error("Unhandled workspace-tool listener event", exc_info=True)
+            return {"PASS_THROUGH"}
 
 
 # ==============================================================================================================================
@@ -390,8 +492,8 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
 
         listeners = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []
-        if not listeners:
-            logger.debug("router invoke: no listeners")
+        if not _has_unbound_listeners():
+            logger.debug("router invoke: no unbound listeners require raw routing")
             return {"CANCELLED"}
 
         # The registry object is the router generation token. Rebuild/reload replaces the list,
@@ -434,60 +536,16 @@ class DGBLOCKS_OT_Modal_Event_Router(bpy.types.Operator):
             if current_listeners is not self._listener_registry:
                 self._end(context, Modal_Listener_End_Reason.ROUTER_SHUTDOWN.value)
                 return {"FINISHED"}
-            if not current_listeners:
+            if not _has_unbound_listeners():
                 self._end(context, Modal_Listener_End_Reason.ROUTER_SHUTDOWN.value)
                 return {"FINISHED"}
 
-            category = classify_event(event)
-            now = time.time()
-            result = {"PASS_THROUGH"}
-
-            _update_user_input_capture_instance(context, event)
-
-            ending_listener = None
-            active_logical_tool_id = get_active_logical_tool_id(context)
-            for listener in _get_enabled_listeners_sorted():
-                if _listener_ignores_category(listener, category):
-                    continue
-                if (
-                    listener.workspace_tool_ids
-                    and active_logical_tool_id not in listener.workspace_tool_ids
-                ):
-                    continue
-
-                try:
-                    ret = listener._on_event(listener, context, event)
-                except Exception as e:
-                    # Disable the offender, keep the router alive
-                    listener.listener_error_str = get_exception_last_n_lines(2, e)
-                    listener.is_enabled = False
-                    logger.error(
-                        f"on_event failed for '{listener.src_block_id}' — listener disabled",
-                        exc_info=True,
-                    )
-                    continue
-
-                listener.event_count += 1
-                listener.last_event_timestamp = now
-                if ret:
-                    listener.last_return = str(ret)
-
-                # First non-PASS_THROUGH return wins and short-circuits remaining listeners
-                if ret and ret != {"PASS_THROUGH"}:
-                    result = ret
-                    ending_listener = listener
-                    break
+            result = dispatch_event_to_listeners(context, event)
 
             # FINISHED/CANCELLED remove only the returning logical listener. They never trigger
             # another declaration poll and never terminate unrelated listeners.
             if result in ({"FINISHED"}, {"CANCELLED"}):
-                reason = (
-                    Modal_Listener_End_Reason.FINISHED
-                    if result == {"FINISHED"}
-                    else Modal_Listener_End_Reason.CANCELLED
-                )
-                _remove_listener(ending_listener, context, reason)
-                if not (Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []):
+                if not _has_unbound_listeners():
                     self._end(context, Modal_Listener_End_Reason.ROUTER_SHUTDOWN.value)
                     return {"FINISHED"}
                 return {"RUNNING_MODAL"}

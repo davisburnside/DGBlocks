@@ -15,21 +15,22 @@ from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
 from .data_structures import (
-    Modal_Workspace_Tool_Definition,
-    Modal_Workspace_Tool_Placement,
-    RTC_Modal_Workspace_Tool_Instance,
+    Workspace_Tool_Definition,
+    Workspace_Tool_Placement,
+    RTC_Workspace_Tool_Instance,
 )
 
 
 _FALLBACK_TOOL_ICON = "ops.generic.select"
 _ICON_HANDLE_PREFIX = "dgblocks.image."
+_LISTENER_EVENT_OPERATOR_ID = "dgblocks.workspace_tool_listener_event"
 
 
 def _safe_id_part(value) -> str:
     return re.sub(r"[^a-z0-9_]+", "_", str(value or "all").lower()).strip("_")
 
 
-def _concrete_tool_id(logical_tool_id: str, placement: Modal_Workspace_Tool_Placement) -> str:
+def _concrete_tool_id(logical_tool_id: str, placement: Workspace_Tool_Placement) -> str:
     return ".".join((
         logical_tool_id,
         _safe_id_part(placement.space_type),
@@ -81,7 +82,7 @@ def _remove_icon_handle(handle: str) -> None:
         pass
 
 
-def _validate_definitions(definitions_by_block: dict) -> list[tuple[str, Modal_Workspace_Tool_Definition]]:
+def _validate_definitions(definitions_by_block: dict) -> list[tuple[str, Workspace_Tool_Definition]]:
     flattened = []
     logical_ids = set()
     concrete_ids = set()
@@ -91,14 +92,14 @@ def _validate_definitions(definitions_by_block: dict) -> list[tuple[str, Modal_W
             continue
         if not isinstance(definitions, (list, tuple)):
             raise TypeError(
-                f"Block '{block_id}' must return list[Modal_Workspace_Tool_Definition], "
+                f"Block '{block_id}' must return list[Workspace_Tool_Definition], "
                 f"got {type(definitions)}"
             )
         for definition in definitions:
-            if not isinstance(definition, Modal_Workspace_Tool_Definition):
+            if not isinstance(definition, Workspace_Tool_Definition):
                 raise TypeError(
                     f"Block '{block_id}' returned {type(definition)} instead of "
-                    "Modal_Workspace_Tool_Definition"
+                    "Workspace_Tool_Definition"
                 )
             if not definition.tool_id or "." not in definition.tool_id:
                 raise ValueError(
@@ -111,7 +112,7 @@ def _validate_definitions(definitions_by_block: dict) -> list[tuple[str, Modal_W
 
             logical_ids.add(definition.tool_id)
             for placement in definition.placements:
-                if not isinstance(placement, Modal_Workspace_Tool_Placement):
+                if not isinstance(placement, Workspace_Tool_Placement):
                     raise TypeError(
                         f"Workspace tool '{definition.tool_id}' contains an invalid placement"
                     )
@@ -124,11 +125,28 @@ def _validate_definitions(definitions_by_block: dict) -> list[tuple[str, Modal_W
 
 
 def _make_tool_class(
-    definition: Modal_Workspace_Tool_Definition,
-    placement: Modal_Workspace_Tool_Placement,
+    definition: Workspace_Tool_Definition,
+    placement: Workspace_Tool_Placement,
     concrete_id: str,
     icon_handle: str,
 ):
+    declared_keymap = placement.keymap if placement.keymap is not None else definition.keymap
+    keymap_entries = list(declared_keymap or ())
+    for binding in definition.listener_events:
+        event_args = {
+            "type": binding.type,
+            "value": binding.value,
+        }
+        for modifier_name in ("shift", "ctrl", "alt", "oskey", "any"):
+            modifier_value = getattr(binding, modifier_name)
+            if modifier_value:
+                event_args[modifier_name] = modifier_value
+        keymap_entries.append((
+            _LISTENER_EVENT_OPERATOR_ID,
+            event_args,
+            {"properties": [("logical_tool_id", definition.tool_id)]},
+        ))
+
     attrs = {
         "bl_space_type": placement.space_type,
         "bl_context_mode": placement.context_mode,
@@ -137,7 +155,7 @@ def _make_tool_class(
         "bl_description": definition.description,
         "bl_icon": icon_handle,
         "bl_widget": definition.widget,
-        "bl_keymap": placement.keymap if placement.keymap is not None else definition.keymap,
+        "bl_keymap": tuple(keymap_entries) if keymap_entries else None,
         "__module__": __name__,
     }
     if definition.cursor is not None:
@@ -154,9 +172,19 @@ def register_declared_workspace_tools() -> None:
     unregister_all_workspace_tools()
 
     definitions_by_block = Wrapper_Hooks.run_hooked_funcs(
+        hook_func_name=Block_Hook_Sources.hook_get_workspace_tool_definitions,
+        should_halt_on_exception=False,
+    ) or {}
+    legacy_definitions_by_block = Wrapper_Hooks.run_hooked_funcs(
         hook_func_name=Block_Hook_Sources.hook_get_modal_workspace_tool_definitions,
         should_halt_on_exception=False,
-    )
+    ) or {}
+    definitions_by_block = {
+        block_id: list(block_definitions or [])
+        for block_id, block_definitions in definitions_by_block.items()
+    }
+    for block_id, legacy_definitions in legacy_definitions_by_block.items():
+        definitions_by_block.setdefault(block_id, []).extend(legacy_definitions or [])
     definitions = _validate_definitions(definitions_by_block)
     registered = []
 
@@ -185,7 +213,7 @@ def register_declared_workspace_tools() -> None:
                     separator=definition.separator,
                     group=definition.group,
                 )
-                registered.append(RTC_Modal_Workspace_Tool_Instance(
+                registered.append(RTC_Workspace_Tool_Instance(
                     src_block_id=block_id,
                     logical_tool_id=definition.tool_id,
                     concrete_tool_id=concrete_id,
@@ -206,13 +234,13 @@ def register_declared_workspace_tools() -> None:
             _remove_icon_handle(instance.icon_handle)
         registered = []
 
-    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MODAL_WORKSPACE_TOOLS, registered)
-    logger.info(f"Registered {len(registered)} modal workspace-tool placement(s)")
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.WORKSPACE_TOOLS, registered)
+    logger.info(f"Registered {len(registered)} workspace-tool placement(s)")
 
 
 def unregister_all_workspace_tools() -> None:
     """Unregister all concrete tools owned by this block; safe to call repeatedly."""
-    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODAL_WORKSPACE_TOOLS) or []
+    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.WORKSPACE_TOOLS) or []
     for instance in reversed(instances):
         try:
             bpy.utils.unregister_tool(instance.actual_tool_class)
@@ -221,7 +249,7 @@ def unregister_all_workspace_tools() -> None:
                 f"Workspace tool '{instance.concrete_tool_id}' was already unregistered"
             )
         _remove_icon_handle(instance.icon_handle)
-    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.MODAL_WORKSPACE_TOOLS, [])
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.WORKSPACE_TOOLS, [])
 
 
 def _replace_registered_tool_icon(instance, desired_handle: str) -> None:
@@ -252,7 +280,7 @@ def _replace_registered_tool_icon(instance, desired_handle: str) -> None:
 def refresh_workspace_tool_icons() -> int:
     """Retry Image-backed icons and return the number now resolved successfully."""
     resolved = 0
-    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODAL_WORKSPACE_TOOLS) or []
+    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.WORKSPACE_TOOLS) or []
     for instance in instances:
         desired_handle = instance.fallback_icon
         if instance.image_icon_name:
@@ -275,8 +303,35 @@ def refresh_workspace_tool_icons() -> int:
 
 
 def get_registered_logical_tool_ids() -> set[str]:
-    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODAL_WORKSPACE_TOOLS) or []
+    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.WORKSPACE_TOOLS) or []
     return {instance.logical_tool_id for instance in instances}
+
+
+def activate_workspace_tool(logical_tool_id: str, context) -> bool:
+    """Activate the concrete placement matching the current editor and mode."""
+    area = getattr(context, "area", None)
+    if area is None:
+        return False
+    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.WORKSPACE_TOOLS) or []
+    instance = next(
+        (
+            item for item in instances
+            if item.logical_tool_id == logical_tool_id
+            and item.space_type == area.type
+            and item.context_mode == context.mode
+        ),
+        None,
+    )
+    if instance is None:
+        return False
+    try:
+        result = bpy.ops.wm.tool_set_by_id(name=instance.concrete_tool_id)
+        return result == {"FINISHED"}
+    except Exception:
+        get_logger(Block_Loggers.MODAL_LIFECYCLE).error(
+            f"Unable to activate workspace tool '{logical_tool_id}'", exc_info=True
+        )
+        return False
 
 
 def get_active_logical_tool_id(context) -> str | None:
@@ -297,7 +352,7 @@ def get_active_logical_tool_id(context) -> str | None:
     active_concrete_id = getattr(active_tool, "idname", None)
     if not active_concrete_id:
         return None
-    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MODAL_WORKSPACE_TOOLS) or []
+    instances = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.WORKSPACE_TOOLS) or []
     return next(
         (
             instance.logical_tool_id

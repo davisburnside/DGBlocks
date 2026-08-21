@@ -28,6 +28,7 @@ from .feature_modal_manager import Wrapper_Modal_Manager
 from .data_structures import Modal_Listener_Definition, Modal_Listener_End_Reason
 from .helpers import (
     DGBLOCKS_OT_Modal_Event_Router,
+    DGBLOCKS_OT_Workspace_Tool_Listener_Event,
     end_all_listeners,
 )
 from .workspace_tools import register_declared_workspace_tools, unregister_all_workspace_tools
@@ -148,6 +149,7 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_bpy_classes = [
         DGBLOCKS_PG_Modal_Listener_Row,
         DGBLOCKS_PG_Modal_Events_Props,
+        DGBLOCKS_OT_Workspace_Tool_Listener_Event,
         DGBLOCKS_OT_Modal_Event_Router,
         DGBLOCKS_UL_Modal_Listener_List,
         DGBLOCKS_PT_Modal_Events_Panel,

@@ -27,6 +27,7 @@ from .helpers import (
 
 from .data_structures import Modal_Listener_End_Reason, RTC_Modal_Listener_Instance
 from .workspace_tools import (
+    activate_workspace_tool,
     get_registered_logical_tool_ids,
     refresh_workspace_tool_icons,
     unregister_all_workspace_tools,
@@ -47,6 +48,22 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
         return refresh_workspace_tool_icons()
 
     @classmethod
+    def activate_tool(cls, logical_tool_id: str, context=None) -> bool:
+        """Activate a registered logical tool's placement for the current editor/mode."""
+        context = context or bpy.context
+        if activate_workspace_tool(logical_tool_id, context):
+            return True
+
+        # Calls reached from panels/timers may not carry a VIEW_3D WINDOW region. Reuse the
+        # modal launcher's consistent override instead of duplicating context-search logic.
+        from .helpers import _find_view3d_window_override
+        override = _find_view3d_window_override()
+        if override is None:
+            return False
+        with bpy.context.temp_override(**override):
+            return activate_workspace_tool(logical_tool_id, bpy.context)
+
+    @classmethod
     def get_listener(cls, src_block_id: str) -> Optional[RTC_Modal_Listener_Instance]:
         """Return the live RTC_Modal_Listener_Instance for a given block id, or None."""
         _, listener, _ = Wrapper_Runtime_Cache.get_unique_instance_from_registry_list(
@@ -58,12 +75,12 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
     def repoll(cls, event) -> None:
         """
         Public API for dependent blocks to trigger a re-poll of all modal listener definitions.
-        Rebuilds the RTC listener registry and starts the router on an empty -> non-empty
-        transition. A running router reads rebuilt listeners live without restarting.
+        Rebuilds the RTC listener registry. Tool-bound listeners use active-tool keymaps; the raw
+        router starts only on a none -> some transition of unbound listeners.
         """
         logger = get_logger(Block_Loggers.MODAL_LIFECYCLE)
         logger.debug("repoll: rebuilding listener registry")
-        had_listeners, has_listeners = _rebuild_all_listeners(event)
+        had_unbound_listeners, has_unbound_listeners = _rebuild_all_listeners(event)
 
         registered_tool_ids = get_registered_logical_tool_ids()
         for listener in Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.LISTENERS) or []:
@@ -71,14 +88,14 @@ class Wrapper_Modal_Manager(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncr
             if unknown_ids:
                 listener.is_enabled = False
                 listener.listener_error_str = (
-                    "Unknown modal workspace tool id(s): " + ", ".join(sorted(unknown_ids))
+                    "Unknown workspace tool id(s): " + ", ".join(sorted(unknown_ids))
                 )
                 logger.error(
                     f"Listener '{listener.src_block_id}' disabled: {listener.listener_error_str}"
                 )
         _sync_listener_mirror_from_RTC()
 
-        if has_listeners and not had_listeners:
+        if has_unbound_listeners and not had_unbound_listeners:
             start_router()
 
     # ----------------------------------------------------------

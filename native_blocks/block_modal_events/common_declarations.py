@@ -17,6 +17,8 @@ from .ui import _uilist_draw_selection_details, _uilist_draw_uilist_row
 class Block_Hook_Sources(String_Comparable_Mixin):
     # Pull-based: subscribers return a (single-element) list of Modal_Listener_Definition
     hook_get_modal_listener_definitions = Hook_Source_Declaration({})
+    hook_get_workspace_tool_definitions = Hook_Source_Declaration({})
+    # Compatibility source for declarations written before workspace tools became generic.
     hook_get_modal_workspace_tool_definitions = Hook_Source_Declaration({})
 
     # Broadcast: fired once at true router start / stop. Any block may subscribe.
@@ -35,7 +37,7 @@ class Block_Loggers(String_Comparable_Mixin):
 class Block_RTC_Members(String_Comparable_Mixin):
     LISTENERS = RTC_Member_Declaration()
     USER_INPUT_CAPTURE = RTC_Member_Declaration(User_Input_Capture_Instance())
-    MODAL_WORKSPACE_TOOLS = RTC_Member_Declaration()
+    WORKSPACE_TOOLS = RTC_Member_Declaration()
 
 class Block_Data_Mirrors(String_Comparable_Mixin):
     LISTENER_MIRROR = RTC_Member_Data_Mirror_Declaration(

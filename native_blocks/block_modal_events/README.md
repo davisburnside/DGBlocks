@@ -26,12 +26,13 @@ There is no master `enable_modal` property and no `_router_is_running` flag.
 
 1. `Wrapper_Modal_Manager.repoll(event)` fires `hook_get_modal_listener_definitions` and rebuilds
    the RTC listener registry.
-2. An empty -> non-empty registry transition invokes `DGBLOCKS_OT_Modal_Event_Router`.
+2. An unbound listener transition from none -> some invokes `DGBLOCKS_OT_Modal_Event_Router`.
 3. Invocation uses a consistent `window/screen/VIEW_3D area/WINDOW region` context override. This
    is required when repoll is reached from a timer or `bpy.ops.dgblocks.reload_all_blocks()`.
 4. A running router reads the listener registry live, so non-empty -> non-empty rebuilds do not
    restart it.
-5. An empty registry makes the router finish on its next event.
+5. When no unbound listener remains, the raw router finishes. Tool-bound listeners continue
+   independently through their active `WorkSpaceTool` keymaps.
 
 Each router also retains the identity of the listener-list object it started with. Reload/file-load
 recovery replaces that object; a stale pre-reload router detects the generation mismatch and exits
@@ -51,8 +52,8 @@ Listeners run in ascending `(priority, src_block_id)` order.
 | `{'FINISHED'}` | Remove only the returning listener; do not repoll |
 | `{'CANCELLED'}` | Remove only the returning listener; do not repoll |
 
-After `FINISHED`/`CANCELLED`, the BL mirror is refreshed directly from RTC. If no listener remains,
-the shared router ends; otherwise it returns `RUNNING_MODAL` and remains active.
+After `FINISHED`/`CANCELLED`, the BL mirror is refreshed directly from RTC. The raw router ends when
+no unbound listener remains; unrelated tool-bound listeners continue through their tool keymaps.
 
 ### Listener end reasons
 
@@ -103,24 +104,30 @@ and records an error.
 
 ### Declaration hook
 
-Downstream blocks may implement `hook_get_modal_workspace_tool_definitions()`:
+Downstream blocks should implement `hook_get_workspace_tool_definitions()`. The older
+`hook_get_modal_workspace_tool_definitions()` name remains supported for compatibility:
 
 ```python
 from ...native_blocks.block_modal_events.data_structures import (
-    Modal_Workspace_Tool_Definition,
-    Modal_Workspace_Tool_Placement,
+    Workspace_Tool_Definition,
+    Workspace_Tool_Placement,
+    Workspace_Tool_Listener_Event,
 )
 
-def hook_get_modal_workspace_tool_definitions():
-    return [Modal_Workspace_Tool_Definition(
+def hook_get_workspace_tool_definitions():
+    return [Workspace_Tool_Definition(
         tool_id="flatypus.assembly_select",
         label="Assembly Select",
         description="Select Flatypus assembly entities",
         image_icon_name="Flatypus Assembly Select Icon",
         icon="ops.generic.select",  # fallback
         placements=(
-            Modal_Workspace_Tool_Placement("VIEW_3D", "OBJECT"),
-            Modal_Workspace_Tool_Placement("VIEW_3D", "EDIT_MESH"),
+            Workspace_Tool_Placement("VIEW_3D", "OBJECT"),
+            Workspace_Tool_Placement("VIEW_3D", "EDIT_MESH"),
+        ),
+        listener_events=(
+            Workspace_Tool_Listener_Event("MOUSEMOVE"),
+            Workspace_Tool_Listener_Event("LEFTMOUSE", "PRESS"),
         ),
         after=frozenset({"builtin.select_box"}),
         separator=True,
@@ -146,7 +153,7 @@ Use explicit placements. DGBlocks does not pass an `ALL` mode to Blender.
 
 - Tools are collected and registered during this block's `hook_post_startup`.
 - Referenced operators have already been registered at that point.
-- Registrations are stored in RTC member `MODAL_WORKSPACE_TOOLS`.
+- Registrations are stored in RTC member `WORKSPACE_TOOLS`.
 - There is intentionally no Blender-data mirror or UIList for tools.
 - Tools are unregistered before block reload and during wrapper removal.
 - Tools remain registered while their runtime listeners are absent; an active dormant tool is
@@ -169,13 +176,40 @@ resolved_count = Wrapper_Modal_Manager.refresh_icons()
 `refresh_icons()` retries every Image-backed tool, updates Blender's immutable toolbar `ToolDef`
 records, redraws areas, and returns the number resolved.
 
-### Current routing limitation
+### Tool-keymap listener forwarding
 
-Tool references currently provide **active-tool gating** for the existing raw modal router. A raw
-`modal_handler_add` callback still receives window events before DGBlocks performs geometric UI
-checks; merely registering a tool cannot prove that a gizmo or another modal operator claimed an
-event. The next phase is a tested tool-keymap forwarding operator, especially for `MOUSEMOVE`.
-Until then, downstream viewport interactions must retain `is_event_over_viewport()`.
+`listener_events` generates active-tool keymap entries for
+`DGBLOCKS_OT_Workspace_Tool_Listener_Event`. This one-shot operator forwards the exact Blender-routed
+event to listeners that reference the logical tool ID. Tool-bound listeners are skipped by the raw
+modal router, preventing duplicate delivery.
+
+Listener return translation for this one-shot operator is:
+
+| Listener result | Keymap operator result |
+|---|---|
+| `PASS_THROUGH` / `None` | `PASS_THROUGH` |
+| `RUNNING_MODAL` | `FINISHED` (consume this event; no modal handler is installed) |
+| `FINISHED` / `CANCELLED` | Remove that listener, then `FINISHED` |
+
+Blender 5 accepts `MOUSEMOVE` with value `ANY` in a tool keymap. It does not accept
+`INBETWEEN_MOUSEMOVE` as a keymap event type, so tools should bind `MOUSEMOVE` only.
+
+The normal `keymap` field remains independent and may contain arbitrary Blender operator entries.
+A workspace tool therefore needs no modal listener: it may use only ordinary non-modal operators,
+only `listener_events`, or both. `is_event_over_viewport()` remains a useful defensive check inside
+viewport listeners/
+
+### Programmatic activation
+
+```python
+Wrapper_Modal_Manager.activate_tool("flatypus.assembly_select", context)
+```
+
+This resolves the concrete placement for the current `(area.type, context.mode)` and activates it.
+If the supplied context is not a 3D View, the API retries with a consistent 3D View `WINDOW`
+override. It does not automatically restore the previously active tool on listener removal, and
+it does not force the counterpart placement active after a later Object/Edit mode change; Blender
+remembers an active tool separately per mode.
 
 ## Data architecture
 
@@ -192,7 +226,7 @@ Until then, downstream viewport interactions must retain `is_event_over_viewport
 |---|---|---|
 | `LISTENERS` | `list[RTC_Modal_Listener_Instance]` | Live ordered listeners |
 | `USER_INPUT_CAPTURE` | `User_Input_Capture_Instance` | Latest raw event metadata |
-| `MODAL_WORKSPACE_TOOLS` | `list[RTC_Modal_Workspace_Tool_Instance]` | Concrete registered tool placements |
+| `WORKSPACE_TOOLS` | `list[RTC_Workspace_Tool_Instance]` | Concrete registered tool placements |
 
 Only `LISTENERS` has a BL mirror, keyed by `src_block_id` and mirroring `is_enabled`.
 
@@ -200,9 +234,10 @@ Only `LISTENERS` has a BL mirror, keyed by `src_block_id` and mirroring `is_enab
 
 | Method | Description |
 |---|---|
-| `Wrapper_Modal_Manager.repoll(event)` | Rebuild listeners; activate router on empty -> non-empty transition |
+| `Wrapper_Modal_Manager.repoll(event)` | Rebuild listeners; activate raw router only when unbound listeners require it |
 | `Wrapper_Modal_Manager.get_listener(src_block_id)` | Return one live listener or `None` |
 | `Wrapper_Modal_Manager.refresh_icons()` | Retry Image-backed toolbar icons; return resolved count |
+| `Wrapper_Modal_Manager.activate_tool(logical_tool_id, context)` | Activate the matching concrete placement |
 
 ## Startup and file load
 
