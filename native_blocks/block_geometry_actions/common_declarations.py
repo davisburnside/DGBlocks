@@ -20,8 +20,8 @@ class Block_Loggers(String_Comparable_Mixin):
 
 
 class Block_RTC_Members(String_Comparable_Mixin):
-    # dict[str, deque[Geometry_Actions_Result_Instance]]
-    # key = "<declaration_id>|<object_name>", deque maxlen = declaration.retention_count
-    GEOMETRY_ACTION_STACKS      = RTC_Member_Declaration({})
+    # dict[str, Geometry_Actions_Result_Instance]
+    # key = "<declaration_id>|<object_session_uid>"; a later run of that action replaces it
+    GEOMETRY_ACTION_RESULTS     = RTC_Member_Declaration({})
     # Monotonic counter used to stamp each Action_Record with a unique action_uid
     GEOMETRY_ACTION_UID_COUNTER = RTC_Member_Declaration(0)

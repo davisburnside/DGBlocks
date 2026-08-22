@@ -109,7 +109,8 @@ class Geometry_Context:
             )
         bl_attr = self._ensure_named_attribute(attr_dec, flat)
         bl_attr.data.foreach_set(attr_dec.value_field, flat)
-        self.data.update()
+        if hasattr(self.data, "update"):
+            self.data.update()
         return f"foreach_set curves.attributes['{attr_dec.name}']"
 
     # ---- meshes --------------------------------------------------------------
@@ -246,7 +247,8 @@ class Geometry_Context:
             raise RuntimeError("Every curve must have at least 1 point.")
         self.data.remove_curves()
         self.data.add_curves(sizes)
-        self.data.update()
+        if hasattr(self.data, "update"):
+            self.data.update()
         return f"resized to {len(sizes)} curve(s) / {sum(sizes)} point(s)"
 
     # ----------------------------------------------------------
@@ -256,7 +258,7 @@ class Geometry_Context:
     def finalize(self) -> None:
         """Flush any bmesh mutations back to the mesh. Called after each Callback_Step."""
         if self.is_curves:
-            if not self.is_edit_mode:
+            if not self.is_edit_mode and hasattr(self.data, "update"):
                 self.data.update()
             return
         if self._bm is None:

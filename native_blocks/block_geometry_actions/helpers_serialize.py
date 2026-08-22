@@ -2,7 +2,7 @@
 helpers_serialize.py — geometry ⇄ string, for shipping a mesh or curve over a socket.
 
 FORMAT
-    "DGGEO1:" + base64( zlib( json_header ) + b"\\x00" + raw_array_bytes )
+    "DGGEO2:" + base64( uint64_header_length + zlib(json_header) + raw_array_bytes )
 
 The JSON header describes every payload block (name, domain, dtype, shape, byte length);
 the binary tail is the concatenation of those blocks in header order. Numpy arrays are
@@ -34,13 +34,13 @@ from .data_structures import (
     domain_from_bl_domain,
 )
 
-SERIALIZATION_PREFIX  = "DGGEO1:"
-SERIALIZATION_VERSION = 1
+SERIALIZATION_PREFIX  = "DGGEO2:"
+SERIALIZATION_VERSION = 2
 
 # derived[] keys used by the builtin serialize / deserialize callbacks
 DERIVED_KEY_SERIALIZED = "serialized_geometry"
 
-_HEADER_TERMINATOR = b"\x00"
+_HEADER_LENGTH_BYTES = 8
 
 # Attributes Blender owns and refuses to have re-created by name
 _SKIP_ATTRIBUTE_NAMES = frozenset({".corner_vert", ".corner_edge", ".edge_verts"})
@@ -164,7 +164,7 @@ def serialize_geometry(data, geometry_type: str) -> str:
     header["checksum"] = zlib.crc32(bytes(payload))
 
     header_bytes = zlib.compress(json.dumps(header).encode("utf-8"), 6)
-    body = header_bytes + _HEADER_TERMINATOR + bytes(payload)
+    body = len(header_bytes).to_bytes(_HEADER_LENGTH_BYTES, "big") + header_bytes + bytes(payload)
     return SERIALIZATION_PREFIX + base64.b64encode(body).decode("ascii")
 
 
@@ -186,9 +186,15 @@ def deserialize_to_payload(serialized: str) -> tuple[dict, dict]:
     except Exception as e:
         raise RuntimeError(f"Base64 decode failed: {e}") from e
 
-    header_bytes, terminator, payload = body.partition(_HEADER_TERMINATOR)
-    if not terminator:
-        raise RuntimeError("Malformed payload — missing header terminator.")
+    if len(body) < _HEADER_LENGTH_BYTES:
+        raise RuntimeError("Malformed payload — missing header length.")
+    header_length = int.from_bytes(body[:_HEADER_LENGTH_BYTES], "big")
+    header_start = _HEADER_LENGTH_BYTES
+    header_end = header_start + header_length
+    if header_length <= 0 or header_end > len(body):
+        raise RuntimeError("Malformed payload — invalid or truncated header length.")
+    header_bytes = body[header_start:header_end]
+    payload = body[header_end:]
     try:
         header = json.loads(zlib.decompress(header_bytes).decode("utf-8"))
     except Exception as e:
@@ -248,7 +254,8 @@ def apply_serialized_geometry(data, serialized: str, geometry_type: str) -> str:
         element_summary = f"p{counts['POINT']} c{counts['CURVE']}"
 
     attr_count = _apply_attributes(data, header, arrays, geometry_type)
-    data.update()
+    if hasattr(data, "update"):
+        data.update()
     return f"replaced geometry ({element_summary}) + {attr_count} attribute(s)"
 
 

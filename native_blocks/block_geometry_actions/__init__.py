@@ -22,12 +22,11 @@ from .data_structures import (  # noqa: F401 — public re-exports for downstrea
     Enum_Geometry_Target,
     Enum_Read_Source,
     Geometry_Actions_Declaration,
-    Group_Tag,
     Read_Step,
 )
 from .feature_geometry_actions import Wrapper_Geometry_Actions
-from .helpers_actions import get_all_stacks
-from .ui import toggle_expanded_key, ui_draw_geometry_action_stacks
+from .helpers_actions import get_all_results
+from .ui import toggle_expanded_key, ui_draw_geometry_action_results
 
 
 # ==============================================================================================================================
@@ -45,15 +44,6 @@ class DGBLOCKS_PG_Geometry_Actions_Props(bpy.types.PropertyGroup):
         description = "CSV of expanded panel keys — supports collapsing at every depth",
         default     = "",
     )
-
-    debug_max_actions_shown: bpy.props.IntProperty(      # type: ignore
-        name        = "Passes Shown",
-        description = "How many of the most recent passes to display per stored result",
-        default     = 5,
-        min         = 1,
-        max         = 50,
-    )
-
 
 # ==============================================================================================================================
 # OPERATORS
@@ -86,7 +76,7 @@ class DGBLOCKS_OT_Geometry_Actions_Clear(bpy.types.Operator):
             self.declaration_id or None,
             self.object_name or None,
         )
-        self.report({"INFO"}, f"Cleared {removed} geometry action result stack(s).")
+        self.report({"INFO"}, f"Cleared {removed} geometry action result(s).")
         return {"FINISHED"}
 
 
@@ -122,10 +112,10 @@ class DGBLOCKS_PT_Geometry_Actions_Panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         props  = context.scene.dgblocks_geometry_actions_props
-        stacks = get_all_stacks()
+        results = get_all_results()
 
         header = layout.row(align=True)
-        header.prop(props, "debug_max_actions_shown", text="Passes")
+        header.label(text=f"{len(results)} stored action(s)")
         clear_all = header.operator(
             "dgblocks.geometry_actions_clear", text="", icon="TRASH"
         )
@@ -133,7 +123,7 @@ class DGBLOCKS_PT_Geometry_Actions_Panel(bpy.types.Panel):
         clear_all.object_name    = ""
 
         layout.separator()
-        ui_draw_geometry_action_stacks(context, layout, stacks, props)
+        ui_draw_geometry_action_results(context, layout, results, props)
 
 
 # ==============================================================================================================================

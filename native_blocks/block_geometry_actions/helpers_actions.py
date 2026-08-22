@@ -1,8 +1,8 @@
 """
-helpers_actions.py — step-list orchestration + RTC result stacks.
+helpers_actions.py — step-list orchestration + latest-result RTC storage.
 
-One call = one Action_Record + one NEW result instance pushed onto the stack for
-(declaration_id, object_name). Steps run in the order given. A failure records the action
+One call = one Action_Record + one NEW result instance stored for (declaration_id, object).
+Steps run in the order given. A failure records the action
 as invalid and keeps whatever data the reads managed to gather before failing.
 
 Geometry acquisition happens ONCE per action for the whole step list — minimizing depsgraph
@@ -11,7 +11,7 @@ finalized after each Callback_Step.
 """
 
 import time
-from collections import deque
+from copy import deepcopy
 from typing import Optional
 
 import bpy
@@ -40,90 +40,70 @@ from .helpers_read import (
 )
 from .helpers_write import Geometry_Context, warn_write_hazards
 
-MAX_STORED_STACKS = 128
-
-
 # ==============================================================================================================================
-# RTC RESULT STACKS
-#
-# Every result lives in exactly one place: a deque keyed by "<declaration_id>|<object_name>".
-# The deque's maxlen is the declaration's retention_count, so retention is enforced by the
-# container itself rather than by bookkeeping code.
+# RTC RESULTS
 # ==============================================================================================================================
 
-def stack_key(declaration_id: str, object_name: str) -> str:
-    return f"{declaration_id}|{object_name}"
+def result_key(declaration_id: str, object_session_uid: int) -> str:
+    return f"{declaration_id}|{int(object_session_uid)}"
 
 
-def get_all_stacks() -> dict:
-    return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.GEOMETRY_ACTION_STACKS) or {}
+def get_all_results() -> dict:
+    return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.GEOMETRY_ACTION_RESULTS) or {}
 
 
-def _set_all_stacks(stacks: dict) -> None:
-    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.GEOMETRY_ACTION_STACKS, stacks)
+def _set_all_results(results: dict) -> None:
+    Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.GEOMETRY_ACTION_RESULTS, results)
 
 
-def get_stack(declaration_id: str, object_name: str) -> list:
-    """Results for (declaration_id, object_name), oldest first. Empty list if none."""
-    return list(get_all_stacks().get(stack_key(declaration_id, object_name), ()))
+def get_result(declaration_id: str, object_name: str):
+    """Fetch the latest stored result for a declaration and displayed object name."""
+    matches = [
+        result for result in get_all_results().values()
+        if result.declaration_id == declaration_id and result.object_name == object_name
+    ]
+    return max(matches, key=lambda result: result.timestamp_last_action) if matches else None
 
 
-def get_result(declaration_id: str, object_name: str, offset_from_latest: int = 0):
-    """
-    Fetch a stored result. offset_from_latest=0 is the newest, 1 the one before it, etc.
-    Returns None when the stack is not that deep.
-    """
-    stack = get_stack(declaration_id, object_name)
-    index = len(stack) - 1 - int(offset_from_latest)
-    return stack[index] if 0 <= index < len(stack) else None
+def store_result(instance: Geometry_Actions_Result_Instance) -> None:
+    """Store the latest run, replacing the same declaration/object identity."""
+    results = get_all_results()
+    results[instance.storage_key] = instance
+    _set_all_results(results)
 
 
-def push_result(instance: Geometry_Actions_Result_Instance, retention_count: int) -> None:
-    """Push a result onto its stack, resizing the deque when retention_count changed."""
-    if retention_count <= 0:
-        return
-    stacks = get_all_stacks()
-    key = instance.stack_key
-    dq = stacks.get(key)
-    if dq is None or dq.maxlen != retention_count:
-        dq = deque(list(dq)[-retention_count:] if dq else (), maxlen=retention_count)
-        stacks[key] = dq
-
-    # A chained run re-pushes the caller's existing instance — never duplicate it.
-    if not (len(dq) and dq[-1] is instance):
-        dq.append(instance)
-
-    if len(stacks) > MAX_STORED_STACKS:
-        ordered = sorted(
-            stacks.items(),
-            key=lambda kv: kv[1][-1].timestamp_last_action if len(kv[1]) else 0.0,
-        )
-        stacks = dict(ordered[len(ordered) - MAX_STORED_STACKS:])
-    _set_all_stacks(stacks)
+def _latest_group_result(grouping_id: Optional[str], object_session_uid: int):
+    if not grouping_id:
+        return None
+    matches = [
+        result for result in get_all_results().values()
+        if result.grouping_id == grouping_id
+        and result.object_session_uid == object_session_uid
+    ]
+    return max(matches, key=lambda result: result.timestamp_last_action) if matches else None
 
 
 def clear_results(declaration_id: Optional[str] = None, object_name: Optional[str] = None) -> int:
     """
-    Drop stored results. Both args None clears everything. Returns stacks removed.
+    Drop stored results. Both args None clears everything. Returns results removed.
     """
-    stacks = get_all_stacks()
+    results = get_all_results()
     if declaration_id is None and object_name is None:
-        removed = len(stacks)
-        _set_all_stacks({})
+        removed = len(results)
+        _set_all_results({})
         return removed
 
-    def _matches(key: str) -> bool:
-        key_declaration_id, _, key_object_name = key.partition("|")
-        if declaration_id is not None and key_declaration_id != declaration_id:
+    def _matches(result) -> bool:
+        if declaration_id is not None and result.declaration_id != declaration_id:
             return False
-        if object_name is not None and key_object_name != object_name:
+        if object_name is not None and result.object_name != object_name:
             return False
         return True
 
-    keys = [k for k in stacks if _matches(k)]
+    keys = [key for key, result in results.items() if _matches(result)]
     for k in keys:
-        del stacks[k]
-    _set_all_stacks(stacks)
+        del results[k]
+    _set_all_results(results)
     return len(keys)
 
 
@@ -173,7 +153,6 @@ def run_geometry_action(
     object:            bpy.types.Object,
     declaration:       Geometry_Actions_Declaration,
     depsgraph:         Optional[bpy.types.Depsgraph] = None,
-    existing_instance: Optional[Geometry_Actions_Result_Instance] = None,
 ) -> Geometry_Actions_Result_Instance:
     """
     Run one declaration's step list against one object. Always returns the result instance,
@@ -183,6 +162,7 @@ def run_geometry_action(
     total_start = time.perf_counter()
     object_name = getattr(object, "name", "<None>")
     object_mode = getattr(object, "mode", "OBJECT")
+    object_session_uid = getattr(object, "session_uid", 0)
 
     action = Action_Record(
         action_uid      = next_action_uid(),
@@ -190,29 +170,39 @@ def run_geometry_action(
         label           = declaration.label,
         object_name     = object_name,
         timestamp_start = time.time(),
+        grouping_id     = declaration.grouping_id,
         read_source     = str(declaration.read_source),
         geometry_target = str(declaration.geometry_target),
         object_mode     = str(object_mode),
     )
 
-    # A fresh instance per run (unless the caller is explicitly chaining passes), so
-    # stack[-2] vs stack[-1] is always a valid before/after pair.
-    instance = existing_instance
-    if instance is None:
+    inherited = _latest_group_result(declaration.grouping_id, object_session_uid)
+    if inherited is None:
         instance = Geometry_Actions_Result_Instance(
             declaration_id  = declaration.declaration_id,
             object_name     = object_name,
+            grouping_id     = declaration.grouping_id,
             timestamp_start = action.timestamp_start,
         )
-    instance.object_session_uid = getattr(object, "session_uid", 0)
+    else:
+        instance = deepcopy(inherited)
+        instance.declaration_id = declaration.declaration_id
+        instance.object_name = object_name
+        instance.grouping_id = declaration.grouping_id
+        instance.timestamp_start = action.timestamp_start
+        instance.timestamp_end = 0.0
+        instance.actions.clear()
+        instance.is_valid = False
+        instance.error_str = None
+    instance.object_session_uid = object_session_uid
 
     def _finish(error_str: Optional[str] = None) -> Geometry_Actions_Result_Instance:
         action.duration_ms = (time.perf_counter() - total_start) * 1000.0
         action.error_str   = error_str
         action.is_valid    = error_str is None and all(op.is_valid for op in action.ops)
         instance.timestamp_end = time.time()
-        instance.append_action(action, declaration.max_actions_retained)
-        push_result(instance, declaration.retention_count)
+        instance.append_action(action)
+        store_result(instance)
         logger.debug(
             f"action #{action.action_uid} '{action.declaration_id}' on '{object_name}' "
             f"valid={action.is_valid} {action.duration_ms:.2f}ms"
@@ -248,13 +238,6 @@ def run_geometry_action(
         # ---- RUN THE STEP LIST ------------------------------------------------
         for step in declaration.steps or ():
             step_kind = get_step_kind(step)
-
-            # ---- Group_Tag: no work, just a marker for logs/UI ----------------
-            if step_kind == Enum_Step_Kind.GROUP:
-                action.ops.append(Action_Op_Record(
-                    op_type=Enum_Op_Type.GROUP, label=step.label,
-                ))
-                continue
 
             # ---- Read_Step ----------------------------------------------------
             if step_kind == Enum_Step_Kind.READ:

@@ -15,9 +15,8 @@ from .data_structures import (
 )
 from .helpers_actions import (
     clear_results,
-    get_all_stacks,
+    get_all_results,
     get_result,
-    get_stack,
     run_geometry_action,
 )
 from .helpers_diff import _diff_instances
@@ -37,9 +36,9 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
 
         result = Wrapper_Geometry_Actions.run_geometry_action_for_object(object, declaration)
 
-    Every run produces a NEW result instance, pushed onto the stack for
-    (declaration.declaration_id, object.name). The stack depth is the declaration's
-    `retention_count` (1 = latest only, 0 = don't store, N = keep N for diffs).
+    Every run produces a new result instance and replaces the stored latest result for
+    (declaration.declaration_id, object). Optional grouping IDs pre-populate data from the
+    latest grouped run on that same object.
 
     Results hold numpy arrays only and are never mirrored to Blender data.
     """
@@ -53,7 +52,6 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
         object:            bpy.types.Object,
         declaration:       Geometry_Actions_Declaration,
         depsgraph:         Optional[bpy.types.Depsgraph] = None,
-        existing_instance: Optional[Geometry_Actions_Result_Instance] = None,
     ) -> Geometry_Actions_Result_Instance:
         """
         Run one declaration (reads → callbacks) against one object.
@@ -62,10 +60,10 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
         this call, or `result.is_valid` for the most recent action. Never raises for
         geometry/attribute problems; failures land in the action record.
 
-        Pass `existing_instance` to chain a second pass onto a caller-owned result rather
-        than starting a fresh one.
+        A declaration with a grouping ID inherits a deep copy of data from the latest run
+        in that group on the same object. Its reads replace inherited attribute slots.
         """
-        return run_geometry_action(object, declaration, depsgraph, existing_instance)
+        return run_geometry_action(object, declaration, depsgraph)
 
     @classmethod
     def run_geometry_actions_for_object(
@@ -75,12 +73,12 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
         depsgraph:   Optional[bpy.types.Depsgraph] = None,
     ) -> Optional[Geometry_Actions_Result_Instance]:
         """
-        Run several declarations in order against one chained result instance. Stops at the
-        first failure and returns the result as it stands.
+        Run several declarations in order. Grouped declarations share data through storage.
+        Stops at the first failure and returns the latest result.
         """
         instance = None
         for declaration in declarations or ():
-            instance = run_geometry_action(object, declaration, depsgraph, instance)
+            instance = run_geometry_action(object, declaration, depsgraph)
             if not instance.is_valid:
                 break
         return instance
@@ -91,16 +89,14 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
     @classmethod
     def get_result(
         cls,
-        declaration_id:     str,
-        object_name:        str,
-        offset_from_latest: int = 0,
-        require_valid:      bool = True,
+        declaration_id: str,
+        object_name:    str,
+        require_valid:  bool = True,
     ) -> Optional[Geometry_Actions_Result_Instance]:
         """
-        Fetch a stored result. offset_from_latest=0 is the newest, 1 the previous one, etc.
-        Returns None when absent (or invalid, when require_valid).
+        Fetch the latest stored result. Returns None when absent (or invalid, when required).
         """
-        instance = get_result(declaration_id, object_name, offset_from_latest)
+        instance = get_result(declaration_id, object_name)
         if instance is None:
             return None
         if require_valid and not instance.is_valid:
@@ -108,18 +104,9 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
         return instance
 
     @classmethod
-    def get_result_stack(cls, declaration_id: str, object_name: str) -> list:
-        """Every retained result for this (declaration_id, object_name), oldest first."""
-        return get_stack(declaration_id, object_name)
-
-    @classmethod
     def get_all_results(cls) -> list:
-        """Flat list of every retained result across all stacks."""
-        return [
-            instance
-            for stack in get_all_stacks().values()
-            for instance in stack
-        ]
+        """Every latest stored result."""
+        return list(get_all_results().values())
 
     @classmethod
     def clear_results(
@@ -137,8 +124,7 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
         Keys look like "vertex.co", "face.custom['planar_groups']", "derived['csr']".
         All three empty means the data is identical.
 
-        With `retention_count >= 2`, `get_result(id, name, 1)` and `get_result(id, name, 0)`
-        are always a valid before/after pair.
+        Retain the earlier returned instance in caller-owned state for before/after diffs.
         """
         return _diff_instances(old, new)
 
@@ -208,7 +194,7 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
     @classmethod
     def _remove_wrapper(cls) -> None:
         get_logger(Block_Loggers.GEOMETRY_ACTIONS_LIFECYCLE).debug(
-            "Wrapper_Geometry_Actions._remove_wrapper — clearing all result stacks"
+            "Wrapper_Geometry_Actions._remove_wrapper — clearing all results"
         )
-        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.GEOMETRY_ACTION_STACKS, {})
+        Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.GEOMETRY_ACTION_RESULTS, {})
         Wrapper_Runtime_Cache.set_cache(Block_RTC_Members.GEOMETRY_ACTION_UID_COUNTER, 0)

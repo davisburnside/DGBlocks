@@ -27,7 +27,6 @@ from ..data_structures import (
     Enum_Geometry_Type,
     Enum_Read_Source,
     Geometry_Actions_Declaration,
-    Group_Tag,
     Read_Step,
 )
 from ..feature_geometry_actions import Wrapper_Geometry_Actions as W
@@ -64,13 +63,11 @@ class Test_Mesh_Reads(_Base):
             declaration_id = "test.reads",
             read_source    = Enum_Read_Source.ORIGINAL,
             steps          = (
-                Group_Tag("topology"),
                 Read_Step(MET.VERTEX.CO),
                 Read_Step(MET.EDGE.VERTICES),
                 Read_Step(MET.FACE.LOOP_START),
                 Read_Step(MET.FACE.LOOP_TOTAL),
                 Read_Step(MET.CORNER.VERTEX_INDEX),
-                Group_Tag("named attributes"),
                 Read_Step(MET.FACE.CUSTOM_ATTRIBUTE("test_f")),
             ),
         )
@@ -151,44 +148,106 @@ class Test_Callbacks_And_Writes(_Base):
 
 
 # ==============================================================================================================================
-# STORAGE / RETENTION
+# STORAGE / GROUPING
 # ==============================================================================================================================
 
-class Test_Retention(_Base):
+class Test_Storage_And_Grouping(_Base):
 
-    def _declaration(self, retention_count: int) -> Geometry_Actions_Declaration:
-        return Geometry_Actions_Declaration(
-            declaration_id  = "test.retention",
-            read_source     = Enum_Read_Source.ORIGINAL,
-            retention_count = retention_count,
-            steps           = (Read_Step(MET.VERTEX.CO),),
+    def test_same_id_replaces_previous_run_and_keeps_new_run_number(self):
+        obj = create_test_mesh_object()
+        declaration = Geometry_Actions_Declaration(
+            declaration_id="test.replace",
+            read_source=Enum_Read_Source.ORIGINAL,
+            steps=(Read_Step(MET.VERTEX.CO),),
         )
+        first = W.run_geometry_action_for_object(obj, declaration)
+        second = W.run_geometry_action_for_object(obj, declaration)
+        self.assertEqual(len(W.get_all_results()), 1)
+        self.assertIs(W.get_result("test.replace", obj.name), second)
+        self.assertGreater(second.last_action.action_uid, first.last_action.action_uid)
 
-    def test_default_keeps_one(self):
+    def test_different_ids_are_all_stored(self):
         obj = create_test_mesh_object()
-        for _ in range(3):
-            W.run_geometry_action_for_object(obj, self._declaration(1))
-        self.assertEqual(len(W.get_result_stack("test.retention", obj.name)), 1)
+        for declaration_id in ("test.one", "test.two"):
+            W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+                declaration_id=declaration_id,
+                read_source=Enum_Read_Source.ORIGINAL,
+            ))
+        self.assertEqual(len(W.get_all_results()), 2)
 
-    def test_stack_supports_before_after_diff(self):
+    def test_same_id_is_stored_separately_for_each_object(self):
+        first_obj = create_test_mesh_object("identity_a")
+        second_obj = create_test_mesh_object("identity_b")
+        declaration = Geometry_Actions_Declaration(
+            declaration_id="test.same-id",
+            read_source=Enum_Read_Source.ORIGINAL,
+        )
+        first = W.run_geometry_action_for_object(first_obj, declaration)
+        second = W.run_geometry_action_for_object(second_obj, declaration)
+        self.assertEqual(len(W.get_all_results()), 2)
+        self.assertNotEqual(first.storage_key, second.storage_key)
+
+    def test_grouped_run_inherits_data_and_new_read_replaces_slot(self):
         obj = create_test_mesh_object()
-        declaration = self._declaration(3)
-
-        W.run_geometry_action_for_object(obj, declaration)
+        first_declaration = Geometry_Actions_Declaration(
+            declaration_id="test.group.first",
+            grouping_id="test.group",
+            read_source=Enum_Read_Source.ORIGINAL,
+            steps=(Read_Step(MET.VERTEX.CO), Callback_Step(
+                lambda instance, _action, _context: instance.derived.update(marker="inherited")
+            )),
+        )
+        first = W.run_geometry_action_for_object(obj, first_declaration)
+        first_coords = first.vertex.co.copy()
         obj.data.vertices[0].co.z = 5.0
-        W.run_geometry_action_for_object(obj, declaration)
 
-        newest   = W.get_result("test.retention", obj.name, 0)
-        previous = W.get_result("test.retention", obj.name, 1)
-        added, removed, edited = W.diff_results(previous, newest)
-        self.assertEqual((added, removed), ([], []))
-        self.assertIn("vertex.co", edited)
+        second = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.group.second",
+            grouping_id="test.group",
+            read_source=Enum_Read_Source.ORIGINAL,
+            steps=(Read_Step(MET.VERTEX.CO),),
+        ))
+        self.assertEqual(second.derived["marker"], "inherited")
+        self.assertNotEqual(float(second.vertex.co[0, 2]), float(first_coords[0, 2]))
+        np.testing.assert_array_equal(first.vertex.co, first_coords)
 
-    def test_retention_zero_stores_nothing(self):
+    def test_grouped_payload_is_deep_copied(self):
         obj = create_test_mesh_object()
-        result = W.run_geometry_action_for_object(obj, self._declaration(0))
-        self.assertTrue(result.is_valid, result.error_str)
-        self.assertEqual(len(W.get_result_stack("test.retention", obj.name)), 0)
+
+        def _seed(instance, _action, _context):
+            instance.derived["values"] = np.array([1, 2, 3], dtype=np.int32)
+
+        first = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.copy.first", grouping_id="test.copy",
+            read_source=Enum_Read_Source.ORIGINAL, steps=(Callback_Step(_seed),),
+        ))
+
+        def _mutate(instance, _action, _context):
+            instance.derived["values"][0] = 99
+
+        second = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.copy.second", grouping_id="test.copy",
+            read_source=Enum_Read_Source.ORIGINAL, steps=(Callback_Step(_mutate),),
+        ))
+        self.assertEqual(int(first.derived["values"][0]), 1)
+        self.assertEqual(int(second.derived["values"][0]), 99)
+
+    def test_grouping_is_isolated_by_object(self):
+        first_obj = create_test_mesh_object("group_a")
+        second_obj = create_test_mesh_object("group_b")
+
+        def _seed(instance, _action, _context):
+            instance.derived["only_first"] = True
+
+        W.run_geometry_action_for_object(first_obj, Geometry_Actions_Declaration(
+            declaration_id="test.object.first", grouping_id="test.object-group",
+            read_source=Enum_Read_Source.ORIGINAL, steps=(Callback_Step(_seed),),
+        ))
+        second = W.run_geometry_action_for_object(second_obj, Geometry_Actions_Declaration(
+            declaration_id="test.object.second", grouping_id="test.object-group",
+            read_source=Enum_Read_Source.ORIGINAL,
+        ))
+        self.assertNotIn("only_first", second.derived)
 
 
 # ==============================================================================================================================
@@ -293,7 +352,7 @@ def build_suite() -> unittest.TestSuite:
     for test_case in (
         Test_Mesh_Reads,
         Test_Callbacks_And_Writes,
-        Test_Retention,
+        Test_Storage_And_Grouping,
         Test_Curves,
         Test_Serialization,
     ):

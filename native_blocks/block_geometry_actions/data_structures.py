@@ -90,7 +90,6 @@ class Enum_Op_Type(StrEnum):
     READ     = "READ"
     CALLBACK = "CALLBACK"
     WRITE    = "WRITE"
-    GROUP    = "GROUP"
 
 
 class Enum_Step_Kind(StrEnum):
@@ -103,7 +102,6 @@ class Enum_Step_Kind(StrEnum):
     """
     READ     = "READ"
     CALLBACK = "CALLBACK"
-    GROUP    = "GROUP"
 
 
 # Blender data_type → (numpy dtype, components, foreach value field)
@@ -601,6 +599,7 @@ class Action_Record:
     label:           str
     object_name:     str
     timestamp_start: float                       # wall clock (display + sort key)
+    grouping_id:     Optional[str] = None
     duration_ms:     float         = 0.0
     read_source:     str           = Enum_Read_Source.EVALUATED
     geometry_target: str           = Enum_Geometry_Target.AUTO
@@ -632,7 +631,6 @@ class Action_Record:
 # A declaration is an ordered list of steps. Each step is one of:
 #   - Read_Step(attr)        : read one attribute into the instance (manual refresh)
 #   - Callback_Step(func)    : run a callback that mutates the instance and/or the geometry
-#   - Group_Tag(label)       : a named grouping marker for log/UI formatting only
 #
 # Steps run in the order given. There is no automatic re-read after a callback —
 # if a callback changes topology or attribute values, the developer must add an
@@ -665,18 +663,6 @@ class Callback_Step:
         return self.label or getattr(self.func, "__name__", "callback")
 
 
-@dataclass
-class Group_Tag:
-    """
-    A named grouping marker inserted into the step list. It performs no work —
-    it exists solely to provide structure for execution-time logs and the debug
-    panel. Subsequent steps are displayed/logged under this group until another
-    Group_Tag appears.
-    """
-    label: str
-    step_kind: str = Enum_Step_Kind.GROUP
-
-
 def get_step_kind(step) -> Optional[str]:
     """
     Robust step discriminator. Reads the `step_kind` field rather than using
@@ -699,26 +685,23 @@ class Geometry_Actions_Declaration:
     and caching Blender IDs is forbidden. The object is passed to
     Wrapper_Geometry_Actions.run_geometry_action_for_object(object, declaration).
 
-    declaration_id  : REQUIRED unique identity for this action. Results are stacked per
-                      (declaration_id, object_name); two declarations sharing an id share
-                      a stack regardless of their step content.
+    declaration_id  : REQUIRED unique identity for this action. The latest result is stored
+                      per (declaration_id, object session uid).
+    grouping_id     : optional data-pipeline identity. A run starts with a deep copy of the
+                      latest result for this grouping_id and object; new reads replace the
+                      inherited value in their attribute slot.
     label           : display-only name for the panel / logs (defaults to declaration_id)
-    steps           : ordered tuple of Read_Step / Callback_Step / Group_Tag
+    steps           : ordered tuple of Read_Step / Callback_Step
     read_source     : EVALUATED (post-modifier) or ORIGINAL (write-back safe indices)
     geometry_target : AUTO / MESH_EVALUATED / NATIVE_DATA — see Enum_Geometry_Target
-    retention_count : how many results to keep per (declaration_id, object_name).
-                      1 = only the latest (default). 0 = don't store at all.
-                      N > 1 = keep the last N for before/after diffs.
-    max_actions_retained : per-result action-log cap; oldest evicted
     """
     declaration_id:        str
+    grouping_id:           Optional[str] = None
     label:                 str      = ""
     steps:                 Sequence = field(default_factory=tuple)
 
     read_source:           str  = Enum_Read_Source.EVALUATED
     geometry_target:       str  = Enum_Geometry_Target.AUTO
-    retention_count:       int  = 1
-    max_actions_retained:  int  = 50
 
     def __post_init__(self):
         if not self.declaration_id:
@@ -730,11 +713,6 @@ class Geometry_Actions_Declaration:
     def has_callbacks(self) -> bool:
         return any(get_step_kind(s) == Enum_Step_Kind.CALLBACK for s in self.steps or ())
 
-    @property
-    def should_store(self) -> bool:
-        return self.retention_count > 0
-
-
 # ==============================================================================================================================
 # RESULT INSTANCE
 # ==============================================================================================================================
@@ -742,8 +720,8 @@ class Geometry_Actions_Declaration:
 @dataclass
 class Geometry_Actions_Result_Instance:
     """
-    The result of one run (or of one explicitly chained sequence of runs) for a
-    (declaration_id, object_name) pair, plus the log of every action that touched it.
+    The result of one run for a (declaration_id, object) pair. When grouping is enabled,
+    its data payload begins as a deep copy of the previous grouped result.
 
     Data is domain-namespaced:
         instance.vertex.co                      instance.vertex.count
@@ -751,11 +729,12 @@ class Geometry_Actions_Result_Instance:
         instance.point.position                 instance.curve.cyclic
         instance.derived["face_face_neighbors"] # non-domain data (CSR pairs, dicts, scalars)
 
-    Each run pushes a NEW instance onto the stack (retention_count deep), so
-    stack[-2] vs stack[-1] is always a valid before/after pair.
+    Each declaration/object pair stores only its latest run. Callers may retain returned
+    instances themselves when a before/after comparison is needed.
     """
     declaration_id:     str
     object_name:        str
+    grouping_id:        Optional[str] = None
     object_session_uid: int = 0
     geometry_type:      str = Enum_Geometry_Type.UNKNOWN
 
@@ -788,8 +767,8 @@ class Geometry_Actions_Result_Instance:
     # Identity
 
     @property
-    def stack_key(self) -> str:
-        return f"{self.declaration_id}|{self.object_name}"
+    def storage_key(self) -> str:
+        return f"{self.declaration_id}|{self.object_session_uid}"
 
     # ----------------------------------------------------------
     # Domain access
@@ -840,12 +819,9 @@ class Geometry_Actions_Result_Instance:
     def total_duration_ms(self) -> float:
         return sum(a.duration_ms for a in self.actions)
 
-    def append_action(self, action: Action_Record, max_retained: int = 50) -> None:
-        """Append in start-time order and evict the oldest beyond max_retained."""
-        self.actions.append(action)
-        self.actions.sort(key=lambda a: (a.timestamp_start, a.action_uid))
-        if max_retained > 0 and len(self.actions) > max_retained:
-            del self.actions[: len(self.actions) - max_retained]
+    def append_action(self, action: Action_Record) -> None:
+        """Record this result's single run."""
+        self.actions[:] = [action]
         self.is_valid  = action.is_valid
         self.error_str = action.error_str
 
