@@ -12,9 +12,13 @@ finalized after each Callback_Step.
 
 import time
 from copy import deepcopy
+from dataclasses import fields, is_dataclass
+from pathlib import Path
+from pprint import pformat
 from typing import Optional
 
 import bpy
+import numpy as np
 
 from ...addon_helpers.generic_tools import get_exception_last_n_lines
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
@@ -63,6 +67,11 @@ def get_result(declaration_id: str, object_name: str):
         if result.declaration_id == declaration_id and result.object_name == object_name
     ]
     return max(matches, key=lambda result: result.timestamp_last_action) if matches else None
+
+
+def get_result_by_key(storage_key: str):
+    """Fetch one exact stored action/object result."""
+    return get_all_results().get(storage_key)
 
 
 def store_result(instance: Geometry_Actions_Result_Instance) -> None:
@@ -129,6 +138,56 @@ def _shape_str(value) -> str:
     if isinstance(value, str):
         return f"str {len(value)}"
     return "-"
+
+
+def _exception_location(exc: BaseException) -> tuple[Optional[str], Optional[int]]:
+    """Return the filename and line where the exception was raised."""
+    traceback_node = exc.__traceback__
+    if traceback_node is None:
+        return None, None
+    while traceback_node.tb_next is not None:
+        traceback_node = traceback_node.tb_next
+    return Path(traceback_node.tb_frame.f_code.co_filename).name, traceback_node.tb_lineno
+
+
+def _clipboard_value(value):
+    """Convert nested result payload data into full, non-truncated Python containers."""
+    if isinstance(value, np.ndarray):
+        return {
+            "dtype": str(value.dtype),
+            "shape": tuple(value.shape),
+            "values": value.tolist(),
+        }
+    if is_dataclass(value):
+        return {field.name: _clipboard_value(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, dict):
+        return {_clipboard_value(key): _clipboard_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_clipboard_value(item) for item in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return repr(value)
+
+
+def result_payload_to_string(instance: Geometry_Actions_Result_Instance) -> str:
+    """Return the complete geometry/derived staging payload as a readable Python string."""
+    payload = {
+        "declaration_id": instance.declaration_id,
+        "grouping_id": instance.grouping_id,
+        "object_name": instance.object_name,
+        "object_session_uid": instance.object_session_uid,
+        "geometry_type": instance.geometry_type,
+        "vertex": _clipboard_value(instance.vertex),
+        "edge": _clipboard_value(instance.edge),
+        "face": _clipboard_value(instance.face),
+        "corner": _clipboard_value(instance.corner),
+        "point": _clipboard_value(instance.point),
+        "curve": _clipboard_value(instance.curve),
+        "derived": _clipboard_value(instance.derived),
+    }
+    return pformat(payload, sort_dicts=False, width=120)
 
 
 def _apply_domain_counts(instance: Geometry_Actions_Result_Instance, counts: dict) -> None:
@@ -262,10 +321,12 @@ def run_geometry_action(
                         shape       = _shape_str(arr),
                     ))
                 except Exception as e:
+                    error_file, error_line = _exception_location(e)
                     action.ops.append(Action_Op_Record(
                         op_type=Enum_Op_Type.READ, label=attr.key, is_valid=False,
                         duration_ms=(time.perf_counter() - t0) * 1000.0,
                         error_str=get_exception_last_n_lines(3, e),
+                        error_file=error_file, error_line=error_line,
                     ))
                 continue
 
@@ -282,10 +343,12 @@ def run_geometry_action(
                 try:
                     step.func(instance, action, geometry_context)
                 except Exception as e:
+                    error_file, error_line = _exception_location(e)
                     action.ops.append(Action_Op_Record(
                         op_type=Enum_Op_Type.CALLBACK, label=step.resolved_label,
                         duration_ms=(time.perf_counter() - t0) * 1000.0, is_valid=False,
                         error_str=get_exception_last_n_lines(3, e),
+                        error_file=error_file, error_line=error_line,
                     ))
                     logger.error(
                         f"callback '{step.resolved_label}' failed on '{object_name}'",
@@ -300,10 +363,12 @@ def run_geometry_action(
                 try:
                     geometry_context.finalize()
                 except Exception as e:
+                    error_file, error_line = _exception_location(e)
                     action.ops.append(Action_Op_Record(
                         op_type=Enum_Op_Type.CALLBACK, label=step.resolved_label,
                         duration_ms=(time.perf_counter() - t0) * 1000.0, is_valid=False,
                         error_str=f"finalize failed: {get_exception_last_n_lines(3, e)}",
+                        error_file=error_file, error_line=error_line,
                     ))
                     return _finish(f"Callback '{step.resolved_label}' finalize raised.")
 

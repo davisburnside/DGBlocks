@@ -145,6 +145,9 @@ class Test_Callbacks_And_Writes(_Base):
         self.assertFalse(result.is_valid)
         self.assertIsNotNone(result.error_str)
         self.assertIsNotNone(result.vertex.co)          # pre-failure data retained
+        failed_op = result.last_action.failed_ops[-1]
+        self.assertEqual(failed_op.error_file, "test_geometry_actions.py")
+        self.assertIsInstance(failed_op.error_line, int)
 
 
 # ==============================================================================================================================
@@ -174,6 +177,46 @@ class Test_Storage_And_Grouping(_Base):
                 read_source=Enum_Read_Source.ORIGINAL,
             ))
         self.assertEqual(len(W.get_all_results()), 2)
+        self.assertEqual(
+            [result.declaration_id for result in W.get_all_results()],
+            ["test.one", "test.two"],
+        )
+
+    def test_replacing_result_does_not_change_first_call_order(self):
+        obj = create_test_mesh_object()
+        first = Geometry_Actions_Declaration(
+            declaration_id="test.order.first", read_source=Enum_Read_Source.ORIGINAL,
+        )
+        second = Geometry_Actions_Declaration(
+            declaration_id="test.order.second", read_source=Enum_Read_Source.ORIGINAL,
+        )
+        W.run_geometry_action_for_object(obj, first)
+        W.run_geometry_action_for_object(obj, second)
+        W.run_geometry_action_for_object(obj, first)
+        self.assertEqual(
+            [result.declaration_id for result in W.get_all_results()],
+            ["test.order.first", "test.order.second"],
+        )
+
+    def test_clipboard_payload_contains_full_domain_and_derived_values(self):
+        from ..helpers_actions import result_payload_to_string
+
+        obj = create_test_mesh_object()
+
+        def _derived(instance, _action, _context):
+            instance.derived["sequence"] = np.arange(20, dtype=np.int32)
+
+        result = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.clipboard",
+            read_source=Enum_Read_Source.ORIGINAL,
+            steps=(Read_Step(MET.VERTEX.CO), Callback_Step(_derived)),
+        ))
+        text = result_payload_to_string(result)
+        self.assertIn("'vertex'", text)
+        self.assertIn("'derived'", text)
+        self.assertIn("'sequence'", text)
+        self.assertIn("19", text)
+        self.assertNotIn("...", text)
 
     def test_same_id_is_stored_separately_for_each_object(self):
         first_obj = create_test_mesh_object("identity_a")

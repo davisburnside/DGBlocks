@@ -25,42 +25,12 @@ from .data_structures import (  # noqa: F401 — public re-exports for downstrea
     Read_Step,
 )
 from .feature_geometry_actions import Wrapper_Geometry_Actions
-from .helpers_actions import get_all_results
-from .ui import toggle_expanded_key, ui_draw_geometry_action_results
-
-
-# ==============================================================================================================================
-# BL PROPERTY GROUPS
-#
-# Debug/inspection state only. Action results are numpy arrays and live exclusively in the
-# RTC — there is nothing here to mirror.
-# ==============================================================================================================================
-
-class DGBLOCKS_PG_Geometry_Actions_Props(bpy.types.PropertyGroup):
-    """Scene-level property group for block_geometry_actions."""
-
-    debug_expanded_keys: bpy.props.StringProperty(  # type: ignore
-        name        = "Expanded Keys",
-        description = "CSV of expanded panel keys — supports collapsing at every depth",
-        default     = "",
-    )
+from .helpers_actions import get_all_results, get_result_by_key, result_payload_to_string
+from .ui import ui_draw_geometry_action_results
 
 # ==============================================================================================================================
 # OPERATORS
 # ==============================================================================================================================
-
-class DGBLOCKS_OT_Geometry_Actions_Toggle_Expanded(bpy.types.Operator):
-    """Expand or collapse this section"""
-    bl_idname  = "dgblocks.geometry_actions_toggle_expanded"
-    bl_label   = "Toggle Geometry Actions Section"
-    bl_options = {"INTERNAL"}
-
-    expand_key: bpy.props.StringProperty()  # type: ignore
-
-    def execute(self, context):
-        toggle_expanded_key(context.scene.dgblocks_geometry_actions_props, self.expand_key)
-        return {"FINISHED"}
-
 
 class DGBLOCKS_OT_Geometry_Actions_Clear(bpy.types.Operator):
     """Discard stored geometry action results. Leave both fields empty to clear everything"""
@@ -77,6 +47,25 @@ class DGBLOCKS_OT_Geometry_Actions_Clear(bpy.types.Operator):
             self.object_name or None,
         )
         self.report({"INFO"}, f"Cleared {removed} geometry action result(s).")
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Geometry_Actions_Copy_Result(bpy.types.Operator):
+    """Copy this geometry action's complete domain and derived payload"""
+    bl_idname = "dgblocks.geometry_actions_copy_result"
+    bl_label = "Copy Geometry Action Result"
+    bl_options = {"INTERNAL"}
+
+    result_key: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        result = get_result_by_key(self.result_key)
+        if result is None:
+            self.report({"ERROR"}, "Geometry action result no longer exists")
+            return {"CANCELLED"}
+        text = result_payload_to_string(result)
+        context.window_manager.clipboard = text
+        self.report({"INFO"}, f"Copied {len(text)} characters")
         return {"FINISHED"}
 
 
@@ -111,7 +100,6 @@ class DGBLOCKS_PT_Geometry_Actions_Panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        props  = context.scene.dgblocks_geometry_actions_props
         results = get_all_results()
 
         header = layout.row(align=True)
@@ -123,22 +111,7 @@ class DGBLOCKS_PT_Geometry_Actions_Panel(bpy.types.Panel):
         clear_all.object_name    = ""
 
         layout.separator()
-        ui_draw_geometry_action_results(context, layout, results, props)
-
-
-# ==============================================================================================================================
-# BLOCK REGISTRATION HELPERS
-# ==============================================================================================================================
-
-def register_block_props():
-    bpy.types.Scene.dgblocks_geometry_actions_props = bpy.props.PointerProperty(
-        type=DGBLOCKS_PG_Geometry_Actions_Props
-    )
-
-
-def unregister_block_props():
-    if hasattr(bpy.types.Scene, "dgblocks_geometry_actions_props"):
-        del bpy.types.Scene.dgblocks_geometry_actions_props
+        ui_draw_geometry_action_results(context, layout, results)
 
 
 # ==============================================================================================================================
@@ -150,9 +123,8 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_id                      = "block-geometry-actions",
     block_dependencies            = ["block-core"],
     block_bpy_classes             = [
-        DGBLOCKS_PG_Geometry_Actions_Props,
-        DGBLOCKS_OT_Geometry_Actions_Toggle_Expanded,
         DGBLOCKS_OT_Geometry_Actions_Clear,
+        DGBLOCKS_OT_Geometry_Actions_Copy_Result,
         DGBLOCKS_PT_Geometry_Actions_Panel,
     ],
     block_feature_wrapper_classes = [Wrapper_Geometry_Actions],

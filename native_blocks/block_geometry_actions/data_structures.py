@@ -586,6 +586,8 @@ class Action_Op_Record:
     shape:       str           = "-"
     is_valid:    bool          = True
     error_str:   Optional[str] = None
+    error_file:  Optional[str] = None
+    error_line:  Optional[int] = None
 
 
 @dataclass

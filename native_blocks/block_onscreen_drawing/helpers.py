@@ -37,12 +37,12 @@ def set_draw_alpha():
     gpu.state.blend_set('ALPHA')
 
 
-def set_draw_geometry_occluded():
+def set_draw_geometry_occluded(shader_instance: Shader_Instance):
     gpu.state.depth_test_set('LESS_EQUAL')
     gpu.state.depth_mask_set(True)
 
 
-def set_draw_geometry_unoccluded():
+def set_draw_geometry_unoccluded(shader_instance: Shader_Instance):
     gpu.state.depth_test_set('NONE')
     gpu.state.depth_mask_set(False)
 

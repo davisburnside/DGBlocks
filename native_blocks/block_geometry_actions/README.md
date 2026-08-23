@@ -161,23 +161,20 @@ records.
 
 ## Action Records and UI
 
-Each run records its monotonic run number, ID, optional grouping ID, label, start time, total duration,
-geometry provenance, validity, errors, and ordered substeps. Each substep records name,
-duration, output shape, validity, and error text.
+Each run records its monotonic run number, ID, optional grouping ID, label, start time,
+total duration, geometry provenance, validity, errors, and ordered substeps. Raised
+substep errors also record the terminal traceback filename and line number.
 
-The debug panel displays one stable collapsible menu per stored action ID/object pair,
-sorted by recent activity. Its header shows run number, action label, object name, clock
-time, and total run duration. Expanded content has titled **Name**, **Duration**, and
-**Shape** columns for every substep.
+The debug panel displays one native shared subpanel per stored action ID/object pair in the
+order those unique identities were first sent to the wrapper API. Replacing a result keeps
+its row position. The header shows status, three-decimal duration, run count, description,
+and right-aligned trash/copy buttons. The copy button writes the complete domain and
+`derived` payload as a Python string. Expanded content shows geometry provenance and run
+time together, followed by titled **Name**, **Duration**, and **Shape** columns.
 
-Expansion keys use action ID plus object session UID, not run number. An open section stays
-open when a later depsgraph run replaces its result. The block does not request redraws.
-
-Blender property:
-
-| Property | Purpose |
-|---|---|
-| `scene.dgblocks_geometry_actions_props.debug_expanded_keys` | Stable expanded section keys |
+Subpanels use a stable action ID/object session UID panel identity, not the changing run
+number, so native Blender expansion state survives result replacement. The block does not
+request redraws.
 
 Runtime cache:
 
