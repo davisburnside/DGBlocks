@@ -29,6 +29,8 @@ parts/
 sdist/
 var/
 wheels/
+!native_blocks/**/wheels/
+!native_blocks/**/wheels/**
 share/python-wheels/
 *.egg-info/
 .installed.cfg

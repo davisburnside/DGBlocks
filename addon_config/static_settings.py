@@ -13,6 +13,9 @@ import bpy
 addon_name = "dgblock_basic_template" # Must match bl_info["name"], of main __init__.py. It is defined here to avoid circular dependencies
 addon_title = "DGBlocks Template" # Text shown in the right-side panel of the 3D Viewport
 addon_bl_type_prefix = "DGBLOCKS" # Must be uppercase. Used to name Blender-registered classes (Operators & Panels)
+# Stable, filesystem-safe scope for this addon's managed Python environment. Keep this
+# unchanged across addon updates and unique among addons installed in the same Blender.
+addon_python_environment_id = "dgblock-basic-template"
 
 # ==============================================================================================================================
 # PREFERENCES MENU

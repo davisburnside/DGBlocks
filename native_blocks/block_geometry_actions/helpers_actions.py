@@ -256,7 +256,7 @@ def run_geometry_action(
     Run one declaration's step list against one object. Always returns the result instance,
     valid or not; inspect instance.last_action for the outcome of this specific call.
     """
-    logger      = get_logger(Block_Loggers.GEOMETRY_ACTIONS_EVENTS)
+    logger = get_logger(Block_Loggers.GEOMETRY_ACTIONS_EVENTS)
     total_start = time.perf_counter()
     object_name = getattr(object, "name", "<None>")
     object_mode = getattr(object, "mode", "OBJECT")
@@ -301,10 +301,6 @@ def run_geometry_action(
         instance.timestamp_end = time.time()
         instance.append_action(action)
         store_result(instance)
-        logger.debug(
-            f"action #{action.action_uid} '{action.declaration_id}' on '{object_name}' "
-            f"valid={action.is_valid} {action.duration_ms:.2f}ms"
-        )
         return instance
 
     # ---- Acquire the geometry ONCE for the whole step list ----------------------

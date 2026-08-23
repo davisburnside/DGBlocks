@@ -7,7 +7,7 @@ class DGBLOCKS_UP_Core_Preferences(bpy.types.AddonPreferences):
 
     addon_saved_data_folder: bpy.props.StringProperty(
             default = os.path.expanduser(f"~/.blender_dgblocks_data/"),
-            description="Folder where Python libraries will be installed",
+            description="Root folder for addon-managed data and Python libraries",
             subtype='DIR_PATH') # type: ignore  
     
     def draw(self, context):
