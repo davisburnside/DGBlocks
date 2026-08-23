@@ -34,21 +34,25 @@ def _draw_action_body(context, container, action) -> None:
     if not action.ops:
         return
 
-    headings = container.split(factor=0.68)
+    headings = container.split(factor=0.62)
     headings.label(text="Name")
-    remaining = headings.split(factor=0.55)
+    remaining = headings.split(factor=0.42)
     remaining.label(text="Duration")
-    remaining.label(text="Shape")
+    shape_and_type = remaining.split(factor=0.55)
+    shape_and_type.label(text="Shape")
+    shape_and_type.label(text="Type")
 
     col = container.column(align=True)
     for op in action.ops:
-        row = col.split(factor=0.68)
+        row = col.split(factor=0.62)
         if not op.is_valid:
             row.alert = True
         row.label(text=op.label, icon=_OP_ICONS.get(op.op_type, "DOT"))
-        remaining = row.split(factor=0.55)
+        remaining = row.split(factor=0.42)
         remaining.label(text=f"{op.duration_ms:.3f} ms")
-        remaining.label(text=op.shape or "-")
+        shape_and_type = remaining.split(factor=0.55)
+        shape_and_type.label(text=op.shape or "-")
+        shape_and_type.label(text=op.data_type or "-")
 
         if op.error_file and op.error_line is not None:
             location_row = col.row()

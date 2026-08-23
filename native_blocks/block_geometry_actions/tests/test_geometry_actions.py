@@ -81,6 +81,9 @@ class Test_Mesh_Reads(_Base):
         self.assertEqual(result.vertex.co.shape, (4, 3))
         self.assertEqual(int(result.face.custom["test_f"][0]), 7)
         self.assertGreater(result.timestamp_start, 0.0)
+        op_types = {op.label: op.data_type for op in result.last_action.ops}
+        self.assertEqual(op_types["VERTEX.co"], "VEC3")
+        self.assertEqual(op_types["FACE.test_f"], "INT")
 
     def test_missing_attribute_fails_only_that_op(self):
         obj = create_test_mesh_object()
@@ -205,6 +208,9 @@ class Test_Storage_And_Grouping(_Base):
 
         def _derived(instance, _action, _context):
             instance.derived["sequence"] = np.arange(20, dtype=np.int32)
+            instance.derived["complex_keys"] = {
+                ("pair", (1, 2)): np.array([3, 4], dtype=np.int32),
+            }
 
         result = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
             declaration_id="test.clipboard",
@@ -215,6 +221,8 @@ class Test_Storage_And_Grouping(_Base):
         self.assertIn("'vertex'", text)
         self.assertIn("'derived'", text)
         self.assertIn("'sequence'", text)
+        self.assertIn("'complex_keys'", text)
+        self.assertIn("pair", text)
         self.assertIn("19", text)
         self.assertNotIn("...", text)
 

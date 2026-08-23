@@ -140,6 +140,37 @@ def _shape_str(value) -> str:
     return "-"
 
 
+def _read_data_type_str(attr) -> str:
+    """Return a concise display type from resolved declaration metadata."""
+    blender_type = str(attr.data_type) if attr.data_type else ""
+    blender_type_labels = {
+        "FLOAT": "FLOAT",
+        "INT": "INT",
+        "INT8": "INT",
+        "BOOLEAN": "BOOL",
+        "FLOAT_VECTOR": "VEC3",
+        "FLOAT2": "VEC2",
+        "FLOAT_COLOR": "COLOR4",
+        "BYTE_COLOR": "COLOR4",
+        "INT32_2D": "IVEC2",
+        "QUATERNION": "QUATERNION",
+    }
+    if blender_type in blender_type_labels:
+        return blender_type_labels[blender_type]
+
+    dtype = str(attr.dtype or "").lower()
+    components = int(attr.components or 1)
+    if dtype.startswith("float"):
+        return "FLOAT" if components == 1 else f"VEC{components}"
+    if dtype.startswith("int") or dtype.startswith("uint"):
+        return "INT" if components == 1 else f"IVEC{components}"
+    if dtype in {"bool", "boolean"}:
+        return "BOOL" if components == 1 else f"BVEC{components}"
+    if dtype.startswith("str") or dtype.startswith("unicode"):
+        return "STRING"
+    return dtype.upper() or "-"
+
+
 def _exception_location(exc: BaseException) -> tuple[Optional[str], Optional[int]]:
     """Return the filename and line where the exception was raised."""
     traceback_node = exc.__traceback__
@@ -161,7 +192,15 @@ def _clipboard_value(value):
     if is_dataclass(value):
         return {field.name: _clipboard_value(getattr(value, field.name)) for field in fields(value)}
     if isinstance(value, dict):
-        return {_clipboard_value(key): _clipboard_value(item) for key, item in value.items()}
+        converted = {}
+        for key, item in value.items():
+            converted_key = _clipboard_value(key)
+            try:
+                hash(converted_key)
+            except TypeError:
+                converted_key = pformat(converted_key, sort_dicts=False, width=120)
+            converted[converted_key] = _clipboard_value(item)
+        return converted
     if isinstance(value, (list, tuple, set)):
         return [_clipboard_value(item) for item in value]
     if isinstance(value, np.generic):
@@ -319,6 +358,7 @@ def run_geometry_action(
                         label       = resolved.key,
                         duration_ms = (time.perf_counter() - t0) * 1000.0,
                         shape       = _shape_str(arr),
+                        data_type   = _read_data_type_str(resolved),
                     ))
                 except Exception as e:
                     error_file, error_line = _exception_location(e)

@@ -584,6 +584,7 @@ class Action_Op_Record:
     label:       str
     duration_ms: float         = 0.0
     shape:       str           = "-"
+    data_type:   str           = "-"
     is_valid:    bool          = True
     error_str:   Optional[str] = None
     error_file:  Optional[str] = None

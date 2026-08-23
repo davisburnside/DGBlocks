@@ -170,7 +170,9 @@ order those unique identities were first sent to the wrapper API. Replacing a re
 its row position. The header shows status, three-decimal duration, run count, description,
 and right-aligned trash/copy buttons. The copy button writes the complete domain and
 `derived` payload as a Python string. Expanded content shows geometry provenance and run
-time together, followed by titled **Name**, **Duration**, and **Shape** columns.
+time together, followed by titled **Name**, **Duration**, **Shape**, and **Type** columns.
+Read types come directly from resolved attribute declarations (for example `FLOAT`, `INT`,
+`BOOL`, `VEC2`, `VEC3`, and `COLOR4`); callbacks display `-`.
 
 Subpanels use a stable action ID/object session UID panel identity, not the changing run
 number, so native Blender expansion state survives result replacement. The block does not
