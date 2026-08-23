@@ -22,6 +22,11 @@ def normalize_distribution_name(name: str) -> str:
     return _NORMALIZE_DISTRIBUTION_RE.sub("-", name.strip()).lower()
 
 
+
+def get_required_version_label(required_version: Optional[str]) -> str:
+    return required_version or "latest"
+
+
 def sanitize_path_component(value: str, max_length: int = 48) -> str:
     cleaned = _SAFE_PATH_COMPONENT_RE.sub("-", value.strip()).strip(".-_")
     if not cleaned:
@@ -95,10 +100,11 @@ def validate_requirement(declaration: Python_Library_Requirement_Declaration) ->
         raise ValueError("distribution_name cannot be empty")
     if not _VALID_DISTRIBUTION_NAME_RE.fullmatch(declaration.distribution_name.strip()):
         raise ValueError("distribution_name contains unsupported characters")
-    if not declaration.required_version.strip():
-        raise ValueError("required_version cannot be empty")
-    if not _VALID_EXACT_VERSION_RE.fullmatch(declaration.required_version.strip()):
-        raise ValueError("required_version must be one exact version without spaces or URLs")
+    if declaration.required_version is not None:
+        if not declaration.required_version.strip():
+            raise ValueError("required_version must be None or a non-empty exact version")
+        if not _VALID_EXACT_VERSION_RE.fullmatch(declaration.required_version.strip()):
+            raise ValueError("required_version must be one exact version without spaces or URLs")
     if not declaration.import_names or any(not name.strip() for name in declaration.import_names):
         raise ValueError("import_names must contain at least one non-empty module name")
     if not isinstance(declaration.source_policy, Library_Source_Policy):

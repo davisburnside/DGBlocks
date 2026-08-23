@@ -5,10 +5,10 @@ from pathlib import Path
 
 import bpy
 
-from ...addon_helpers.generic_tools import force_redraw_ui
 from .common_declarations import Block_RTC_Members
 from .data_structures import Library_Operation_Status, Library_Source_Policy, Library_Status
 from .feature_pip_library_manager import Wrapper_Pip_Library_Manager
+from .helpers import get_required_version_label
 
 
 _ACTIVE_OPERATION_STATUSES = {
@@ -42,13 +42,15 @@ def _draw_requirement_summary(layout, info) -> None:
 
     details = layout.box()
     details.label(text=f"Package: {declaration.distribution_name}")
-    details.label(text=f"Required version: {declaration.required_version}")
+    details.label(
+        text=f"Required version: {get_required_version_label(declaration.required_version)}"
+    )
     details.label(text=f"Installed version: {info.installed_version or 'Not installed'}")
     details.label(text=f"Requested by: {info.requesting_block_id}")
     details.label(text=f"Source policy: {declaration.source_policy.value.replace('_', ' ').title()}")
 
-    path_state = Wrapper_Pip_Library_Manager._ensure_managed_path()
-    target = str(path_state)
+    path_state = Wrapper_Pip_Library_Manager.get_managed_path_state()
+    target = path_state.site_packages_path if path_state else "Unavailable — refresh status"
     path_box = layout.box()
     path_box.label(text="Files will be installed to:", icon="FILE_FOLDER")
     for line in _wrap_text(target, 75):
@@ -65,8 +67,14 @@ def _draw_operation(layout, operation) -> None:
     icon = "TIME" if operation.status in _ACTIVE_OPERATION_STATUSES else (
         "CHECKMARK" if operation.status == Library_Operation_Status.FINISHED else "ERROR"
     )
+    requested_version = get_required_version_label(operation.required_version)
+    version_text = (
+        f"{requested_version} → {operation.resolved_version}"
+        if operation.required_version is None and operation.resolved_version
+        else requested_version
+    )
     layout.label(
-        text=f"{operation.distribution_name} {operation.required_version}: "
+        text=f"{operation.distribution_name} {version_text}: "
              f"{operation.status.value.replace('_', ' ').title()}",
         icon=icon,
     )
@@ -135,10 +143,29 @@ class DGBLOCKS_OT_Pip_Library_Confirm_Install(bpy.types.Operator):
             _draw_requirement_summary(self.layout, info)
 
     def execute(self, context):
-        result = bpy.ops.dgblocks.pip_library_progress(
-            "INVOKE_DEFAULT", request_uid=self.request_uid
-        )
-        return {"FINISHED"} if "CANCELLED" not in result else {"CANCELLED"}
+        operation = Wrapper_Pip_Library_Manager.start_install(self.request_uid)
+        if operation is None:
+            self.report({"ERROR"}, "Unable to start Python library installation")
+            return {"CANCELLED"}
+
+        # Do not nest another dialog inside this dialog's execute callback. Let Blender fully
+        # release this confirmation operator first, then open a separate normal dialog. Capture
+        # only the plain UID — never retain this operator instance past its Blender lifetime.
+        operation_uid = operation.operation_uid
+
+        def _open_progress_dialog():
+            try:
+                bpy.ops.dgblocks.pip_library_progress(
+                    "INVOKE_DEFAULT", operation_uid=operation_uid
+                )
+            except Exception:
+                # Installation continues under the wrapper-owned timer and remains visible in
+                # the manager panel even if the current UI context cannot open a dialog.
+                pass
+            return None
+
+        bpy.app.timers.register(_open_progress_dialog, first_interval=0.01, persistent=False)
+        return {"FINISHED"}
 
 
 class DGBLOCKS_OT_Pip_Library_Progress(bpy.types.Operator):
@@ -146,50 +173,30 @@ class DGBLOCKS_OT_Pip_Library_Progress(bpy.types.Operator):
     bl_label = "Python Library Installation"
     bl_options = {"INTERNAL"}
 
-    request_uid: bpy.props.StringProperty(options={"HIDDEN"})  # type: ignore
     operation_uid: bpy.props.StringProperty(options={"HIDDEN"})  # type: ignore
-    _timer = None
 
     def invoke(self, context, event):
-        operation = Wrapper_Pip_Library_Manager.start_install(self.request_uid)
+        operation = Wrapper_Pip_Library_Manager.get_operation(self.operation_uid)
         if operation is None:
-            self.report({"ERROR"}, "Unable to start Python library installation")
+            self.report({"ERROR"}, "Python library operation is no longer available")
             return {"CANCELLED"}
-        self.operation_uid = operation.operation_uid
-        self._timer = context.window_manager.event_timer_add(0.15, window=context.window)
-        context.window_manager.modal_handler_add(self)
-        # A popup is a convenient live view; the manager panel remains the fallback if it is closed.
-        context.window_manager.invoke_popup(self, width=700)
-        return {"RUNNING_MODAL"}
+        return context.window_manager.invoke_props_dialog(
+            self,
+            width=700,
+            title=f"Installing {operation.distribution_name}",
+            confirm_text="Close",
+        )
 
     def draw(self, context):
-        operation = Wrapper_Pip_Library_Manager.poll_operation(self.operation_uid)
+        # Presentation only. Queue draining and state transitions belong exclusively to the
+        # wrapper-owned bpy.app timer, never a draw callback.
+        operation = Wrapper_Pip_Library_Manager.get_operation(self.operation_uid)
         if operation:
             _draw_operation(self.layout, operation)
 
-    def modal(self, context, event):
-        if event.type == "TIMER":
-            operation = Wrapper_Pip_Library_Manager.poll_operation(self.operation_uid)
-            force_redraw_ui(context, only_3Dviewport=False)
-            if operation is None or operation.status not in _ACTIVE_OPERATION_STATUSES:
-                self._cleanup(context)
-                if operation and operation.status == Library_Operation_Status.FINISHED:
-                    self.report({"INFO"}, f"Installed {operation.distribution_name}")
-                elif operation and operation.status == Library_Operation_Status.RESTART_REQUIRED:
-                    self.report({"WARNING"}, "Library installed; restart Blender before using it")
-                elif operation and operation.status == Library_Operation_Status.ERROR:
-                    self.report({"ERROR"}, operation.error_summary or "Installation failed")
-                return {"FINISHED"}
-        return {"PASS_THROUGH"}
-
-    def cancel(self, context):
-        # Closing the popup does not cancel pip; progress remains visible in the manager panel.
-        return None
-
-    def _cleanup(self, context):
-        if self._timer is not None:
-            context.window_manager.event_timer_remove(self._timer)
-            self._timer = None
+    def execute(self, context):
+        # Closing this view does not cancel the worker. The manager panel can reopen it.
+        return {"FINISHED"}
 
 
 class DGBLOCKS_OT_Pip_Library_Cancel(bpy.types.Operator):
@@ -246,12 +253,12 @@ class DGBLOCKS_OT_Pip_Library_Open_Path(bpy.types.Operator):
 def ui_draw_pip_library_manager(context, layout) -> None:
     header = layout.row(align=True)
     header.operator("dgblocks.pip_library_refresh", icon="FILE_REFRESH")
-    state = Wrapper_Pip_Library_Manager._ensure_managed_path()
-    open_folder = header.operator("dgblocks.pip_library_open_path", text="Open Environment")
-    open_folder.path = str(state)
-
-    from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-    managed_state = Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MANAGED_PATH_STATE)
+    managed_state = Wrapper_Pip_Library_Manager.get_managed_path_state()
+    if managed_state:
+        open_folder = header.operator(
+            "dgblocks.pip_library_open_path", text="Open Environment"
+        )
+        open_folder.path = managed_state.site_packages_path
     if managed_state and managed_state.warning:
         warning = layout.box()
         warning.alert = True
@@ -279,4 +286,9 @@ def ui_draw_pip_library_manager(context, layout) -> None:
         layout.label(text="Install Operations", icon="CONSOLE")
         for operation in operations.values():
             box = layout.box()
-            _draw_operation(box, Wrapper_Pip_Library_Manager.poll_operation(operation.operation_uid))
+            view_row = box.row(align=True)
+            view = view_row.operator(
+                "dgblocks.pip_library_progress", text="Open Progress", icon="WINDOW"
+            )
+            view.operation_uid = operation.operation_uid
+            _draw_operation(box, operation)

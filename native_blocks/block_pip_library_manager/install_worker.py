@@ -39,7 +39,7 @@ def run_pip_install_worker(
     staging_path: Path,
     defer_activation: bool = False,
     expected_distribution_name: str = "",
-    expected_version: str = "",
+    expected_version: str | None = None,
 ) -> None:
     """Worker-thread entry point. Never imports or touches bpy."""
     log_path = Path(operation.log_path)
@@ -68,7 +68,7 @@ def run_pip_install_worker(
                 errors="replace",
                 bufsize=1,
             )
-            operation.process = process
+            _emit(operation, "PROCESS_STARTED", process)
             assert process.stdout is not None
             for line in iter(process.stdout.readline, ""):
                 log_file.write(line)
@@ -104,7 +104,7 @@ def run_pip_install_worker(
                 f"pip did not install distribution '{expected_distribution_name}' in staging",
             )
             return
-        if installed_version != expected_version:
+        if expected_version is not None and installed_version != expected_version:
             _remove_path(staging_path)
             _emit(
                 operation,
@@ -112,6 +112,7 @@ def run_pip_install_worker(
                 f"Staged version is {installed_version}; expected exact version {expected_version}",
             )
             return
+        _emit(operation, "RESOLVED_VERSION", installed_version)
 
         if defer_activation:
             pending_path = target_path.with_name(f"{target_path.name}.pending")
@@ -130,4 +131,4 @@ def run_pip_install_worker(
             pass
         _emit(operation, "ERROR", str(exc))
     finally:
-        operation.process = None
+        _emit(operation, "PROCESS_ENDED", None)

@@ -5,6 +5,7 @@ from pathlib import Path
 from ..data_structures import Library_Source_Policy, Python_Library_Requirement_Declaration
 from ..helpers import (
     append_recent_log,
+    get_required_version_label,
     normalize_distribution_name,
     resolve_bundled_wheel_dirs,
     sanitize_path_component,
@@ -13,6 +14,18 @@ from ..helpers import (
 
 
 class Test_Pip_Library_Helpers(unittest.TestCase):
+    def test_omitted_version_means_latest(self):
+        declaration = Python_Library_Requirement_Declaration(
+            requirement_uid="LATEST",
+            distribution_name="demo",
+            import_names=("demo",),
+            feature_label="Demo",
+            reason="Test latest",
+        )
+        validate_requirement(declaration)
+        self.assertIsNone(declaration.required_version)
+        self.assertEqual(get_required_version_label(declaration.required_version), "latest")
+
     def test_distribution_names_are_normalized(self):
         self.assertEqual(normalize_distribution_name("My_Package.Name"), "my-package-name")
 
@@ -69,6 +82,17 @@ class Test_Pip_Library_Helpers(unittest.TestCase):
         for index in range(8):
             append_recent_log(lines, str(index), history_limit=3)
         self.assertEqual(lines, ["5", "6", "7"])
+
+    def test_pip_block_does_not_implement_an_in_block_modal_loop(self):
+        block_root = Path(__file__).resolve().parent.parent
+        source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in block_root.glob("*.py")
+        )
+        self.assertNotIn("modal_handler_add", source)
+        self.assertNotIn("event_timer_add", source)
+        self.assertNotIn("def modal(", source)
+        self.assertNotIn("invoke_popup", source)
 
 
 if __name__ == "__main__":

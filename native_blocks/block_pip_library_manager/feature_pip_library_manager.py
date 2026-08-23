@@ -7,6 +7,7 @@ import time
 import uuid
 from dataclasses import replace
 from pathlib import Path
+from queue import Empty
 from types import ModuleType
 from typing import Optional
 
@@ -14,7 +15,7 @@ import bpy
 
 from ...addon_config.static_settings import addon_python_environment_id
 from ...addon_helpers.data_structures import Abstract_Feature_Wrapper
-from ...addon_helpers.generic_tools import get_addon_preferences
+from ...addon_helpers.generic_tools import force_redraw_ui, get_addon_preferences
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ..block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
@@ -37,6 +38,7 @@ from .helpers import (
     discover_distributions,
     find_compatible_python_executable,
     get_path_length_warning,
+    get_required_version_label,
     iter_loaded_import_conflicts,
     normalize_distribution_name,
     resolve_bundled_wheel_dirs,
@@ -47,7 +49,10 @@ from .install_worker import run_pip_install_worker
 
 
 class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
-    """Hook-polled, RTC-backed manager for optional exact-version wheel dependencies."""
+    """Hook-polled, RTC-backed manager for optional wheel dependencies."""
+
+    _operation_monitor_timer_func = None
+    _operation_monitor_interval = 0.15
 
     # ----------------------------------------------------------------------------------
     # Lifecycle
@@ -62,6 +67,10 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
     @classmethod
     def _remove_wrapper(cls) -> None:
         try:
+            timer_func = cls._operation_monitor_timer_func
+            if timer_func is not None and bpy.app.timers.is_registered(timer_func):
+                bpy.app.timers.unregister(timer_func)
+            cls._operation_monitor_timer_func = None
             for operation in cls._operations().values():
                 operation.cancel_event.set()
                 if operation.process is not None:
@@ -107,11 +116,12 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
                     namespaced_uid = f"{block_id}:{declaration.requirement_uid}"
                     normalized = normalize_distribution_name(declaration.distribution_name)
                     installed = discovered.get(normalized)
+                    required_version = declaration.required_version
                     status = (
                         Library_Status.NOT_INSTALLED
                         if installed is None
                         else Library_Status.SATISFIED
-                        if installed[0] == declaration.required_version
+                        if required_version is None or installed[0] == required_version
                         else Library_Status.VERSION_MISMATCH
                     )
                     error_summary = ""
@@ -142,9 +152,16 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
 
             library_infos: dict[str, RTC_Library_Info] = {}
             for normalized, infos in grouped.items():
-                versions = tuple(sorted({item.declaration.required_version for item in infos}))
+                version_constraints = {
+                    item.declaration.required_version for item in infos
+                }
+                versions = tuple(sorted(
+                    get_required_version_label(version) for version in version_constraints
+                ))
                 installed = discovered.get(normalized)
-                conflict = len(versions) > 1
+                # "latest" plus an exact pin is ambiguous: selecting the latest release could
+                # violate the exact requester. Multiple unpinned declarations remain compatible.
+                conflict = len(version_constraints) > 1
                 status = (
                     Library_Status.CONFLICTING_REQUIREMENTS
                     if conflict
@@ -153,7 +170,7 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
                     else Library_Status.NOT_INSTALLED
                     if installed is None
                     else Library_Status.SATISFIED
-                    if installed[0] == versions[0]
+                    if None in version_constraints or installed[0] in version_constraints
                     else Library_Status.VERSION_MISMATCH
                 )
                 error = (
@@ -350,7 +367,11 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
 
             command = [
                 str(python_exe), "-m", "pip", "install",
-                f"{info.declaration.distribution_name}=={info.declaration.required_version}",
+                (
+                    info.declaration.distribution_name
+                    if info.declaration.required_version is None
+                    else f"{info.declaration.distribution_name}=={info.declaration.required_version}"
+                ),
                 "--target", str(staging),
                 "--upgrade",
                 "--only-binary=:all:", "--no-user", "--no-input",
@@ -419,9 +440,10 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
                 name=f"DGBlocks-pip-{operation_uid}",
             )
             worker.start()
+            cls._ensure_operation_monitor_running()
             logger.info(
                 f"Started wheel install for {operation.distribution_name} "
-                f"{operation.required_version}"
+                f"{get_required_version_label(operation.required_version)}"
             )
             return operation
         except Exception as exc:
@@ -433,13 +455,22 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
         operation = cls._operations().get(operation_uid)
         if operation is None:
             return None
-        while not operation.worker_queue.empty():
-            event_type, payload = operation.worker_queue.get_nowait()
+        while True:
+            try:
+                event_type, payload = operation.worker_queue.get_nowait()
+            except Empty:
+                break
             if event_type == "LOG":
                 operation.total_log_line_count += 1
                 append_recent_log(operation.recent_log_lines, payload)
             elif event_type == "STATUS":
                 operation.status = Library_Operation_Status(payload)
+            elif event_type == "PROCESS_STARTED":
+                operation.process = payload
+            elif event_type == "PROCESS_ENDED":
+                operation.process = None
+            elif event_type == "RESOLVED_VERSION":
+                operation.resolved_version = str(payload)
             elif event_type == "FINISHED":
                 operation.return_code = payload
                 cls._finish_operation(operation)
@@ -454,6 +485,63 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
                 operation.error_summary = str(payload)
                 operation.status = Library_Operation_Status.ERROR
         return operation
+
+    @classmethod
+    def get_operation(cls, operation_uid: str) -> Optional[RTC_Library_Operation]:
+        """Return live RTC state without draining queues or causing lifecycle transitions."""
+        return cls._operations().get(operation_uid)
+
+    @classmethod
+    def get_managed_path_state(cls) -> Optional[Managed_Library_Path_State]:
+        """Read the current path state without creating folders or changing sys.path."""
+        return Wrapper_Runtime_Cache.get_cache(Block_RTC_Members.MANAGED_PATH_STATE)
+
+    @classmethod
+    def _ensure_operation_monitor_running(cls) -> None:
+        """Start one main-thread application timer for every active install operation."""
+        timer_func = cls._operation_monitor_timer_func
+        if timer_func is not None and bpy.app.timers.is_registered(timer_func):
+            return
+
+        def _monitor_tick():
+            try:
+                active_statuses = {
+                    Library_Operation_Status.PREPARING,
+                    Library_Operation_Status.INSTALLING,
+                    Library_Operation_Status.VERIFYING,
+                    Library_Operation_Status.ACTIVATING,
+                }
+                has_active_operation = False
+                for operation_uid in tuple(cls._operations().keys()):
+                    operation = cls.poll_operation(operation_uid)
+                    if operation is not None and operation.status in active_statuses:
+                        has_active_operation = True
+                force_redraw_ui(bpy.context, only_3Dviewport=False)
+                if has_active_operation:
+                    return cls._operation_monitor_interval
+            except Exception:
+                get_logger(Block_Loggers.PIP_LIBRARY_OPERATIONS).error(
+                    "Python library operation monitor failed", exc_info=True
+                )
+                if any(
+                    operation.status in {
+                        Library_Operation_Status.PREPARING,
+                        Library_Operation_Status.INSTALLING,
+                        Library_Operation_Status.VERIFYING,
+                        Library_Operation_Status.ACTIVATING,
+                    }
+                    for operation in cls._operations().values()
+                ):
+                    return cls._operation_monitor_interval
+            cls._operation_monitor_timer_func = None
+            return None
+
+        cls._operation_monitor_timer_func = _monitor_tick
+        bpy.app.timers.register(
+            _monitor_tick,
+            first_interval=cls._operation_monitor_interval,
+            persistent=False,
+        )
 
     @classmethod
     def cancel_operation(cls, operation_uid: str) -> bool:

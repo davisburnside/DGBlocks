@@ -51,14 +51,15 @@ class Library_Operation_Status(StrEnum):
 
 @dataclass(frozen=True)
 class Python_Library_Requirement_Declaration:
-    """One exact, wheel-only Python distribution requirement declared by a block."""
+    """One wheel-only Python distribution requirement declared by a block."""
 
     requirement_uid: str
     distribution_name: str
     import_names: tuple[str, ...]
-    required_version: str
     feature_label: str
     reason: str
+    # None means the latest stable wheel compatible with Blender's Python/platform.
+    required_version: Optional[str] = None
     source_policy: Library_Source_Policy = Library_Source_Policy.ONLINE_ONLY
     bundled_wheel_root: Optional[str] = None
     allow_online_fallback: bool = False
@@ -107,7 +108,7 @@ class RTC_Library_Operation:
     request_uid: str
     namespaced_requirement_uid: str
     distribution_name: str
-    required_version: str
+    required_version: Optional[str]
     target_path: str
     staging_path: str
     log_path: str
@@ -116,6 +117,7 @@ class RTC_Library_Operation:
     total_log_line_count: int = 0
     error_summary: str = ""
     return_code: Optional[int] = None
+    resolved_version: Optional[str] = None
     restart_required: bool = False
     worker_queue: Queue = field(default_factory=Queue, repr=False, compare=False)
     cancel_event: Event = field(default_factory=Event, repr=False, compare=False)

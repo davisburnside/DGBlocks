@@ -113,6 +113,29 @@ class Test_Pip_Install_Worker(unittest.TestCase):
             self.assertTrue(target.with_name("site.pending").is_dir())
             self.assertFalse(target.exists())
 
+    def test_unpinned_install_accepts_and_reports_resolved_version(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            operation = _make_operation(root, suffix="-latest")
+            operation.required_version = None
+            target = Path(operation.target_path)
+            staging = Path(operation.staging_path)
+
+            run_pip_install_worker(
+                operation,
+                _fake_install_command(staging, version="7.8.9"),
+                target,
+                staging,
+                False,
+                "demo-package",
+                None,
+            )
+
+            events = _events(operation)
+            self.assertIn(("RESOLVED_VERSION", "7.8.9"), events)
+            self.assertIn(("FINISHED", 0), events)
+            self.assertTrue((target / "demo_package.py").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

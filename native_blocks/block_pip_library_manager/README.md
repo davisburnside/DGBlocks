@@ -1,6 +1,6 @@
 # Pip Library Manager
 
-`block-pip-library-manager` manages optional, exact-version Python wheel requirements without
+`block-pip-library-manager` manages optional Python wheel requirements without
 writing into Blender's installation. Requirements are discovered from hooks and installed only
 after a feature explicitly requests them and the user confirms the action.
 
@@ -37,12 +37,17 @@ def hook_get_python_library_requirements():
             required_version="0.61.2",
             feature_label="Numba acceleration",
             reason="Accelerates repeated geometry analysis.",
+            # Optional. Omit for the latest stable compatible wheel.
             source_policy=Library_Source_Policy.ONLINE_ONLY,
         )
     ]
 ```
 
 `repoll()` only reads declarations and distribution metadata. It never imports or installs.
+When `required_version` is omitted, an existing managed version satisfies the declaration; a new
+install passes an unpinned project name to pip, which selects the latest stable compatible wheel.
+Mixing an unpinned declaration with an exact pin for the same distribution is reported as a
+conflict rather than silently violating the exact requester.
 
 ## Lazy enforcement API
 
@@ -89,11 +94,15 @@ files before pip runs. A bundled-only wheelhouse must contain all required depen
 - Wheel-only: source distributions and arbitrary installers are intentionally unsupported.
 - Installs happen in a staging copy and replace the managed environment only after pip succeeds.
 - Pip output is streamed to a rolling native UI log and a full disk log.
+- Progress is monitored by one wrapper-owned `bpy.app.timers` callback. This block defines no
+  modal operator; if modal input is ever needed it must use `block_modal_events`.
+- Confirmation and progress are separate normal dialogs. Closing progress does not cancel pip;
+  the operation remains visible and reopenable in the manager panel.
 - Blender data and UI are touched only on Blender's main thread.
 - Replacing an already-imported package results in `RESTART_REQUIRED`; native modules cannot be
   safely unloaded by deleting `sys.modules` entries.
-- Exact versions are used because this addon does not depend on or vendor `packaging` for PEP 440
-  range evaluation.
+- Exact pins or unpinned latest are supported. Arbitrary PEP 440 ranges are not, because this addon
+  does not depend on or vendor `packaging` for range evaluation.
 - The block never uninstalls or replaces Blender-owned/global packages.
 - On Windows, long target paths receive a warning because wheel internals and DLL loaders may
   still encounter path-length limitations.
