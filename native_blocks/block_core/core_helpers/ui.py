@@ -5,6 +5,7 @@ import bpy
 from ....addon_config.static_settings import Documentation_URLs, addon_title
 from ....addon_helpers.ui.helpers import format_timestamp_for_ui, draw_shared_uilist, ui_draw_generic_instance_data, ui_draw_block_panel_header, ui_draw_static_list, ui_draw_subpanel
 from ....addon_helpers.generic_tools import get_Wrapper_Runtime_Cache
+from ..core_features.unit_testing.data_structures import Unit_Test_Status
 
 # Sentinel passed as 'rtc_key' to dgblocks.copy_to_clipboard to request the whole Runtime Cache.
 # Defined here (not in constants.py) because constants.py imports this module
@@ -225,6 +226,153 @@ def _uilist_loggers_draw_row(context, container, uillist_config_instance, BL_ite
     sub.prop(BL_item, "level_name", text = "")
 
 
+# ==============================================================================================================================
+# UNIT TESTS UILIST ROW + DETAILS
+# ==============================================================================================================================
+
+_UNIT_TEST_STATUS_ICONS = {
+    Unit_Test_Status.PASSED:  "CHECKMARK",
+    Unit_Test_Status.FAILED:  "ERROR",
+    Unit_Test_Status.ERROR:   "ERROR",
+    Unit_Test_Status.SKIPPED: "TRACKING_CLEAR_BACKWARDS",
+    Unit_Test_Status.NOT_RUN: "RADIOBUT_OFF",
+}
+
+
+def _summarize_test_cases(cases: list) -> str:
+    """Short 'N/M passed' style summary, always computed live from current statuses — never cached."""
+    if not cases:
+        return "No tests"
+    total = len(cases)
+    passed = sum(1 for c in cases if c.status == Unit_Test_Status.PASSED)
+    failed = sum(1 for c in cases if c.status in (Unit_Test_Status.FAILED, Unit_Test_Status.ERROR))
+    not_run = sum(1 for c in cases if c.status == Unit_Test_Status.NOT_RUN)
+    if not_run == total:
+        return f"{total} not run"
+    if failed:
+        return f"{failed} failed / {total}"
+    if not_run:
+        return f"{passed}/{total} passed ({not_run} not run)"
+    return f"{passed}/{total} passed"
+
+
+def _uilist_unit_tests_draw_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
+    col_widths = uillist_config_instance.col_widths
+    header = container.row()
+    block_cases = get_Wrapper_Runtime_Cache().get_cache("UNIT_TEST_CASE_CATALOG")
+    block_cases = [c for c in block_cases if c.block_id == RTC_item.block_id]
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[0]
+    sub.label(text = RTC_item.label)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[1]
+    sub.label(text = format_timestamp_for_ui(RTC_item.last_run_at))
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[2]
+    if RTC_item.collection_error:
+        sub.alert = True
+        sub.label(text = "Collection error", icon = "ERROR")
+    else:
+        sub.label(text = _summarize_test_cases(block_cases))
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[3]
+    sub.prop(BL_item, "is_enabled", text = "")
+
+
+def _uilist_unit_tests_draw_test_row(container, case):
+    """One label + 'Run' button row for a single test; failed/errored tests get an extra red line below."""
+    row = container.row(align = True)
+    split = row.split(factor = 0.7)
+    label_text = case.short_label
+    if case.cold_start_only:
+        label_text += "  (headless only)"
+    split.label(text = label_text, icon = _UNIT_TEST_STATUS_ICONS.get(case.status, "RADIOBUT_OFF"))
+
+    button_area = split.row()
+    # Greyed out rather than hidden: a cold_start_only test only makes sense as part of a
+    # genuinely fresh process (see Unit_Test_Suite_Declaration.cold_start_only) — clicking
+    # Run on it inside this already-live session would either no-op or be meaningless.
+    button_area.enabled = not case.cold_start_only
+    op = button_area.operator("dgblocks.run_one_unit_test", text = "Run", icon = "PLAY")
+    op.test_id = case.test_id
+
+    if case.status in (Unit_Test_Status.FAILED, Unit_Test_Status.ERROR) and case.error_text:
+        err_row = container.row()
+        err_row.alert = True
+        err_row.label(text = case.error_text, icon = "ERROR")
+
+
+def _uilist_unit_tests_draw_group_body(context, container, block_id, suite_group, cases):
+
+    group_row = next(
+        (g for g in get_Wrapper_Runtime_Cache().get_cache("UNIT_TEST_GROUP_ROWS")
+         if g.block_id == block_id and g.suite_group == suite_group),
+        None,
+    )
+    info_row = container.row()
+    info_row.label(text = _summarize_test_cases(cases))
+    if group_row is not None:
+        info_row.label(text = f"Last run: {format_timestamp_for_ui(group_row.last_run_at)}")
+    button_area = info_row.row()
+    button_area.enabled = not all(c.cold_start_only for c in cases) if cases else False
+    op = button_area.operator("dgblocks.run_group_unit_tests", text = "Run Group", icon = "PLAY")
+    op.block_id = block_id
+    op.suite_group = suite_group
+
+    for case in cases:
+        _uilist_unit_tests_draw_test_row(container, case)
+
+
+def _uilist_unit_tests_draw_selection_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
+    block_id = RTC_item.block_id
+    box = container.box()
+
+    if RTC_item.collection_error:
+        box.alert = True
+        box.label(text = RTC_item.collection_error, icon = "ERROR")
+
+    all_cases = [c for c in get_Wrapper_Runtime_Cache().get_cache("UNIT_TEST_CASE_CATALOG") if c.block_id == block_id]
+
+    row = box.row()
+    row.label(text = _summarize_test_cases(all_cases))
+    button_area = row.row()
+    button_area.enabled = not all(c.cold_start_only for c in all_cases) if all_cases else False
+    op = button_area.operator("dgblocks.run_block_unit_tests", text = "Run All In Block", icon = "PLAY")
+    op.block_id = block_id
+
+    if not all_cases:
+        box.label(text = "No tests discovered for this block", icon = "INFO")
+        return
+
+    distinct_groups = []
+    for case in all_cases:
+        if case.suite_group not in distinct_groups:
+            distinct_groups.append(case.suite_group)
+
+    # Only worth a stack of subpanels when a block actually has >1 group — otherwise flatten
+    if len(distinct_groups) <= 1:
+        for case in all_cases:
+            _uilist_unit_tests_draw_test_row(box, case)
+        return
+
+    for suite_group in distinct_groups:
+        group_cases = [c for c in all_cases if c.suite_group == suite_group]
+        kwargs = {"block_id": block_id, "suite_group": suite_group, "cases": group_cases}
+        ui_draw_subpanel(
+            context, box,
+            f"unit_test_group_{block_id}_{suite_group}",
+            f"{suite_group} ({_summarize_test_cases(group_cases)})",
+            _uilist_unit_tests_draw_group_body,
+            **kwargs,
+        )
+
+
 class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
     bl_label = ""
     bl_idname = f"DGBLOCKS_PT_Core_Block_Panel"
@@ -270,6 +418,25 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         row.prop(core_scene_props, "logger_include_datetime", text="Include Datetime")
         draw_shared_uilist(context, container, "managed_loggers")
 
+    def _draw_unit_tests_subpanel_body(self, context, container):
+        """Draw body of the Unit Tests subpanel: run-all/refresh controls, last-run summary, then the UIList."""
+        row = container.row()
+        row.scale_y = 1.3
+        row.operator("dgblocks.run_all_unit_tests", text = "Run All Unit Tests", icon = "PLAY")
+        row.operator("dgblocks.refresh_unit_test_catalog", text = "", icon = "FILE_REFRESH")
+
+        last_report = get_Wrapper_Runtime_Cache().get_cache("LAST_UNIT_TEST_REPORT")
+        summary_row = container.row()
+        if last_report is None:
+            summary_row.label(text = "Never run", icon = "INFO")
+        else:
+            all_cases = get_Wrapper_Runtime_Cache().get_cache("UNIT_TEST_CASE_CATALOG")
+            summary_row.label(
+                text = f"Last full run: {format_timestamp_for_ui(last_report.finished_at)} — {_summarize_test_cases(all_cases)}"
+            )
+
+        draw_shared_uilist(context, container, "unit_test_block_rows")
+
     def draw(self, context):
         
         layout = self.layout
@@ -290,6 +457,10 @@ class DGBLOCKS_PT_Core_Block_Panel(bpy.types.Panel):
         # Loggers subpanel
         loggers_label = f"All Loggers ({len(core_scene_props.managed_loggers)})"
         ui_draw_subpanel(context, layout, "managed_loggers", loggers_label, self._draw_loggers_subpanel_body)
+
+        # Unit Tests subpanel
+        unit_tests_label = f"Unit Tests ({len(core_scene_props.unit_test_block_rows)})"
+        ui_draw_subpanel(context, layout, "unit_tests", unit_tests_label, self._draw_unit_tests_subpanel_body)
 
         # RTC members subpanel (snapshot / clipboard tooling, no BL data behind it)
         rtc_member_count = len(get_Wrapper_Runtime_Cache().get_all_cache_keys())

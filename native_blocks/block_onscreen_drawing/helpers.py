@@ -8,13 +8,14 @@ import bpy
 # Addon-level imports
 from ...addon_helpers.generic_tools import get_exception_last_n_lines
 from ...addon_helpers.data_structures import Enum_Sync_Events
+from ...addon_helpers.data_tools import assert_unique_by_key
 
 # Inter-block imports
 from ...native_blocks.block_core.core_features.loggers.feature_wrapper import get_logger
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_timers.feature_timer_manager import Wrapper_Timer_Manager
-from .BL_drawing_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, _VALID_SPACE_REGION_PHASE_COMBOS
+from .BL_drawing_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES
 from .animations.engine import suppress_timer_rebuilds
 
 # Intra-block imports
@@ -72,31 +73,14 @@ def _validate_shader_definitions(shader_defs: list) -> None:
     Run all validation checks against a list of Shader_Declaration objects.
     Raises ValueError with a descriptive message if any check fails.
     All checks complete before any Blender state is mutated.
-    """
-    # --- duplicate uid check ---
-    seen_uids: set = set()
-    for sdef in shader_defs:
-        if sdef.shader_uid in seen_uids:
-            raise ValueError(
-                f"Duplicate shader uid '{sdef.shader_uid}' in definition_accumulator. "
-                f"Every Shader_Declaration must have a unique uid."
-            )
-        seen_uids.add(sdef.shader_uid)
 
-    # --- (space, region, phase) allowlist check ---
-    # NOTE: kept disabled for now. The allowlist in _VALID_SPACE_REGION_PHASE_COMBOS is not yet
-    # exhaustive, so enforcing it would reject valid combos (e.g. the example shaders'
-    # (VIEW_3D, WINDOW, POST_VIEW)). draw_handler_add failures are already isolated per-group in
-    # _rebuild_all_shaders(), so an invalid combo degrades gracefully rather than crashing.
-    for sdef in shader_defs:
-        combo = (sdef.space, sdef.region, sdef.phase)
-        # if combo not in _VALID_SPACE_REGION_PHASE_COMBOS:
-        #     raise ValueError(
-        #         f"Shader '{sdef.shader_uid}': "
-        #         f"({sdef.space.name}, {sdef.region}, {sdef.phase}) "
-        #         f"is not a known-valid (space, region, phase) combination. "
-        #         f"See drawing_constants._VALID_SPACE_REGION_PHASE_COMBOS for the allowlist."
-        #     )
+    Does not check (space, region, phase) against an allowlist — that was tried and dropped:
+    BL_drawing_structures._VALID_SPACE_REGION_PHASE_COMBOS was never exhaustive enough to avoid
+    rejecting valid combos (e.g. (VIEW_3D, WINDOW, POST_VIEW)), and draw_handler_add failures are
+    already isolated per-group in _rebuild_all_shaders(), so an invalid combo degrades gracefully
+    rather than crashing — no allowlist needed here.
+    """
+    assert_unique_by_key(shader_defs, lambda sdef: sdef.shader_uid, "shader uid")
 
     # --- builtin vs custom mutual-exclusion check ---
     for sdef in shader_defs:

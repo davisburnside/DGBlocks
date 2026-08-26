@@ -197,15 +197,18 @@ before its raw array payload. Socket transport is outside this block.
 Interactive:
 
 ```python
-from DGBlocks.native_blocks.block_geometry_actions.tests import run_tests
+from DGBlocks.native_blocks.block_geometry_actions.unit_tests import run_tests
 run_tests.run()
 ```
 
 Headless:
 
 ```bash
-blender --background --python native_blocks/block_geometry_actions/tests/run_tests.py
+blender --background --python native_blocks/block_geometry_actions/unit_tests/run_tests.py
 ```
+
+Also runs as part of the addon-wide pass via block_core's Unit Tests panel / `Wrapper_Unit_Testing`
+(this block subscribes through `hook_get_unit_test_declarations`).
 
 Coverage includes mesh/curve reads, writes, callback failures, latest-result replacement,
 object-scoped grouping, deep-copy inheritance, read replacement, object isolation, diffs,

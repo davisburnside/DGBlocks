@@ -3,12 +3,12 @@ test_geometry_actions.py — unittest suite covering the block's major features.
 
 Run from the Blender Text Editor / Python Console:
 
-    from DGBlocks.native_blocks.block_geometry_actions.tests import run_tests
+    from DGBlocks.native_blocks.block_geometry_actions.unit_tests import run_tests
     run_tests.run()
 
 Or headless:
 
-    blender --background --python <addon>/native_blocks/block_geometry_actions/tests/run_tests.py
+    blender --background --python <addon>/native_blocks/block_geometry_actions/unit_tests/run_tests.py
 
 Every test creates its own geometry and tears it down in tearDown, so the suite is safe
 to run repeatedly inside a live user session.
@@ -144,7 +144,12 @@ class Test_Callbacks_And_Writes(_Base):
             read_source    = Enum_Read_Source.ORIGINAL,
             steps          = (Read_Step(MET.VERTEX.CO), Callback_Step(_boom)),
         )
-        result = W.run_geometry_action_for_object(obj, declaration)
+        # The callback intentionally raises; the framework is expected to catch it, log it at
+        # ERROR, and keep going rather than propagate. assertLogs both suppresses that expected
+        # ERROR line from the real console handler (so a passing run doesn't print what looks
+        # like a crash) and asserts the failure was actually logged, not just swallowed.
+        with self.assertLogs("GEOMETRY_ACTIONS_EVENTS", level="ERROR"):
+            result = W.run_geometry_action_for_object(obj, declaration)
         self.assertFalse(result.is_valid)
         self.assertIsNotNone(result.error_str)
         self.assertIsNotNone(result.vertex.co)          # pre-failure data retained

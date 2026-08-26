@@ -186,6 +186,23 @@ class Shared_UIList_Instance(Shared_UIList_Declaration):
     _: KW_ONLY  # everything after this is keyword-only, solving the default ordering problem
 
 @dataclass(eq=False)
+class Unit_Test_Suite_Declaration:
+    suite_id: str                                     # unique within its block
+    build_suite: Callable[[], any]                     # zero-arg factory returning a unittest.TestSuite, called lazily at collection time
+    label: Optional[str] = field(default = None)       # display name; defaults to suite_id
+    suite_group: Optional[str] = field(default = None) # optional 2nd grouping layer within a block; None -> "Default"
+
+    # True for a suite that only makes sense as part of a genuinely fresh process (e.g.
+    # asserting something about the register()/init_post_bpy() boot sequence itself) — never
+    # safe or meaningful to re-trigger inside an already-running, already-registered session.
+    # Wrapper_Unit_Testing.run_all()/run_block_unit_tests()/etc. skip these unless explicitly
+    # told include_cold_start_only=True (which only Developer/run_all_unit_tests.py passes,
+    # since every headless invocation of it *is* a fresh process). The Unit Tests panel greys
+    # out the Run button for these rather than letting them be clicked to no effect.
+    cold_start_only: bool = field(default = False)
+
+
+@dataclass(eq=False)
 class RTC_Member_Data_Mirror_Declaration:
 
     RTC_key: str # Must be unique among all data mirrors

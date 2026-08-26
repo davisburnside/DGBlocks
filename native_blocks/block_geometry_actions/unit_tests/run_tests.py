@@ -3,15 +3,19 @@ run_tests.py — single entry point for the block_geometry_actions test suite.
 
 Interactive (Blender Text Editor / Python Console), addon already enabled:
 
-    from DGBlocks.native_blocks.block_geometry_actions.tests import run_tests
+    from DGBlocks.native_blocks.block_geometry_actions.unit_tests import run_tests
     run_tests.run()
 
 Headless:
 
-    blender --background --python <addon>/native_blocks/block_geometry_actions/tests/run_tests.py
+    blender --background --python <addon>/native_blocks/block_geometry_actions/unit_tests/run_tests.py
 
 When run headless as __main__ the addon package is imported by name from the folder
 three levels up, so no manual sys.path juggling is needed.
+
+This suite also runs as part of the full addon-wide pass via block_core's
+Wrapper_Unit_Testing (see hook_get_unit_test_declarations in this block's __init__.py) —
+this file remains for standalone/manual use, its shape is unchanged by that wiring.
 """
 
 import unittest
@@ -70,6 +74,6 @@ if __name__ == "__main__":
         pass
 
     tests_module = importlib.import_module(
-        f"{addon_name}.native_blocks.block_geometry_actions.tests.run_tests"
+        f"{addon_name}.native_blocks.block_geometry_actions.unit_tests.run_tests"
     )
     sys.exit(0 if tests_module.run() else 1)

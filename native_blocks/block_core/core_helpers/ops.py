@@ -21,6 +21,7 @@ from ..core_features.loggers.feature_wrapper import  get_logger
 from ..core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ..core_features.control_plane.helpers import reload_flag_name
+from ..core_features.unit_testing.feature_wrapper import Wrapper_Unit_Testing
 from ..core_helpers.ui import RTC_COPY_ALL_KEY
 
 
@@ -147,6 +148,74 @@ class DGBLOCKS_OT_Reload_All_Blocks(bpy.types.Operator):
             except Exception as e:
                 logger.error("Unable to store data before reload, likely invalid data type", exc_info = True)
         bpy.app.timers.register(self._reload, first_interval=0.1)
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Run_All_Unit_Tests(bpy.types.Operator):
+    bl_idname = "dgblocks.run_all_unit_tests"
+    bl_label = "Run All Unit Tests"
+    bl_description = "Run every enabled block's unit tests"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        report = Wrapper_Unit_Testing.run_all()
+        force_redraw_ui(context)
+        self.report({'INFO'}, f"Unit tests: ran {len(report.block_ids_run)} block(s)")
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Run_Block_Unit_Tests(bpy.types.Operator):
+    bl_idname = "dgblocks.run_block_unit_tests"
+    bl_label = "Run Block Unit Tests"
+    bl_description = "Run every test declared by one block, regardless of subgroup"
+    bl_options = {"REGISTER"}
+
+    block_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        Wrapper_Unit_Testing.run_block_unit_tests(self.block_id)
+        force_redraw_ui(context)
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Run_Group_Unit_Tests(bpy.types.Operator):
+    bl_idname = "dgblocks.run_group_unit_tests"
+    bl_label = "Run Group Unit Tests"
+    bl_description = "Run every test in one block's subgroup"
+    bl_options = {"REGISTER"}
+
+    block_id: bpy.props.StringProperty()     # type: ignore
+    suite_group: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        Wrapper_Unit_Testing.run_group_unit_tests(self.block_id, self.suite_group)
+        force_redraw_ui(context)
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Run_One_Unit_Test(bpy.types.Operator):
+    bl_idname = "dgblocks.run_one_unit_test"
+    bl_label = "Run Test"
+    bl_description = "Run exactly one unit test"
+    bl_options = {"REGISTER"}
+
+    test_id: bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        Wrapper_Unit_Testing.run_one_test(self.test_id)
+        force_redraw_ui(context)
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Refresh_Unit_Test_Catalog(bpy.types.Operator):
+    bl_idname = "dgblocks.refresh_unit_test_catalog"
+    bl_label = "Refresh Unit Test Catalog"
+    bl_description = "Re-discover unit test declarations from all blocks without running any of them"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        Wrapper_Unit_Testing.collect_all()
+        force_redraw_ui(context)
         return {"FINISHED"}
 
 

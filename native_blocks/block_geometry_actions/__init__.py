@@ -3,7 +3,7 @@ import bpy
 
 # --------------------------------------------------------------
 # Addon-level imports
-from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_helpers.data_structures import Block_Declaration, Unit_Test_Suite_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 from ...addon_helpers.generic_tools import is_block_debug_mode_enabled
 from ...addon_helpers.ui.helpers import ui_draw_block_panel_header
@@ -27,6 +27,15 @@ from .data_structures import (  # noqa: F401 — public re-exports for downstrea
 from .feature_geometry_actions import Wrapper_Geometry_Actions
 from .helpers_actions import get_all_results, get_result_by_key, result_payload_to_string
 from .ui import ui_draw_geometry_action_results
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.test_geometry_actions import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = _BLOCK_DECLARATION.block_id,
+        build_suite = build_suite,
+        label = "Geometry Actions",
+    )]
+
 
 # ==============================================================================================================================
 # OPERATORS

@@ -4,7 +4,7 @@ import bpy
 
 # --------------------------------------------------------------
 # Addon-level imports
-from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Unit_Test_Suite_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
@@ -90,6 +90,15 @@ def hook_post_startup():
 def hook_before_blocks_reload():
     end_all_listeners(Modal_Listener_End_Reason.ROUTER_SHUTDOWN)
     unregister_all_workspace_tools()
+
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.run_tests import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = _BLOCK_DECLARATION.block_id,
+        build_suite = build_suite,
+        label = "Modal Events",
+    )]
 
 # ==============================================================================================================================
 # UI

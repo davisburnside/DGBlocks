@@ -4,12 +4,12 @@ import sys
 import bpy
 
 # Addon-level imports
-from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_helpers.data_structures import Block_Declaration, Unit_Test_Suite_Declaration
 from ...addon_config.static_settings import Documentation_URLs
 
 # Core block imports
 from .core_helpers.constants import Core_Data_Mirrors, Core_Block_Hook_Sources, Core_Block_Loggers, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id, Core_UIList_Configs
-from .core_helpers.ops import DGBLOCKS_OT_Copy_To_Clipboard, DGBLOCKS_OT_Debug_Clear_And_Restore_Caches, DGBLOCKS_OT_Force_Reload_Refresh_UI, DGBLOCKS_OT_Force_Reload_Scripts, DGBLOCKS_OT_Open_Help_Page, DGBLOCKS_OT_Reload_All_Blocks
+from .core_helpers.ops import DGBLOCKS_OT_Copy_To_Clipboard, DGBLOCKS_OT_Debug_Clear_And_Restore_Caches, DGBLOCKS_OT_Force_Reload_Refresh_UI, DGBLOCKS_OT_Force_Reload_Scripts, DGBLOCKS_OT_Open_Help_Page, DGBLOCKS_OT_Reload_All_Blocks, DGBLOCKS_OT_Run_All_Unit_Tests, DGBLOCKS_OT_Run_Block_Unit_Tests, DGBLOCKS_OT_Run_Group_Unit_Tests, DGBLOCKS_OT_Run_One_Unit_Test, DGBLOCKS_OT_Refresh_Unit_Test_Catalog
 from .core_helpers.props import DGBLOCKS_PG_Core_Props
 from .core_helpers.debugging import debug_extract_core_block_data_to_print, debug_ui_draw_core_block_printing_options
 from .core_helpers.ui import DGBLOCKS_PT_Core_Block_Panel
@@ -20,6 +20,8 @@ from .core_features.control_plane.feature_wrapper import Wrapper_Control_Plane
 from .core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
 from .core_features.hooks.feature_wrapper import Wrapper_Hooks
 from .core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
+from .core_features.unit_testing.data_structures import DGBLOCKS_PG_Unit_Test_Block_Row
+from .core_features.unit_testing.feature_wrapper import Wrapper_Unit_Testing
 from ...addon_helpers.ui.helpers import DGBLOCKS_UL_Shared_Debug_List
 
 # This hook has an inverted "downstream" dependency direction, but it still works.
@@ -30,12 +32,22 @@ def hook_debug_get_state_data_to_print(other_input: str):
 def hook_debug_uilayout_draw_console_print_settings(ui_container: bpy.types.UILayout):
     debug_ui_draw_core_block_printing_options(bpy.context, ui_container, core_block_id)
 
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.run_tests import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = core_block_id,
+        build_suite = build_suite,
+        label = "Block Core",
+    )]
+
 # BLOCK DEFINITION
 # Only bpy.types.* classes should be registered
 _block_classes_to_register = [
     DGBLOCKS_PG_Block_Record,
     DGBLOCKS_PG_Logger_Instance,
     DGBLOCKS_PG_Hook_Reference,
+    DGBLOCKS_PG_Unit_Test_Block_Row,
     DGBLOCKS_PG_Core_Props,
     DGBLOCKS_OT_Open_Help_Page,
     DGBLOCKS_OT_Copy_To_Clipboard,
@@ -43,6 +55,11 @@ _block_classes_to_register = [
     DGBLOCKS_OT_Force_Reload_Scripts,
     DGBLOCKS_OT_Reload_All_Blocks,
     DGBLOCKS_OT_Debug_Clear_And_Restore_Caches,
+    DGBLOCKS_OT_Run_All_Unit_Tests,
+    DGBLOCKS_OT_Run_Block_Unit_Tests,
+    DGBLOCKS_OT_Run_Group_Unit_Tests,
+    DGBLOCKS_OT_Run_One_Unit_Test,
+    DGBLOCKS_OT_Refresh_Unit_Test_Catalog,
     DGBLOCKS_PT_Core_Block_Panel,
     DGBLOCKS_UL_Shared_Debug_List,
 ]
@@ -53,6 +70,7 @@ _feature_wrapper_classes_to_register = [
     Wrapper_Runtime_Cache,
     Wrapper_Loggers,
     Wrapper_Hooks,
+    Wrapper_Unit_Testing,
 ]
 
 # REQUIRED 

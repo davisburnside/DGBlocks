@@ -4,7 +4,7 @@ import bpy
 
 # --------------------------------------------------------------
 # Addon-level imports
-from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Unit_Test_Suite_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 
 # --------------------------------------------------------------
@@ -39,6 +39,15 @@ def _cb_is_enabled_changed(self, context):
     event = Enum_Sync_Events.PROPERTY_UPDATE
     FWC_instance, data_mirror_instance = Wrapper_Runtime_Cache.get_FWC_and_data_mirror(cache_key_timers)
     Wrapper_Timer_Manager._update_RTC_with_mirrored_BL_data(event, FWC_instance, data_mirror_instance)
+
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.run_tests import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = _BLOCK_DECLARATION.block_id,
+        build_suite = build_suite,
+        label = "Timers",
+    )]
 
 
 def _cb_enable_timers_changed(self, context):

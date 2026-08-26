@@ -3,7 +3,7 @@ import sys
 import bpy
 
 from ...addon_helpers.generic_tools import force_redraw_ui
-from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events
+from ...addon_helpers.data_structures import Block_Declaration, Enum_Sync_Events, Unit_Test_Suite_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 from ...addon_helpers.ui.helpers import ui_draw_block_panel_header, draw_shared_uilist, ui_draw_subpanel
 from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
@@ -70,8 +70,17 @@ def hook_get_timer_definitions():
 def hook_post_startup():
     return _hook_post_startup()
 
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.run_tests import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = _BLOCK_DECLARATION.block_id,
+        build_suite = build_suite,
+        label = "Onscreen Drawing",
+    )]
+
 # ==============================================================================================================================
-# UI 
+# UI
 
 class DGBLOCKS_OT_Toggle_Shader(bpy.types.Operator):
     """Toggle a shader's visibility. is_enabled is RTC-only, so this must NOT enter the undo stack."""

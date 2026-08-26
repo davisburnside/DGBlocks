@@ -3,7 +3,7 @@ import sys
 import bpy
 
 from ...addon_config.static_settings import Documentation_URLs, addon_title
-from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_helpers.data_structures import Block_Declaration, Unit_Test_Suite_Declaration
 from ...addon_helpers.generic_tools import is_block_debug_mode_enabled
 from ...addon_helpers.ui.helpers import ui_draw_block_panel_header
 from .. import block_core  # noqa: F401 — block-core is the only dependency
@@ -30,6 +30,15 @@ from .ui import (
 def hook_post_startup():
     """Discover declarations and package metadata; never imports or installs packages."""
     Wrapper_Pip_Library_Manager.repoll()
+
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.run_tests import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = _BLOCK_DECLARATION.block_id,
+        build_suite = build_suite,
+        label = "Pip Library Manager",
+    )]
 
 
 class DGBLOCKS_PG_Pip_Library_Status_Row(bpy.types.PropertyGroup):

@@ -81,6 +81,24 @@ def create_simplified_list_from_csv_string(input_str):
     list_return = [k for k in list_return if len(k) > 0] # remove empties
     return list_return
 
+def assert_unique_by_key(items, key_fn: Callable, label: str) -> None:
+    """
+    Shared shape for the "reject duplicate declaration ids" check every hook-collecting
+    block's own validate_*_definitions()/_validate_*() function re-implements by hand
+    (block_timers, block_modal_events, block_onscreen_drawing, ...).
+
+    Raises ValueError naming both the offending key and `label` (e.g. "shader uid",
+    "timer_uid") the moment a duplicate is found — callers keep their own field-specific
+    checks (required-field, type, mutual-exclusion) separate; this only owns uniqueness.
+    """
+    seen = set()
+    for item in items:
+        key = key_fn(item)
+        if key in seen:
+            raise ValueError(f"Duplicate {label} '{key}'. Every {label} must be unique.")
+        seen.add(key)
+
+
 def get_actual_id(input):
     # Exracts the name of an enum. Prevent the dev from adding ".name" for every Enum usage, like in run_hooked_funcs
 

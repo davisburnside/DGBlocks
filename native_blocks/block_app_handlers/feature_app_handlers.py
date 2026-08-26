@@ -19,6 +19,52 @@ from .data_structures import App_Handler_Subscription_Declaration, RTC_App_Handl
 from .handler_callbacks import install_handler, uninstall_handler, uninstall_all_handlers
 
 
+def merge_handler_subscriptions(raw_results: dict, logger=None) -> dict:
+    """
+    Merge per-block App_Handler_Subscription_Declaration lists (as returned by
+    hook_get_app_handler_subscriptions) into one dict keyed by handler_type_name ->
+    {"subscriber_count": int, "min_freq": float}.
+
+    "Most-permissive" merge: when multiple blocks subscribe to the same handler type, the
+    MINIMUM frequency_filter_seconds across all subscriptions wins, so no subscriber is
+    starved of events it requested.
+
+    A misbehaving block (non-list return, or a list containing something other than an
+    App_Handler_Subscription_Declaration) has that one entry skipped with a warning — never
+    raises, so one broken block can't break polling for every other block. Pulled out of
+    Wrapper_App_Handlers.repoll() so it's testable without touching bpy.app.handlers at all.
+    """
+    merged: dict = {}
+    for block_id, result in raw_results.items():
+        if not isinstance(result, list):
+            if logger:
+                logger.warning(
+                    f"repoll: block '{block_id}' returned "
+                    f"{type(result)!r} from poll hook — expected list, skipping"
+                )
+            continue
+        for item in result:
+            if not isinstance(item, App_Handler_Subscription_Declaration):
+                if logger:
+                    logger.warning(
+                        f"repoll: block '{block_id}' returned "
+                        f"non-App_Handler_Subscription_Declaration item — skipping"
+                    )
+                continue
+            type_name = item.handler_type.name
+            if type_name not in merged:
+                merged[type_name] = {
+                    "subscriber_count": 0,
+                    "min_freq": item.frequency_filter_seconds,
+                }
+            merged[type_name]["subscriber_count"] += 1
+            # Most-permissive merge: take the minimum (most frequent) rate limit
+            merged[type_name]["min_freq"] = min(
+                merged[type_name]["min_freq"], item.frequency_filter_seconds
+            )
+    return merged
+
+
 class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncronizer):
     """
     Feature Wrapper for block_app_handlers.
@@ -51,36 +97,10 @@ class Wrapper_App_Handlers(Abstract_Feature_Wrapper, Abstract_BL_RTC_List_Syncro
         logger.debug("repoll: polling downstream blocks")
 
         # 1. Poll all subscribers
-        raw_results = Wrapper_Hooks.run_hooked_funcs(Block_Hook_Sources.hook_get_app_handler_subscriptions) 
+        raw_results = Wrapper_Hooks.run_hooked_funcs(Block_Hook_Sources.hook_get_app_handler_subscriptions)
 
-        # 2. Merge subscriptions per handler type
-        #    Key: handler_type_name, Value: {"subscriber_count": int, "min_freq": float}
-        merged: dict[str, dict] = {}
-        for block_id, result in raw_results.items():
-            if not isinstance(result, list):
-                logger.warning(
-                    f"repoll: block '{block_id}' returned "
-                    f"{type(result)!r} from poll hook — expected list, skipping"
-                )
-                continue
-            for item in result:
-                if not isinstance(item, App_Handler_Subscription_Declaration):
-                    logger.warning(
-                        f"repoll: block '{block_id}' returned "
-                        f"non-App_Handler_Subscription_Declaration item — skipping"
-                    )
-                    continue
-                type_name = item.handler_type.name
-                if type_name not in merged:
-                    merged[type_name] = {
-                        "subscriber_count": 0,
-                        "min_freq": item.frequency_filter_seconds,
-                    }
-                merged[type_name]["subscriber_count"] += 1
-                # Most-permissive merge: take the minimum (most frequent) rate limit
-                merged[type_name]["min_freq"] = min(
-                    merged[type_name]["min_freq"], item.frequency_filter_seconds
-                )
+        # 2. Merge subscriptions per handler type (pure function — see merge_handler_subscriptions)
+        merged = merge_handler_subscriptions(raw_results, logger)
 
         # 3. Load existing status instances
         existing_status: dict[str, RTC_App_Handler_Status_Instance] = {

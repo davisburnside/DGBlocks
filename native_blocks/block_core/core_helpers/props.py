@@ -3,6 +3,7 @@ from ..core_features.control_plane.data_structures import DGBLOCKS_PG_Block_Reco
 from ..core_features.hooks.data_structures import DGBLOCKS_PG_Hook_Reference
 from ..core_features.hooks.helpers import _callback_hook_sub_uilist_selection_idx_updated, _callback_hooks_hide_unsub_changed
 from ..core_features.loggers.data_structures import DGBLOCKS_PG_Logger_Instance, _callback_logger_include_datetime_changed
+from ..core_features.unit_testing.data_structures import DGBLOCKS_PG_Unit_Test_Block_Row
 
 class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     
@@ -50,3 +51,5 @@ class DGBLOCKS_PG_Core_Props(bpy.types.PropertyGroup):
     managed_hooks_selected_idx: bpy.props.IntProperty(update = _callback_hook_sub_uilist_selection_idx_updated)  # type: ignore
     managed_loggers_selected_idx: bpy.props.IntProperty()  # type: ignore
     managed_loggers: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Logger_Instance) # type: ignore
+    unit_test_block_rows: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Unit_Test_Block_Row) # type: ignore
+    unit_test_block_rows_selected_idx: bpy.props.IntProperty() # type: ignore

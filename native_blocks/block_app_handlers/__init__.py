@@ -3,7 +3,7 @@ import sys
 import bpy
 
 # Addon-level imports
-from ...addon_helpers.data_structures import Block_Declaration
+from ...addon_helpers.data_structures import Block_Declaration, Unit_Test_Suite_Declaration
 from ...addon_config.static_settings import Documentation_URLs, addon_title
 from ...addon_helpers.ui.helpers import draw_shared_uilist, ui_draw_block_panel_header
 
@@ -31,6 +31,15 @@ def hook_post_startup():
     downstream blocks' subscriptions are active before any Blender events fire.
     """
     Wrapper_App_Handlers.repoll()
+
+
+def hook_get_unit_test_declarations():
+    from .unit_tests.run_tests import build_suite
+    return [Unit_Test_Suite_Declaration(
+        suite_id = _BLOCK_DECLARATION.block_id,
+        build_suite = build_suite,
+        label = "App Handlers",
+    )]
 
 
 # ==============================================================================================================================

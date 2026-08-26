@@ -7,6 +7,8 @@ from ..core_helpers.ui import (
     _uilist_hooks_draw_selection_details,
     _uilist_loggers_draw_row,
     _hooks_filter_items,
+    _uilist_unit_tests_draw_row,
+    _uilist_unit_tests_draw_selection_details,
 )
 
 _BLOCK_ID = "block-core"
@@ -23,6 +25,7 @@ class Core_Block_Loggers(String_Comparable_Mixin):
     UI = Logger_Declaration("WARNING")
     TRACKED_DATABLOCK_TYPES = Logger_Declaration("INFO")
     SCENE_MONITOR = Logger_Declaration("INFO")
+    UNIT_TESTING = Logger_Declaration("INFO")
 
 class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_core_event_undo = Hook_Source_Declaration()
@@ -30,6 +33,7 @@ class Core_Block_Hook_Sources(String_Comparable_Mixin):
     hook_post_startup    = Hook_Source_Declaration()
     hook_before_blocks_reload = Hook_Source_Declaration()
     hook_after_blocks_reload  = Hook_Source_Declaration({"surviving_data": dict})
+    hook_get_unit_test_declarations = Hook_Source_Declaration()  # returns list[Unit_Test_Suite_Declaration]
 
 class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty list as default
     ADDON_METADATA                 = RTC_Member_Declaration(Global_Addon_State())
@@ -41,6 +45,10 @@ class Core_Runtime_Cache_Members(String_Comparable_Mixin): # no arg => empty lis
     REGISTRY_ALL_DATA_MIRRORS      = RTC_Member_Declaration()
     META_REGISTRIES_BEING_SYNCED   = RTC_Member_Declaration()
     SHARED_UILIST_CONFIGS          = RTC_Member_Declaration()
+    UNIT_TEST_BLOCK_ROWS            = RTC_Member_Declaration()
+    UNIT_TEST_GROUP_ROWS            = RTC_Member_Declaration()
+    UNIT_TEST_CASE_CATALOG          = RTC_Member_Declaration()
+    LAST_UNIT_TEST_REPORT           = RTC_Member_Declaration(None)
 
 class Core_Data_Mirrors(String_Comparable_Mixin):
     BLOCKS_LIST = RTC_Member_Data_Mirror_Declaration(
@@ -61,9 +69,16 @@ class Core_Data_Mirrors(String_Comparable_Mixin):
     LOGGERS_LIST = RTC_Member_Data_Mirror_Declaration(
         RTC_key = "REGISTRY_ALL_LOGGERS",
         FWC_name = "Wrapper_Loggers",
-        mirrored_key_field_names = ["logger_name"], 
+        mirrored_key_field_names = ["logger_name"],
         mirrored_data_field_names = ["level_name", "src_block_id"],
         scene_colprop_path = "dgblocks_core_props.managed_loggers",
+    )
+    UNIT_TEST_BLOCKS_MIRROR = RTC_Member_Data_Mirror_Declaration(
+        RTC_key = "UNIT_TEST_BLOCK_ROWS",
+        FWC_name = "Wrapper_Unit_Testing",
+        mirrored_key_field_names = ["block_id"],
+        mirrored_data_field_names = ["is_enabled", "last_run_at", "last_run_duration_seconds"],
+        scene_colprop_path = "dgblocks_core_props.unit_test_block_rows",
     )
 
 
@@ -99,4 +114,14 @@ class Core_UIList_Configs(String_Comparable_Mixin):
         callback_draw_row = _uilist_blocks_draw_row,
         callback_draw_details_section = _uilist_blocks_draw_selection_details
     )
-    
+    UNIT_TESTS_UILIST = Shared_UIList_Declaration(
+        col_names = ["Block", "Last Run", "Result", "Enabled"],
+        col_widths = [3, 2, 3, 1],
+        scene_parent_path = "dgblocks_core_props",
+        scene_colprop_path = "unit_test_block_rows",
+        scene_colprop_path_UIList_selection_idx_path = "unit_test_block_rows_selected_idx",
+        RTC_key = "UNIT_TEST_BLOCK_ROWS",
+        callback_draw_row = _uilist_unit_tests_draw_row,
+        callback_draw_details_section = _uilist_unit_tests_draw_selection_details,
+    )
+

@@ -1,7 +1,30 @@
 # DGBlocks — Unit Testing Framework (Design)
 
-> Status: **Planning only** — nothing in this document has been implemented yet. It defines the
-> shape of the framework so implementation can proceed block-by-block.
+> Status: **Engine + UI implemented, all seven blocks wired in.** `core_features/unit_testing/`
+> (FWC, RTC/BL data model, hook, operators, panel) plus a `hook_get_unit_test_declarations`
+> subscriber and `unit_tests/` folder in every block that has one: `block_core` (25 tests —
+> registry/hook invariants, the `data_sync_tools` diff algorithm, the unit-testing engine
+> testing itself), `block_timers` (6), `block_app_handlers` (7), `block_modal_events` (16),
+> `block_onscreen_drawing` (16), `block_geometry_actions` (17), `block_pip_library_manager`
+> (12) — 99 tests total, 98 passed / 1 skipped (the GPU compile test, see §11 — genuinely can't
+> run under `--background`). `block_debug_console_print` stays excluded per the original brief.
+> The UI/data model described below (master UIList of blocks + per-test detail rows + optional
+> subgroup subpanels, with a `last_run_at` at every one of the four scope levels — all/block/
+> group/test, plus `cold_start_only` for suites that only make sense in a fresh process)
+> supersedes the flatter `Unit_Test_Suite_Result` / `Unit_Test_Run_Report`-only sketch further
+> down this doc; treat this status block and the actual code under `core_features/unit_testing/`
+> as authoritative over conflicting detail below.
+>
+> Also done alongside: `addon_helpers/testing_tools.py` (tagged-prefix sweep +
+> `Idempotent_BPY_TestCase`, §6) and `addon_helpers/data_tools.assert_unique_by_key` — a shared
+> "reject duplicate declaration ids" helper now used by `block_onscreen_drawing`'s
+> `_validate_shader_definitions` (reimplemented to use it, and to drop its long-dead, commented-
+> out `(space, region, phase)` allowlist check). `block_app_handlers`' `repoll()` merge logic
+> was extracted into a standalone `merge_handler_subscriptions()` so it's testable without
+> touching `bpy.app.handlers` — the same kind of extraction the original design called for.
+> `Developer/run_all_unit_tests.py` (single Blender) and `Developer/run_all_unit_tests_multi.py`
+> (N Blender versions, aggregated pass/fail matrix + cross-version discrepancy list) both exist
+> and have been run for real.
 >
 > Companion docs: `Structural_Standards/Block_Structure_Overview.md` (architecture patterns this
 > framework must follow), `AI_Assist/Memory_Bank/blockAuthoringGuide.md` (per-block authoring
@@ -19,8 +42,18 @@
 4. One block's tests failing (or raising during collection) must never stop the others from
    running — total isolation.
 5. Every test is idempotent and only temporarily touches scene/RTC data, if at all.
-6. `block_onscreen_drawing`'s GPU/shader rendering is out of scope — not everything needs to be
-   (or can be) unit tested. Same reasoning extends to any other block's purely visual/interactive
+6. `block_onscreen_drawing`'s GPU/shader surface is tiered, not blanket-excluded — see §11's
+   table. Declaration validation always runs. Actual shader compile/link (Tier 1) was expected
+   to also work headless on the assumption that `--background` binds a real GL context; in
+   practice, on Blender 5.0 it raises "GPU functions for drawing are not available in
+   background mode" — so Tier 1 cleanly `skipTest`s under `--background` and only actually
+   executes interactively. The isolation this was built with (skip, don't fail, on any GPU
+   context error) means this was absorbed with zero code changes when reality didn't match the
+   assumption — exactly the point of that guard. Offscreen pixel-readback
+   rendering is deliberately deferred to a future, separate "visual regression" tier; anything
+   requiring a live `SpaceView3D` draw pass (draw handlers actually firing) is permanently out of
+   scope — no viewport/redraw loop exists headless, and it isn't reliably scriptable even
+   interactively. Same tiering reasoning extends to any other block's purely visual/interactive
    surface.
 7. `block_core` is mostly startup/lifecycle code, not runtime logic — its own test surface is
    necessarily small and different in character from the other blocks.
@@ -68,18 +101,39 @@ block-specific.
 ```python
 @dataclass(eq=False)
 class Unit_Test_Suite_Declaration:
-    suite_id: str                                    # unique addon-wide, e.g. "block-geometry-actions"
-    build_suite: Callable[[], "unittest.TestSuite"]   # zero-arg factory, called lazily at run time
-    label: Optional[str] = None                       # display name; defaults to suite_id
-    tags: tuple[str, ...] = field(default_factory=tuple)  # reserved for future filtering (e.g. "slow")
+    suite_id: str                                     # unique within its block
+    build_suite: Callable[[], "unittest.TestSuite"]    # zero-arg factory, called lazily at collection time
+    label: Optional[str] = None                        # display name; defaults to suite_id
+    suite_group: Optional[str] = None                  # optional 2nd grouping layer; None -> "Default"
+    cold_start_only: bool = False                      # see "Cold-start-only suites" below
 ```
+
+(`tags` from the original sketch was dropped — nothing needs slow-test filtering yet, and
+`suite_group`/`cold_start_only` cover the two real needs that emerged once the UI/data model
+was actually built. See §11 and the actual code under `core_features/unit_testing/` for the
+current, authoritative shape — this section stays close to it but isn't re-verified line for
+line on every change.)
 
 **Why a factory, not a pre-built `TestSuite`:** constructing a suite (importing the test module,
 instantiating `TestCase`s) is exactly the kind of thing that can raise — a missing optional bpy
 feature, a bad import. Deferring construction to `Wrapper_Unit_Testing.run_all()`'s own
 try/except means a broken test *module* degrades to one failed suite entry, not a hook-collection
 failure. This mirrors the `build_suite()` function that already exists in
-`block_geometry_actions/tests/test_geometry_actions.py`.
+`block_geometry_actions/unit_tests/test_geometry_actions.py`.
+
+**Cold-start-only suites:** some tests only make sense as part of a genuinely fresh, just-booted
+Blender process — e.g. asserting something about the `register()` → `init_post_bpy()` boot
+sequence itself. Re-triggering that from inside an already-running, already-registered session
+(via the panel's Run buttons) isn't safe or meaningful; the addon is already past that point. Mark
+the whole suite `cold_start_only=True` and every test in it inherits the flag onto its
+`Unit_Test_Case_Info.cold_start_only`. Consequences:
+- `Wrapper_Unit_Testing.run_all()` / `run_block_unit_tests()` / `run_group_unit_tests()` /
+  `run_one_test()` all take `include_cold_start_only: bool = False` and skip these tests unless
+  told otherwise — only `Developer/run_all_unit_tests.py` passes `True`, since every invocation
+  of it *is* a fresh process by construction. The interactive operators always use the default.
+- The panel greys out (rather than hides) the Run button for any cold-start-only test, and for a
+  group/block whose tests are *all* cold-start-only, labeling the test row `(headless only)` —
+  clicking it would either no-op or be meaningless, so it shouldn't look clickable.
 
 ---
 
@@ -253,8 +307,8 @@ class Idempotent_BPY_TestCase(unittest.TestCase):
 
 Per-block test modules keep block-specific fixture *creation* (e.g. `create_test_curve_object()`
 stays in `block_geometry_actions`), but reuse the shared sweep/base-class instead of hand-rolling
-it again in every block, as `block_pip_library_manager/tests/test_helpers.py` currently does for
-its own non-bpy fixtures.
+it again in every block, as `block_pip_library_manager/unit_tests/test_helpers.py` currently does
+for its own non-bpy fixtures.
 
 ---
 
@@ -327,7 +381,11 @@ used by the *All RTC Members* panel.
 
 ### c) Headless CLI
 
-New script — proposed location `Developer/run_all_unit_tests.py` (dev tooling, not a block):
+New script — proposed location `Developer/run_all_unit_tests.py` (dev tooling, not a block).
+Canonical target for verifying this suite is **Blender 5.0** — the addon's declared minimum
+(`bl_info.blender = (5, 0, 0)`, see `techContext.md`), chosen deliberately over whatever is
+newest on a given dev machine so a passing headless run means the floor version actually works,
+not just the newest one installed:
 
 ```python
 import pathlib, sys
@@ -386,7 +444,7 @@ Mirrors the tone of `blockAuthoringGuide.md` §10's Promotion Checklist:
       records.
 - [ ] A test that cannot be exercised without a live window/viewport/modal context should
       `self.skipTest(...)` with a clear reason rather than asserting on unavailable state —
-      `block_geometry_actions/tests/test_geometry_actions.py` already does this for
+      `block_geometry_actions/unit_tests/test_geometry_actions.py` already does this for
       Curves-object support.
 - [ ] `build_suite()` must not raise at *import* time for a reason that is really just "this
       Blender build lacks feature X" — catch that inside the test method via `skipTest`, not at
@@ -397,15 +455,20 @@ Mirrors the tone of `blockAuthoringGuide.md` §10's Promotion Checklist:
 
 ---
 
-## 10. Migrating the two existing prototypes
+## 10. Migrating the two existing prototypes — DONE
 
-- **`block_geometry_actions/tests/`** → rename folder to `unit_tests/` (no other changes needed —
-  `test_helpers.py`'s `TEST_PREFIX` sweep can optionally be rebased onto
-  `addon_helpers/testing_tools.py` later, not required). Add the `hook_get_unit_test_declarations`
-  subscriber to `__init__.py` as shown in §7 — this is the only piece that's actually new.
-- **`block_pip_library_manager/tests/`** → rename to `unit_tests/`; it currently has
-  `test_helpers.py` + `test_install_worker.py` but **no `run_tests.py` or `build_suite()`** — that
-  needs to be added (mechanical, same shape as geometry_actions') before it can plug into the hook.
+- **`block_geometry_actions/unit_tests/`** — folder renamed from `tests/`; `hook_get_unit_test_declarations`
+  added to `__init__.py`. `test_helpers.py`'s `TEST_PREFIX` sweep has not been rebased onto
+  `addon_helpers/testing_tools.py` (still not required — that shared helper module itself hasn't
+  been created yet, see §6).
+- **`block_pip_library_manager/unit_tests/`** — folder renamed from `tests/`; gained a new
+  `run_tests.py` (`build_suite()` over `Test_Pip_Library_Helpers` + `Test_Pip_Install_Worker`) and
+  `hook_get_unit_test_declarations` in `__init__.py`. Test content unchanged.
+
+Both now appear as rows in block_core's Unit Tests panel and run via `Wrapper_Unit_Testing`.
+`addon_helpers/testing_tools.py` (§6) is still not built — neither block currently needs it,
+since geometry_actions already hand-rolls its own tagged-prefix sweep and pip's tests touch no
+bpy state at all.
 
 ---
 
@@ -527,10 +590,12 @@ class Test_Listener_End_Reason_Contract(unittest.TestCase):
 No modal router is started, no real listener is registered — this exercises the ID-generation and
 snapshot dataclasses only.
 
-### `block_onscreen_drawing` — validation layer only
+### `block_onscreen_drawing` — tiered by what actually requires a viewport
 
-Per the brief, GPU rendering itself is out of scope. What *is* testable without a viewport is
-`_validate_shader_definitions()`, which already runs before any GPU state is touched:
+Three tiers, cheapest/always-safe to explicitly out of scope — rationale in §1 item 6.
+
+**Tier 0 — declaration validation.** `_validate_shader_definitions()` already runs before any
+GPU state is touched:
 
 ```python
 class Test_Shader_Declaration_Validation(unittest.TestCase):
@@ -554,9 +619,42 @@ class Test_Shader_Manager_Lookup_Before_Enable(unittest.TestCase):
         self.assertIsNone(Wrapper_Shader_Manager.get_shader("DGB_TEST_DOES_NOT_EXIST"))
 ```
 
-Nothing here enables drawing, registers a draw handler, or touches GPU batches — it stays entirely
-in the declaration-validation and RTC-lookup layer, which is the actual boundary the brief draws
-around "hard to test" vs. "fine to test."
+**Tier 1 — real shader compile/link smoke test.** The actual `gpu.types.GPUShader`/
+`GPUShaderCreateInfo` can be built from a declared custom shader's source and asserted to
+compile/link, without drawing anything. **Correction after actually running this**: the
+assumption that `--background` binds a usable GL context (stated earlier in this doc) does not
+hold on Blender 5.0 — it raises "GPU functions for drawing are not available in background
+mode." So in practice this tier only executes interactively; under `--background` it always
+hits the `skipTest` branch below and the suite still reports OK. Kept as designed rather than
+removed, since it's real coverage the moment someone runs the suite from the Python console:
+
+```python
+class Test_Shader_Compiles(unittest.TestCase):
+    def test_every_declared_custom_shader_compiles(self):
+        for decl in _get_all_declared_shaders():
+            if decl.custom_shader_class is None:
+                continue   # builtins are Blender's own responsibility, not ours to compile-test
+            with self.subTest(shader_uid=decl.shader_uid):
+                try:
+                    shader = gpu.types.GPUShader(
+                        decl.custom_shader_class.vertex_source,
+                        decl.custom_shader_class.fragment_source,
+                    )
+                except Exception as e:
+                    self.skipTest(f"No usable GPU context on this runner: {e}")
+                    return
+                self.assertIsNotNone(shader)
+```
+
+Nothing here enables drawing, registers a draw handler, or touches a GPU batch/framebuffer — it
+stops at "does this GLSL compile," one layer below actual rendering.
+
+**Out of scope, permanently:** anything requiring a live `SpaceView3D` draw pass — draw handler
+registration actually firing, per-frame draw callbacks, real projection/view matrices from an
+active window. No redraw loop exists headless, and it isn't reliably scriptable even
+interactively. Offscreen render + pixel-readback (`GPUOffScreen`) is *technically* possible
+headless too, but is deliberately deferred to a future, separate "visual regression" tier outside
+`unit_tests/` — not part of this pass.
 
 ### `block_pip_library_manager`
 

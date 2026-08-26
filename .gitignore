@@ -12,6 +12,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Unit test JSON output (Developer/run_all_unit_tests_multi.py)
+Developer/.unit_test_results/
+
 # C extensions
 *.so
 
