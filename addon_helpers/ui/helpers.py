@@ -113,7 +113,7 @@ def format_timestamp_for_ui(timestamp) -> str:
     if not timestamp:
         return "Never"
     dt = datetime.fromtimestamp(timestamp)
-    return f"{dt.strftime('%H:%M:%S')}.{int((timestamp % 1) * 1_000_000):06d}"
+    return dt.strftime('%H:%M:%S')
 
 def ui_draw_generic_instance_data(context, layout, instance, structure: dict):
     scene = context.scene

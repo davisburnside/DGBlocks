@@ -33,12 +33,18 @@ def hook_post_startup():
 
 
 def hook_get_unit_test_declarations():
-    from .unit_tests.run_tests import build_suite
-    return [Unit_Test_Suite_Declaration(
-        suite_id = _BLOCK_DECLARATION.block_id,
-        build_suite = build_suite,
-        label = "Pip Library Manager",
-    )]
+    from .unit_tests.run_tests import (
+        build_suite_architecture,
+        build_suite_helpers,
+        build_suite_install_worker,
+        build_suite_security,
+    )
+    return [
+        Unit_Test_Suite_Declaration(suite_id="security", build_suite=build_suite_security, label="Security", suite_group="Security"),
+        Unit_Test_Suite_Declaration(suite_id="helpers", build_suite=build_suite_helpers, label="Requirement Helpers", suite_group="Helpers"),
+        Unit_Test_Suite_Declaration(suite_id="architecture", build_suite=build_suite_architecture, label="Architecture", suite_group="Architecture"),
+        Unit_Test_Suite_Declaration(suite_id="install-worker", build_suite=build_suite_install_worker, label="Install Worker", suite_group="Install Worker"),
+    ]
 
 
 class DGBLOCKS_PG_Pip_Library_Status_Row(bpy.types.PropertyGroup):

@@ -15,7 +15,7 @@ from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 
 # Intra-block imports
 from .common_declarations import Block_Hook_Sources, Block_Loggers, Block_RTC_Members
-from .data_structures import App_Handler_Subscription_Declaration, RTC_App_Handler_Status_Instance
+from .data_structures import App_Handler_Subscription_Declaration, App_Handler_Type, RTC_App_Handler_Status_Instance
 from .handler_callbacks import install_handler, uninstall_handler, uninstall_all_handlers
 
 
@@ -29,10 +29,12 @@ def merge_handler_subscriptions(raw_results: dict, logger=None) -> dict:
     MINIMUM frequency_filter_seconds across all subscriptions wins, so no subscriber is
     starved of events it requested.
 
-    A misbehaving block (non-list return, or a list containing something other than an
-    App_Handler_Subscription_Declaration) has that one entry skipped with a warning — never
-    raises, so one broken block can't break polling for every other block. Pulled out of
-    Wrapper_App_Handlers.repoll() so it's testable without touching bpy.app.handlers at all.
+    A misbehaving block (non-list return, a list containing something other than an
+    App_Handler_Subscription_Declaration, a handler_type that isn't a real App_Handler_Type
+    member, or a negative/non-numeric frequency_filter_seconds) has that one entry skipped
+    with a warning — never raises, so one broken block can't break polling for every other
+    block. Pulled out of Wrapper_App_Handlers.repoll() so it's testable without touching
+    bpy.app.handlers at all.
     """
     merged: dict = {}
     for block_id, result in raw_results.items():
@@ -49,6 +51,21 @@ def merge_handler_subscriptions(raw_results: dict, logger=None) -> dict:
                     logger.warning(
                         f"repoll: block '{block_id}' returned "
                         f"non-App_Handler_Subscription_Declaration item — skipping"
+                    )
+                continue
+            if not isinstance(item.handler_type, App_Handler_Type):
+                if logger:
+                    logger.warning(
+                        f"repoll: block '{block_id}' subscribed with handler_type "
+                        f"{item.handler_type!r}, not a real App_Handler_Type member — skipping"
+                    )
+                continue
+            freq = item.frequency_filter_seconds
+            if isinstance(freq, bool) or not isinstance(freq, (int, float)) or freq < 0:
+                if logger:
+                    logger.warning(
+                        f"repoll: block '{block_id}' subscribed to '{item.handler_type.name}' with "
+                        f"invalid frequency_filter_seconds={freq!r} (must be a number >= 0) — skipping"
                     )
                 continue
             type_name = item.handler_type.name

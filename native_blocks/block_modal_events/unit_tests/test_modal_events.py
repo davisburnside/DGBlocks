@@ -41,6 +41,46 @@ class Test_Validate_Listener_Definitions(unittest.TestCase):
         defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event)]}
         validate_listener_definitions(defs_by_block)  # must not raise
 
+    def test_before_modal_start_must_be_callable_when_provided(self):
+        """A non-callable before_modal_start (not None) must be rejected."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event, before_modal_start="not_callable")]}
+        with self.assertRaises(ValueError):
+            validate_listener_definitions(defs_by_block)
+
+    def test_before_modal_end_must_be_callable_when_provided(self):
+        """A non-callable before_modal_end (not None) must be rejected."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event, before_modal_end="not_callable")]}
+        with self.assertRaises(ValueError):
+            validate_listener_definitions(defs_by_block)
+
+    def test_none_before_modal_hooks_are_allowed(self):
+        """Leaving before_modal_start/end at their default None must be valid — they're optional."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event)]}
+        validate_listener_definitions(defs_by_block)  # must not raise
+
+    def test_non_int_priority_is_rejected(self):
+        """A non-int priority must be rejected — it drives dispatch ordering."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event, priority="high")]}
+        with self.assertRaises(ValueError):
+            validate_listener_definitions(defs_by_block)
+
+    def test_bool_priority_is_rejected(self):
+        """A bool priority must be rejected even though bool is technically an int subclass in Python."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event, priority=True)]}
+        with self.assertRaises(ValueError):
+            validate_listener_definitions(defs_by_block)
+
+    def test_bare_string_workspace_tool_ids_is_rejected(self):
+        """A bare string for workspace_tool_ids must be rejected — it would iterate as characters elsewhere."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event, workspace_tool_ids="my.tool")]}
+        with self.assertRaises(ValueError):
+            validate_listener_definitions(defs_by_block)
+
+    def test_tuple_workspace_tool_ids_is_accepted(self):
+        """A proper tuple of tool ids for workspace_tool_ids must be accepted."""
+        defs_by_block = {"block-a": [Modal_Listener_Definition(on_event=_noop_on_event, workspace_tool_ids=("my.tool",))]}
+        validate_listener_definitions(defs_by_block)  # must not raise
+
     def test_empty_dict_passes(self):
         """No blocks subscribing at all is trivially valid."""
         validate_listener_definitions({})  # must not raise

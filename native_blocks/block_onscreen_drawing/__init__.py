@@ -72,12 +72,12 @@ def hook_post_startup():
 
 
 def hook_get_unit_test_declarations():
-    from .unit_tests.run_tests import build_suite
-    return [Unit_Test_Suite_Declaration(
-        suite_id = _BLOCK_DECLARATION.block_id,
-        build_suite = build_suite,
-        label = "Onscreen Drawing",
-    )]
+    from .unit_tests.run_tests import build_suite_geometry_math, build_suite_shader_creation, build_suite_shader_validation
+    return [
+        Unit_Test_Suite_Declaration(suite_id="shader-validation", build_suite=build_suite_shader_validation, label="Shader Validation", suite_group="Shader Validation"),
+        Unit_Test_Suite_Declaration(suite_id="shader-creation", build_suite=build_suite_shader_creation, label="Shader Creation", suite_group="Shader Creation"),
+        Unit_Test_Suite_Declaration(suite_id="geometry-math", build_suite=build_suite_geometry_math, label="Geometry Math", suite_group="Geometry Math"),
+    ]
 
 # ==============================================================================================================================
 # UI

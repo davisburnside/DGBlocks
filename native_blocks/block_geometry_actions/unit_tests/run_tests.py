@@ -40,11 +40,51 @@ def _ensure_test_runtime() -> None:
             )
 
 
+def _group_suite(*test_case_names: str) -> unittest.TestSuite:
+    from . import test_geometry_actions as module
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    for name in test_case_names:
+        suite.addTests(loader.loadTestsFromTestCase(getattr(module, name)))
+    return suite
+
+
+def build_suite_reads() -> unittest.TestSuite:
+    _ensure_test_runtime()
+    return _group_suite("Test_Mesh_Reads")
+
+
+def build_suite_callbacks_and_writes() -> unittest.TestSuite:
+    _ensure_test_runtime()
+    return _group_suite("Test_Callbacks_And_Writes")
+
+
+def build_suite_storage_and_grouping() -> unittest.TestSuite:
+    _ensure_test_runtime()
+    return _group_suite("Test_Storage_And_Grouping")
+
+
+def build_suite_curves() -> unittest.TestSuite:
+    _ensure_test_runtime()
+    return _group_suite("Test_Curves")
+
+
+def build_suite_serialization() -> unittest.TestSuite:
+    _ensure_test_runtime()
+    return _group_suite("Test_Serialization")
+
+
+def build_suite() -> unittest.TestSuite:
+    """Combined suite — every group together (delegates to test_geometry_actions' own
+    build_suite(), the single place that list of classes is maintained). Used by run()/the
+    headless __main__ entrypoint below."""
+    from .test_geometry_actions import build_suite as build_all
+    _ensure_test_runtime()
+    return build_all()
+
+
 def run(verbosity: int = 2) -> bool:
     """Run the suite. Returns True when everything passed."""
-    from .test_geometry_actions import build_suite
-
-    _ensure_test_runtime()
     result = unittest.TextTestRunner(verbosity=verbosity).run(build_suite())
     return result.wasSuccessful()
 

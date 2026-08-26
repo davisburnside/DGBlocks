@@ -15,7 +15,7 @@ from ...native_blocks.block_core.core_features.loggers.feature_wrapper import ge
 from ..block_core.core_features.hooks.feature_wrapper import Wrapper_Hooks
 from ...native_blocks.block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
 from ..block_timers.feature_timer_manager import Wrapper_Timer_Manager
-from .BL_drawing_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES
+from .BL_drawing_structures import _BUILTIN_SHADER_COMPATIBLE_TYPES, Draw_Phase_type, Draw_Region_Type, Draw_Space_Types
 from .animations.engine import suppress_timer_rebuilds
 
 # Intra-block imports
@@ -81,6 +81,19 @@ def _validate_shader_definitions(shader_defs: list) -> None:
     rather than crashing — no allowlist needed here.
     """
     assert_unique_by_key(shader_defs, lambda sdef: sdef.shader_uid, "shader uid")
+
+    # --- space/region/phase must actually be the declared enum types ---
+    # (the (space, region, phase) *combination* allowlist was tried and dropped — see the
+    # docstring above — but each field individually must still be a real, known enum member;
+    # a stray raw string here would otherwise only surface as a confusing failure much later,
+    # when grouping shaders by (space, region, phase) or registering the draw handler.)
+    for sdef in shader_defs:
+        if not isinstance(sdef.space, Draw_Space_Types):
+            raise ValueError(f"Shader '{sdef.shader_uid}': space must be a Draw_Space_Types member, got {sdef.space!r}")
+        if not isinstance(sdef.region, Draw_Region_Type):
+            raise ValueError(f"Shader '{sdef.shader_uid}': region must be a Draw_Region_Type member, got {sdef.region!r}")
+        if not isinstance(sdef.phase, Draw_Phase_type):
+            raise ValueError(f"Shader '{sdef.shader_uid}': phase must be a Draw_Phase_type member, got {sdef.phase!r}")
 
     # --- builtin vs custom mutual-exclusion check ---
     for sdef in shader_defs:

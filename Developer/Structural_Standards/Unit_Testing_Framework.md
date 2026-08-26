@@ -1,13 +1,37 @@
 # DGBlocks — Unit Testing Framework (Design)
 
-> Status: **Engine + UI implemented, all seven blocks wired in.** `core_features/unit_testing/`
-> (FWC, RTC/BL data model, hook, operators, panel) plus a `hook_get_unit_test_declarations`
-> subscriber and `unit_tests/` folder in every block that has one: `block_core` (25 tests —
-> registry/hook invariants, the `data_sync_tools` diff algorithm, the unit-testing engine
-> testing itself), `block_timers` (6), `block_app_handlers` (7), `block_modal_events` (16),
-> `block_onscreen_drawing` (16), `block_geometry_actions` (17), `block_pip_library_manager`
-> (12) — 99 tests total, 98 passed / 1 skipped (the GPU compile test, see §11 — genuinely can't
-> run under `--background`). `block_debug_console_print` stays excluded per the original brief.
+> Status: **Engine + UI implemented, all seven blocks wired in, most subgrouped.**
+> `core_features/unit_testing/` (FWC, RTC/BL data model, hook, operators, panel — including the
+> `[?]` docstring popup, auto-sized/wrapped to the actual text via `blf`) plus a
+> `hook_get_unit_test_declarations` subscriber and `unit_tests/` folder in every block that has
+> one, most now returning several `Unit_Test_Suite_Declaration`s (one per `suite_group`) instead
+> of one lumped suite: `block_core` (30 tests — Data Sync / Registry / Self-Test),
+> `block_onscreen_drawing` (19 — Shader Validation / Shader Creation / Geometry Math),
+> `block_modal_events` (23 — Modal Lifecycle / Event Classification / Workspace Tools),
+> `block_pip_library_manager` (14 — Security / Helpers / Architecture / Install Worker),
+> `block_geometry_actions` (17 — Reads / Callbacks & Writes / Storage & Grouping / Curves /
+> Serialization). `block_timers` (9) and `block_app_handlers` (12) stay single-group — too few
+> tests for subgrouping to earn its keep. 124 tests total, 123 passed / 1 skipped (the GPU
+> compile test, see §11 — genuinely can't run under `--background`). `block_debug_console_print`
+> stays excluded per the original brief.
+>
+> Also done: a real validation-hardening pass across every block that collects declarations via
+> a hook, not just its tests — `block_timers` (timer_uid must be str, frequency must be a
+> non-bool number), `block_app_handlers` (handler_type must be a real `App_Handler_Type` member,
+> frequency_filter_seconds must be a non-negative non-bool number), `block_modal_events`
+> (`before_modal_start`/`before_modal_end` must be callable when provided, `priority` must be a
+> non-bool int, `workspace_tool_ids` must be a tuple/list not a bare string),
+> `block_onscreen_drawing` (`space`/`region`/`phase` must actually be their declared enum types),
+> `block_pip_library_manager` (a real bug: two requirements from the same block sharing a
+> `requirement_uid` were silently overwriting each other in `repoll()`'s dict-keyed-by-uid
+> construction — now rejected via the new `reject_duplicate_requirement_uids()`), and
+> `Wrapper_Unit_Testing` applying the same standard to its own `Unit_Test_Suite_Declaration`
+> input (`_validate_suite_declarations`: non-empty `suite_id`, callable `build_suite`, no
+> duplicate `suite_id` within a block). `block_geometry_actions` was deliberately left alone —
+> its declarations are direct first-party function-call arguments, not hook-collected from
+> arbitrary blocks, and its established philosophy is "never raise, record failures in the
+> result" rather than reject upfront; retrofitting raise-on-invalid there would fight that
+> existing design rather than extend it.
 > The UI/data model described below (master UIList of blocks + per-test detail rows + optional
 > subgroup subpanels, with a `last_run_at` at every one of the four scope levels — all/block/
 > group/test, plus `cold_start_only` for suites that only make sense in a fresh process)

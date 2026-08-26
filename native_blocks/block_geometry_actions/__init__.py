@@ -29,12 +29,20 @@ from .helpers_actions import get_all_results, get_result_by_key, result_payload_
 from .ui import ui_draw_geometry_action_results
 
 def hook_get_unit_test_declarations():
-    from .unit_tests.test_geometry_actions import build_suite
-    return [Unit_Test_Suite_Declaration(
-        suite_id = _BLOCK_DECLARATION.block_id,
-        build_suite = build_suite,
-        label = "Geometry Actions",
-    )]
+    from .unit_tests.run_tests import (
+        build_suite_callbacks_and_writes,
+        build_suite_curves,
+        build_suite_reads,
+        build_suite_serialization,
+        build_suite_storage_and_grouping,
+    )
+    return [
+        Unit_Test_Suite_Declaration(suite_id="reads", build_suite=build_suite_reads, label="Reads", suite_group="Reads"),
+        Unit_Test_Suite_Declaration(suite_id="callbacks-and-writes", build_suite=build_suite_callbacks_and_writes, label="Callbacks & Writes", suite_group="Callbacks & Writes"),
+        Unit_Test_Suite_Declaration(suite_id="storage-and-grouping", build_suite=build_suite_storage_and_grouping, label="Storage & Grouping", suite_group="Storage & Grouping"),
+        Unit_Test_Suite_Declaration(suite_id="curves", build_suite=build_suite_curves, label="Curves", suite_group="Curves"),
+        Unit_Test_Suite_Declaration(suite_id="serialization", build_suite=build_suite_serialization, label="Serialization", suite_group="Serialization"),
+    ]
 
 
 # ==============================================================================================================================

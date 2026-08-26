@@ -24,14 +24,43 @@ file operations and pure dataclass/function checks only), so no RTC pre-seeding 
 import unittest
 
 
-def build_suite() -> unittest.TestSuite:
-    from .test_helpers import Test_Pip_Library_Helpers
-    from .test_install_worker import Test_Pip_Install_Worker
-
+def build_suite_security() -> unittest.TestSuite:
+    from .test_helpers import Test_Security_Validation
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
-    for test_case in (Test_Pip_Library_Helpers, Test_Pip_Install_Worker):
-        suite.addTests(loader.loadTestsFromTestCase(test_case))
+    suite.addTests(loader.loadTestsFromTestCase(Test_Security_Validation))
+    return suite
+
+
+def build_suite_helpers() -> unittest.TestSuite:
+    from .test_helpers import Test_Requirement_Helpers
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(Test_Requirement_Helpers))
+    return suite
+
+
+def build_suite_architecture() -> unittest.TestSuite:
+    from .test_helpers import Test_Architecture_Invariants
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(Test_Architecture_Invariants))
+    return suite
+
+
+def build_suite_install_worker() -> unittest.TestSuite:
+    from .test_install_worker import Test_Pip_Install_Worker
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(Test_Pip_Install_Worker))
+    return suite
+
+
+def build_suite() -> unittest.TestSuite:
+    """Combined suite — every group together. Used by run()/the headless __main__ entrypoint below."""
+    suite = unittest.TestSuite()
+    for sub_build in (build_suite_security, build_suite_helpers, build_suite_architecture, build_suite_install_worker):
+        suite.addTests(sub_build())
     return suite
 
 

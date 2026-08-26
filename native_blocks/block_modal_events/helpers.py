@@ -108,6 +108,12 @@ def validate_listener_definitions(defs_by_block: dict) -> None:
 
       - At most one definition per block (the listener is keyed by src_block_id).
       - on_event must be callable.
+      - before_modal_start / before_modal_end must be callable when provided (optional, so
+        None is fine — but anything else, e.g. a truthy non-callable left over from a typo,
+        would otherwise only fail much later, when the router actually tries to call it).
+      - priority must be an int — it drives dispatch ordering.
+      - workspace_tool_ids must be a tuple/list, not a bare string. A bare string is a classic
+        footgun here: iterating "my.tool" elsewhere yields characters, not one tool id.
     """
     for block_id, defs in defs_by_block.items():
         if len(defs) > 1:
@@ -120,6 +126,24 @@ def validate_listener_definitions(defs_by_block: dict) -> None:
                 raise ValueError(
                     f"Block '{block_id}': Modal_Listener_Definition.on_event must be callable, "
                     f"got {type(d.on_event)}."
+                )
+            for field_name in ("before_modal_start", "before_modal_end"):
+                value = getattr(d, field_name)
+                if value is not None and not callable(value):
+                    raise ValueError(
+                        f"Block '{block_id}': Modal_Listener_Definition.{field_name} must be "
+                        f"callable or None, got {type(value)}."
+                    )
+            if not isinstance(d.priority, int) or isinstance(d.priority, bool):
+                raise ValueError(
+                    f"Block '{block_id}': Modal_Listener_Definition.priority must be an int, "
+                    f"got {type(d.priority)}."
+                )
+            if isinstance(d.workspace_tool_ids, str) or not isinstance(d.workspace_tool_ids, (tuple, list)):
+                raise ValueError(
+                    f"Block '{block_id}': Modal_Listener_Definition.workspace_tool_ids must be a "
+                    f"tuple/list of tool ids, not {type(d.workspace_tool_ids)} — a bare string would "
+                    f"iterate as individual characters."
                 )
 
 # ==============================================================================================================================

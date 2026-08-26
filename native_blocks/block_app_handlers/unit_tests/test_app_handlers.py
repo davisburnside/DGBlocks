@@ -50,6 +50,35 @@ class Test_Merge_Handler_Subscriptions(unittest.TestCase):
         """No subscribers at all merges to an empty dict."""
         self.assertEqual(merge_handler_subscriptions({}), {})
 
+    def test_invalid_handler_type_is_skipped_not_raised(self):
+        """A handler_type that isn't a real App_Handler_Type member is skipped, never raises."""
+        # A plausible-looking string in place of the actual enum member — dataclasses don't
+        # enforce their own type hints at runtime, so this constructs without error.
+        bad = App_Handler_Subscription_Declaration(handler_type="save_pre", frequency_filter_seconds=0.0)
+        merged = merge_handler_subscriptions({"block-a": [bad]})
+        self.assertEqual(merged, {})
+
+    def test_negative_frequency_is_skipped_not_raised(self):
+        """A negative frequency_filter_seconds is nonsensical and must be skipped, never raised."""
+        raw = {"block-a": [App_Handler_Subscription_Declaration(App_Handler_Type.save_pre, -1.0)]}
+        self.assertEqual(merge_handler_subscriptions(raw), {})
+
+    def test_non_numeric_frequency_is_skipped_not_raised(self):
+        """A non-numeric frequency_filter_seconds must be skipped, never raised or silently coerced."""
+        raw = {"block-a": [App_Handler_Subscription_Declaration(App_Handler_Type.save_pre, "fast")]}
+        self.assertEqual(merge_handler_subscriptions(raw), {})
+
+    def test_bool_frequency_is_skipped_not_raised(self):
+        """A bool frequency_filter_seconds must be rejected even though bool is an int subclass in Python."""
+        raw = {"block-a": [App_Handler_Subscription_Declaration(App_Handler_Type.save_pre, True)]}
+        self.assertEqual(merge_handler_subscriptions(raw), {})
+
+    def test_zero_frequency_is_accepted(self):
+        """A frequency of exactly 0.0 (no rate limit) is valid and must be accepted."""
+        raw = {"block-a": [App_Handler_Subscription_Declaration(App_Handler_Type.save_pre, 0.0)]}
+        merged = merge_handler_subscriptions(raw)
+        self.assertEqual(merged["save_pre"]["min_freq"], 0.0)
+
 
 class Test_RTC_App_Handler_Status_Instance_Defaults(unittest.TestCase):
     def test_new_instance_starts_unregistered_and_enabled(self):

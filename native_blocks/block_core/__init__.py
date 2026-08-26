@@ -34,12 +34,12 @@ def hook_debug_uilayout_draw_console_print_settings(ui_container: bpy.types.UILa
 
 
 def hook_get_unit_test_declarations():
-    from .unit_tests.run_tests import build_suite
-    return [Unit_Test_Suite_Declaration(
-        suite_id = core_block_id,
-        build_suite = build_suite,
-        label = "Block Core",
-    )]
+    from .unit_tests.run_tests import build_suite_data_sync, build_suite_registry, build_suite_self_test
+    return [
+        Unit_Test_Suite_Declaration(suite_id="data-sync", build_suite=build_suite_data_sync, label="Data Sync", suite_group="Data Sync"),
+        Unit_Test_Suite_Declaration(suite_id="registry", build_suite=build_suite_registry, label="Registry", suite_group="Registry"),
+        Unit_Test_Suite_Declaration(suite_id="self-test", build_suite=build_suite_self_test, label="Self-Test", suite_group="Self-Test"),
+    ]
 
 # BLOCK DEFINITION
 # Only bpy.types.* classes should be registered

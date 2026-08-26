@@ -27,6 +27,11 @@ def validate_timer_definitions(timer_defs: list) -> None:
     Raises ValueError with a descriptive message if any check fails.
     All checks complete before any bpy or RTC state is mutated.
     """
+    # --- timer_uid must be a string ---
+    for tdef in timer_defs:
+        if not isinstance(tdef.timer_uid, str):
+            raise ValueError(f"Timer_Definition.timer_uid must be a string, got {type(tdef.timer_uid)}.")
+
     # --- duplicate non-blank uid check ---
     seen_uids: set = set()
     for tdef in timer_defs:
@@ -39,10 +44,14 @@ def validate_timer_definitions(timer_defs: list) -> None:
             )
         seen_uids.add(tdef.timer_uid)
 
-    # --- frequency > 0 check ---
+    # --- frequency must be a positive, non-bool number ---
     for tdef in timer_defs:
+        uid_label = tdef.timer_uid if tdef.timer_uid else "<blank>"
+        if isinstance(tdef.frequency, bool) or not isinstance(tdef.frequency, (int, float)):
+            raise ValueError(
+                f"Timer '{uid_label}': frequency must be a number, got {type(tdef.frequency)}."
+            )
         if tdef.frequency <= 0:
-            uid_label = tdef.timer_uid if tdef.timer_uid else "<blank>"
             raise ValueError(
                 f"Timer '{uid_label}': frequency must be > 0, got {tdef.frequency}."
             )

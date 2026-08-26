@@ -11,12 +11,13 @@ functions underneath that engine: suite_group defaulting and unittest-result-to-
 import time
 import unittest
 
+from ....addon_helpers.data_structures import Unit_Test_Suite_Declaration
 from ..core_features.unit_testing.data_structures import (
     DEFAULT_SUITE_GROUP_LABEL,
     Unit_Test_Case_Info,
     Unit_Test_Status,
 )
-from ..core_features.unit_testing.helpers import _resolve_suite_group, apply_result_to_catalog
+from ..core_features.unit_testing.helpers import _resolve_suite_group, _validate_suite_declarations, apply_result_to_catalog
 
 
 class _Fake_Declaration:
@@ -36,6 +37,43 @@ class Test_Suite_Group_Defaulting(unittest.TestCase):
     def test_custom_group_is_preserved(self):
         """A declaration with a real suite_group value must keep that exact label."""
         self.assertEqual(_resolve_suite_group(_Fake_Declaration("Validation")), "Validation")
+
+
+def _dummy_build_suite():
+    return unittest.TestSuite()
+
+
+class Test_Validate_Suite_Declarations(unittest.TestCase):
+    def test_valid_declarations_pass(self):
+        """A well-formed list of declarations with distinct suite_ids must pass validation."""
+        decls = [
+            Unit_Test_Suite_Declaration(suite_id="a", build_suite=_dummy_build_suite),
+            Unit_Test_Suite_Declaration(suite_id="b", build_suite=_dummy_build_suite),
+        ]
+        _validate_suite_declarations(decls)  # must not raise
+
+    def test_duplicate_suite_id_within_a_block_is_rejected(self):
+        """Two declarations from the same block sharing a suite_id must be rejected, not silently overwritten."""
+        decls = [
+            Unit_Test_Suite_Declaration(suite_id="dup", build_suite=_dummy_build_suite),
+            Unit_Test_Suite_Declaration(suite_id="dup", build_suite=_dummy_build_suite),
+        ]
+        with self.assertRaises(ValueError):
+            _validate_suite_declarations(decls)
+
+    def test_blank_suite_id_is_rejected(self):
+        """An empty or whitespace-only suite_id must be rejected."""
+        with self.assertRaises(ValueError):
+            _validate_suite_declarations([Unit_Test_Suite_Declaration(suite_id="  ", build_suite=_dummy_build_suite)])
+
+    def test_non_callable_build_suite_is_rejected(self):
+        """A build_suite that isn't callable must be rejected before it's ever invoked."""
+        with self.assertRaises(ValueError):
+            _validate_suite_declarations([Unit_Test_Suite_Declaration(suite_id="a", build_suite="not_callable")])
+
+    def test_empty_list_passes(self):
+        """A block declaring no suites at all is trivially valid."""
+        _validate_suite_declarations([])  # must not raise
 
 
 class _Fake_Test:
@@ -119,6 +157,6 @@ class Test_Apply_Result_To_Catalog(unittest.TestCase):
 def build_suite() -> unittest.TestSuite:
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
-    for test_case in (Test_Suite_Group_Defaulting, Test_Apply_Result_To_Catalog):
+    for test_case in (Test_Suite_Group_Defaulting, Test_Validate_Suite_Declarations, Test_Apply_Result_To_Catalog):
         suite.addTests(loader.loadTestsFromTestCase(test_case))
     return suite

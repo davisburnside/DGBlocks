@@ -39,6 +39,21 @@ class Test_Timer_Definition_Validation(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_timer_definitions([Timer_Definition("T", -1.0, _noop)])
 
+    def test_non_numeric_frequency_is_rejected(self):
+        """A non-numeric frequency must be rejected with a clear message, not an obscure TypeError from '<='."""
+        with self.assertRaises(ValueError):
+            validate_timer_definitions([Timer_Definition("T", "fast", _noop)])
+
+    def test_bool_frequency_is_rejected(self):
+        """A bool frequency must be rejected even though bool is technically an int subclass in Python."""
+        with self.assertRaises(ValueError):
+            validate_timer_definitions([Timer_Definition("T", True, _noop)])
+
+    def test_non_string_uid_is_rejected(self):
+        """A non-string timer_uid must be rejected — downstream code assumes str throughout."""
+        with self.assertRaises(ValueError):
+            validate_timer_definitions([Timer_Definition(123, 1.0, _noop)])
+
     def test_non_callable_callback_is_rejected(self):
         """A Timer_Definition whose callback is not callable must be rejected."""
         with self.assertRaises(ValueError):

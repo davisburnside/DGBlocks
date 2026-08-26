@@ -93,12 +93,12 @@ def hook_before_blocks_reload():
 
 
 def hook_get_unit_test_declarations():
-    from .unit_tests.run_tests import build_suite
-    return [Unit_Test_Suite_Declaration(
-        suite_id = _BLOCK_DECLARATION.block_id,
-        build_suite = build_suite,
-        label = "Modal Events",
-    )]
+    from .unit_tests.run_tests import build_suite_event_classification, build_suite_modal_lifecycle, build_suite_workspace_tools
+    return [
+        Unit_Test_Suite_Declaration(suite_id="modal-lifecycle", build_suite=build_suite_modal_lifecycle, label="Modal Lifecycle", suite_group="Modal Lifecycle"),
+        Unit_Test_Suite_Declaration(suite_id="event-classification", build_suite=build_suite_event_classification, label="Event Classification", suite_group="Event Classification"),
+        Unit_Test_Suite_Declaration(suite_id="workspace-tools", build_suite=build_suite_workspace_tools, label="Workspace Tools", suite_group="Workspace Tools"),
+    ]
 
 # ==============================================================================================================================
 # UI

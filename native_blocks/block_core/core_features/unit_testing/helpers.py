@@ -7,6 +7,7 @@ from typing import Optional
 
 # Addon-level imports
 from .....addon_helpers.generic_tools import get_exception_last_n_lines
+from .....addon_helpers.data_tools import assert_unique_by_key
 
 # Inter-block (within block_core) imports
 from ..hooks.feature_wrapper import Wrapper_Hooks
@@ -59,6 +60,23 @@ def _resolve_suite_group(declaration) -> str:
     return declaration.suite_group if declaration.suite_group else DEFAULT_SUITE_GROUP_LABEL
 
 
+def _validate_suite_declarations(declarations: list) -> None:
+    """
+    Validate a block's own list of Unit_Test_Suite_Declaration before trusting any of it —
+    the same thoroughness this framework expects every OTHER block to apply to its own
+    hook-collected declarations (see block_onscreen_drawing._validate_shader_definitions),
+    applied here to this framework's own declaration type.
+    """
+    for declaration in declarations:
+        if not isinstance(declaration.suite_id, str) or not declaration.suite_id.strip():
+            raise ValueError(
+                f"Unit_Test_Suite_Declaration.suite_id must be a non-empty string, got {declaration.suite_id!r}"
+            )
+        if not callable(declaration.build_suite):
+            raise ValueError(f"Unit_Test_Suite_Declaration '{declaration.suite_id}'.build_suite must be callable")
+    assert_unique_by_key(declarations, lambda d: d.suite_id, "suite_id")
+
+
 def collect_declarations_and_catalog(logger) -> tuple:
     """
     Fires hook_get_unit_test_declarations, builds every returned suite, and flattens the
@@ -83,8 +101,16 @@ def collect_declarations_and_catalog(logger) -> tuple:
     for block_id, declarations in declarations_by_block.items():
         collection_error = None
         seen_groups = []
+        declarations = declarations or []
 
-        for declaration in (declarations or []):
+        try:
+            _validate_suite_declarations(declarations)
+        except Exception as e:
+            logger.error(f"Unit test declarations from block '{block_id}' failed validation", exc_info=True)
+            collection_error = get_exception_last_n_lines(2, e)
+            declarations = []  # a malformed declaration list can't be partially trusted
+
+        for declaration in declarations:
             suite_group = _resolve_suite_group(declaration)
             if suite_group not in seen_groups:
                 seen_groups.append(suite_group)

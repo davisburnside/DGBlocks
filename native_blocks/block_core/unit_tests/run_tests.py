@@ -17,13 +17,25 @@ block subscribes through hook_get_unit_test_declarations) — this file remains 
 import unittest
 
 
-def build_suite() -> unittest.TestSuite:
-    from .test_block_core_invariants import build_suite as build_invariants_suite
-    from .test_data_sync_tools import build_suite as build_data_sync_suite
-    from .test_unit_testing_engine import build_suite as build_engine_suite
+def build_suite_data_sync() -> unittest.TestSuite:
+    from .test_data_sync_tools import build_suite
+    return build_suite()
 
+
+def build_suite_registry() -> unittest.TestSuite:
+    from .test_block_core_invariants import build_suite
+    return build_suite()
+
+
+def build_suite_self_test() -> unittest.TestSuite:
+    from .test_unit_testing_engine import build_suite
+    return build_suite()
+
+
+def build_suite() -> unittest.TestSuite:
+    """Combined suite — every group together. Used by run()/the headless __main__ entrypoint below."""
     suite = unittest.TestSuite()
-    for sub_build in (build_invariants_suite, build_data_sync_suite, build_engine_suite):
+    for sub_build in (build_suite_data_sync, build_suite_registry, build_suite_self_test):
         suite.addTests(sub_build())
     return suite
 

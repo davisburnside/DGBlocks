@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from ...addon_config.static_settings import addon_python_environment_id
+from ...addon_helpers.data_tools import assert_unique_by_key
 from .data_structures import Library_Source_Policy, Python_Library_Requirement_Declaration
 
 
@@ -91,6 +92,24 @@ def discover_distributions(search_path: Path) -> dict[str, tuple[str, str]]:
             root = str(search_path)
         found[normalize_distribution_name(name)] = (distribution.version, root)
     return found
+
+
+def reject_duplicate_requirement_uids(block_id: str, declarations: list, logger) -> list:
+    """
+    A single block's own requirement_uids must be unique within that block (uids are later
+    namespaced as "{block_id}:{requirement_uid}", so cross-block collisions are fine by
+    design — this only guards within one block's own list). Without this check, repoll()'s
+    dict-keyed-by-namespaced-uid construction would let a second declaration with the same uid
+    silently overwrite the first with no error and no trace — a real install request just
+    vanishes. Degrades to skipping this block's requirements for the current poll (logged),
+    rather than guessing which of the colliding declarations was "meant".
+    """
+    try:
+        assert_unique_by_key(declarations, lambda d: d.requirement_uid, "requirement_uid")
+    except ValueError as exc:
+        logger.error(f"Block '{block_id}' declared requirements with a duplicate uid: {exc}")
+        return []
+    return declarations
 
 
 def validate_requirement(declaration: Python_Library_Requirement_Declaration) -> None:

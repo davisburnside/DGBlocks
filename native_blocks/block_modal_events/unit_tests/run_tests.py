@@ -17,9 +17,37 @@ block subscribes through hook_get_unit_test_declarations) — this file remains 
 import unittest
 
 
+def build_suite_modal_lifecycle() -> unittest.TestSuite:
+    from .test_modal_events import Test_Listener_End_Info_Snapshot, Test_Validate_Listener_Definitions
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    for test_case in (Test_Validate_Listener_Definitions, Test_Listener_End_Info_Snapshot):
+        suite.addTests(loader.loadTestsFromTestCase(test_case))
+    return suite
+
+
+def build_suite_event_classification() -> unittest.TestSuite:
+    from .test_modal_events import Test_Classify_Event
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(Test_Classify_Event))
+    return suite
+
+
+def build_suite_workspace_tools() -> unittest.TestSuite:
+    from .test_modal_events import Test_Workspace_Tool_Validation
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(Test_Workspace_Tool_Validation))
+    return suite
+
+
 def build_suite() -> unittest.TestSuite:
-    from .test_modal_events import build_suite as build_modal_events_suite
-    return build_modal_events_suite()
+    """Combined suite — every group together. Used by run()/the headless __main__ entrypoint below."""
+    suite = unittest.TestSuite()
+    for sub_build in (build_suite_modal_lifecycle, build_suite_event_classification, build_suite_workspace_tools):
+        suite.addTests(sub_build())
+    return suite
 
 
 def run(verbosity: int = 2) -> bool:

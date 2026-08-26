@@ -42,6 +42,27 @@ class Test_Shader_Declaration_Validation(unittest.TestCase):
         with self.assertRaises(ValueError):
             _validate_shader_definitions([decl])
 
+    def test_non_enum_space_is_rejected(self):
+        """A raw string in place of a real Draw_Space_Types member must be rejected, not silently accepted."""
+        decl = _make_minimal_decl("A")
+        decl.space = "VIEW_3D"  # a plausible-looking string, not the actual enum member
+        with self.assertRaises(ValueError):
+            _validate_shader_definitions([decl])
+
+    def test_non_enum_region_is_rejected(self):
+        """A raw string in place of a real Draw_Region_Type member must be rejected, not silently accepted."""
+        decl = _make_minimal_decl("A")
+        decl.region = "WINDOW"
+        with self.assertRaises(ValueError):
+            _validate_shader_definitions([decl])
+
+    def test_non_enum_phase_is_rejected(self):
+        """A raw string in place of a real Draw_Phase_type member must be rejected, not silently accepted."""
+        decl = _make_minimal_decl("A")
+        decl.phase = "POST_VIEW"
+        with self.assertRaises(ValueError):
+            _validate_shader_definitions([decl])
+
     def test_both_builtin_and_custom_set_is_rejected(self):
         """A declaration with both builtin_shader_name and custom_shader_class set must be rejected."""
         decl = _make_minimal_decl(

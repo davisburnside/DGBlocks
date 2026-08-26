@@ -41,6 +41,7 @@ from .helpers import (
     get_required_version_label,
     iter_loaded_import_conflicts,
     normalize_distribution_name,
+    reject_duplicate_requirement_uids,
     resolve_bundled_wheel_dirs,
     validate_requirement,
     verify_declared_wheel_hashes,
@@ -104,10 +105,13 @@ class Wrapper_Pip_Library_Manager(Abstract_Feature_Wrapper):
                     )
                     continue
                 block_module = cls._get_registered_block_module(block_id)
+                valid_declarations = []
                 for declaration in result:
                     if not isinstance(declaration, Python_Library_Requirement_Declaration):
                         logger.warning(f"Ignoring invalid requirement declaration from '{block_id}'")
                         continue
+                    valid_declarations.append(declaration)
+                for declaration in reject_duplicate_requirement_uids(block_id, valid_declarations, logger):
                     try:
                         validate_requirement(declaration)
                     except Exception as exc:

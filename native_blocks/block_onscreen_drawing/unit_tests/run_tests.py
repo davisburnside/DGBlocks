@@ -17,12 +17,31 @@ block subscribes through hook_get_unit_test_declarations) — this file remains 
 import unittest
 
 
-def build_suite() -> unittest.TestSuite:
-    from .test_pure_math import build_suite as build_pure_math_suite
-    from .test_shader_validation import build_suite as build_shader_validation_suite
-
+def build_suite_shader_validation() -> unittest.TestSuite:
+    from .test_shader_validation import Test_Shader_Declaration_Validation
+    loader = unittest.TestLoader()
     suite = unittest.TestSuite()
-    for sub_build in (build_shader_validation_suite, build_pure_math_suite):
+    suite.addTests(loader.loadTestsFromTestCase(Test_Shader_Declaration_Validation))
+    return suite
+
+
+def build_suite_shader_creation() -> unittest.TestSuite:
+    from .test_shader_validation import Test_Custom_Shader_Compiles
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(Test_Custom_Shader_Compiles))
+    return suite
+
+
+def build_suite_geometry_math() -> unittest.TestSuite:
+    from .test_pure_math import build_suite
+    return build_suite()
+
+
+def build_suite() -> unittest.TestSuite:
+    """Combined suite — every group together. Used by run()/the headless __main__ entrypoint below."""
+    suite = unittest.TestSuite()
+    for sub_build in (build_suite_shader_validation, build_suite_shader_creation, build_suite_geometry_math):
         suite.addTests(sub_build())
     return suite
 
