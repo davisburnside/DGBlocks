@@ -1,7 +1,7 @@
 import os
 
 from ....addon_helpers.data_tools import simple_truncate_dict
-from ....addon_helpers.ui.helpers import ui_draw_block_panel_header
+from ....addon_helpers.ui.helpers import ui_draw_block_panel_header, measure_text_width_px, wrap_text_to_lines
 from ....addon_config.static_settings import addon_name
 import bpy # type: ignore
 
@@ -204,6 +204,42 @@ class DGBLOCKS_OT_Run_One_Unit_Test(bpy.types.Operator):
     def execute(self, context):
         Wrapper_Unit_Testing.run_one_test(self.test_id)
         force_redraw_ui(context)
+        return {"FINISHED"}
+
+
+class DGBLOCKS_OT_Show_Unit_Test_Docstring(bpy.types.Operator):
+    bl_idname = "dgblocks.show_unit_test_docstring"
+    bl_label = "Test Description"
+    bl_description = "Show this test's own docstring — the test documents itself"
+    bl_options = {"INTERNAL"}
+
+    test_id: bpy.props.StringProperty()  # type: ignore
+
+    _MIN_WIDTH = 220
+    _MAX_WIDTH = 520
+    _HORIZONTAL_PADDING = 40  # icon + box margins invoke_popup reserves around layout content
+
+    def invoke(self, context, event):
+        case = Wrapper_Unit_Testing.get_test(self.test_id)
+        docstring = (case.docstring if case else None) or "(no description)"
+
+        # Snug-fit when it's short: measure the whole string unwrapped and size the popup to
+        # exactly that (clamped) rather than always opening the same fixed width. Only text
+        # that's actually too long to fit at _MAX_WIDTH gets wrapped into multiple lines —
+        # UILayout.label() truncates with a middle ellipsis instead of wrapping on its own.
+        natural_width = measure_text_width_px(docstring)
+        popup_width = int(max(self._MIN_WIDTH, min(self._MAX_WIDTH, natural_width + self._HORIZONTAL_PADDING)))
+        self._lines = wrap_text_to_lines(docstring, popup_width - self._HORIZONTAL_PADDING)
+
+        return context.window_manager.invoke_popup(self, width = popup_width)
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align = True)
+        for line in getattr(self, "_lines", []):
+            col.label(text = line if line else " ")  # label() collapses "" — force a blank line to render
+
+    def execute(self, context):
         return {"FINISHED"}
 
 

@@ -9,7 +9,7 @@ from ...addon_config.static_settings import Documentation_URLs
 
 # Core block imports
 from .core_helpers.constants import Core_Data_Mirrors, Core_Block_Hook_Sources, Core_Block_Loggers, Core_Data_Mirrors, Core_Runtime_Cache_Members, _BLOCK_ID as core_block_id, Core_UIList_Configs
-from .core_helpers.ops import DGBLOCKS_OT_Copy_To_Clipboard, DGBLOCKS_OT_Debug_Clear_And_Restore_Caches, DGBLOCKS_OT_Force_Reload_Refresh_UI, DGBLOCKS_OT_Force_Reload_Scripts, DGBLOCKS_OT_Open_Help_Page, DGBLOCKS_OT_Reload_All_Blocks, DGBLOCKS_OT_Run_All_Unit_Tests, DGBLOCKS_OT_Run_Block_Unit_Tests, DGBLOCKS_OT_Run_Group_Unit_Tests, DGBLOCKS_OT_Run_One_Unit_Test, DGBLOCKS_OT_Refresh_Unit_Test_Catalog
+from .core_helpers.ops import DGBLOCKS_OT_Copy_To_Clipboard, DGBLOCKS_OT_Debug_Clear_And_Restore_Caches, DGBLOCKS_OT_Force_Reload_Refresh_UI, DGBLOCKS_OT_Force_Reload_Scripts, DGBLOCKS_OT_Open_Help_Page, DGBLOCKS_OT_Reload_All_Blocks, DGBLOCKS_OT_Run_All_Unit_Tests, DGBLOCKS_OT_Run_Block_Unit_Tests, DGBLOCKS_OT_Run_Group_Unit_Tests, DGBLOCKS_OT_Run_One_Unit_Test, DGBLOCKS_OT_Refresh_Unit_Test_Catalog, DGBLOCKS_OT_Show_Unit_Test_Docstring
 from .core_helpers.props import DGBLOCKS_PG_Core_Props
 from .core_helpers.debugging import debug_extract_core_block_data_to_print, debug_ui_draw_core_block_printing_options
 from .core_helpers.ui import DGBLOCKS_PT_Core_Block_Panel
@@ -60,6 +60,7 @@ _block_classes_to_register = [
     DGBLOCKS_OT_Run_Group_Unit_Tests,
     DGBLOCKS_OT_Run_One_Unit_Test,
     DGBLOCKS_OT_Refresh_Unit_Test_Catalog,
+    DGBLOCKS_OT_Show_Unit_Test_Docstring,
     DGBLOCKS_PT_Core_Block_Panel,
     DGBLOCKS_UL_Shared_Debug_List,
 ]

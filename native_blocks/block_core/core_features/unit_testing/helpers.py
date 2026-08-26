@@ -1,4 +1,5 @@
 
+import inspect
 import io
 import time
 import unittest
@@ -90,6 +91,7 @@ def collect_declarations_and_catalog(logger) -> tuple:
             try:
                 suite = declaration.build_suite()
                 for test in _flatten_suite(suite):
+                    test_method = getattr(test, test._testMethodName, None)
                     catalog.append(Unit_Test_Case_Info(
                         test_id         = test.id(),
                         short_label     = test.id().rsplit(".", 1)[-1],
@@ -98,6 +100,7 @@ def collect_declarations_and_catalog(logger) -> tuple:
                         suite_label     = declaration.label or declaration.suite_id,
                         suite_group     = suite_group,
                         cold_start_only = declaration.cold_start_only,
+                        docstring       = inspect.getdoc(test_method) if test_method else None,
                     ))
             except Exception as e:
                 logger.error(f"Suite '{declaration.suite_id}' (block '{block_id}') raised during collection", exc_info=True)

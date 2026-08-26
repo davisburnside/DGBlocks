@@ -70,6 +70,45 @@ def find_region_by_pointer(pointer: int, area: Optional[bpy.types.Area] = None) 
 # "Blind draw" functions: All drawing logic is contained inside the function
 # --------------------------------------------------------------
 
+def wrap_text_to_lines(text: str, max_width_px: float, font_id: int = 0, font_size: int = 11) -> list[str]:
+    """
+    Word-wrap `text` into lines that each fit within max_width_px, measured for real with
+    blf at approximately Blender's default UI font size (scaled by the user's ui_scale
+    preference, since blf measures at a literal point size regardless of interface scale).
+
+    UILayout.label() never wraps on its own — a too-long string is silently truncated with a
+    middle ellipsis — so anything that wants full text visible across multiple lines (a
+    tooltip-style popup, a description box) must pre-wrap it before handing lines to label().
+    A single word wider than max_width_px on its own is still emitted as its own line rather
+    than split mid-word.
+    """
+    import blf
+    ui_scale = bpy.context.preferences.system.ui_scale if bpy.context.preferences else 1.0
+    blf.size(font_id, max(1, int(font_size * ui_scale)))
+
+    words = text.split(" ")
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if current and blf.dimensions(font_id, candidate)[0] > max_width_px:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
+def measure_text_width_px(text: str, font_id: int = 0, font_size: int = 11) -> float:
+    """The rendered pixel width of `text` at approximately Blender's default UI font size."""
+    import blf
+    ui_scale = bpy.context.preferences.system.ui_scale if bpy.context.preferences else 1.0
+    blf.size(font_id, max(1, int(font_size * ui_scale)))
+    return blf.dimensions(font_id, text)[0]
+
+
 def format_timestamp_for_ui(timestamp) -> str:
     if not timestamp:
         return "Never"

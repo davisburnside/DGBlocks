@@ -26,12 +26,15 @@ class _Fake_Declaration:
 
 class Test_Suite_Group_Defaulting(unittest.TestCase):
     def test_none_resolves_to_default_label(self):
+        """A declaration with no suite_group set must resolve to the shared 'Default' label."""
         self.assertEqual(_resolve_suite_group(_Fake_Declaration(None)), DEFAULT_SUITE_GROUP_LABEL)
 
     def test_blank_string_resolves_to_default_label(self):
+        """An explicitly blank suite_group is treated the same as None, not as its own empty group."""
         self.assertEqual(_resolve_suite_group(_Fake_Declaration("")), DEFAULT_SUITE_GROUP_LABEL)
 
     def test_custom_group_is_preserved(self):
+        """A declaration with a real suite_group value must keep that exact label."""
         self.assertEqual(_resolve_suite_group(_Fake_Declaration("Validation")), "Validation")
 
 
@@ -61,6 +64,7 @@ def _make_case(test_id: str) -> Unit_Test_Case_Info:
 
 class Test_Apply_Result_To_Catalog(unittest.TestCase):
     def test_test_not_in_any_result_list_is_marked_passed(self):
+        """A ran test that appears in none of failures/errors/skipped is inferred to have passed."""
         catalog = {"a": _make_case("a")}
         apply_result_to_catalog(catalog, ["a"], _Fake_Result(), run_at=123.0)
         self.assertEqual(catalog["a"].status, Unit_Test_Status.PASSED)
@@ -68,6 +72,7 @@ class Test_Apply_Result_To_Catalog(unittest.TestCase):
         self.assertEqual(catalog["a"].last_run_at, 123.0)
 
     def test_failure_sets_failed_status_and_last_trace_line(self):
+        """A test in result.failures gets FAILED status, with error_text as the trace's last line."""
         catalog = {"a": _make_case("a")}
         apply_result_to_catalog(
             catalog, ["a"],
@@ -78,6 +83,7 @@ class Test_Apply_Result_To_Catalog(unittest.TestCase):
         self.assertEqual(catalog["a"].error_text, "AssertionError: boom")
 
     def test_error_sets_error_status(self):
+        """A test in result.errors (as opposed to .failures) gets ERROR status, not FAILED."""
         catalog = {"a": _make_case("a")}
         apply_result_to_catalog(
             catalog, ["a"],
@@ -87,6 +93,7 @@ class Test_Apply_Result_To_Catalog(unittest.TestCase):
         self.assertEqual(catalog["a"].status, Unit_Test_Status.ERROR)
 
     def test_skip_sets_skipped_status_with_reason(self):
+        """A test in result.skipped gets SKIPPED status, with error_text holding the skip reason."""
         catalog = {"a": _make_case("a")}
         apply_result_to_catalog(
             catalog, ["a"],
@@ -97,11 +104,13 @@ class Test_Apply_Result_To_Catalog(unittest.TestCase):
         self.assertEqual(catalog["a"].error_text, "no GPU context")
 
     def test_duration_is_read_from_test_timings(self):
+        """Per-test duration_seconds comes from the result's test_timings dict, keyed by test id."""
         catalog = {"a": _make_case("a")}
         apply_result_to_catalog(catalog, ["a"], _Fake_Result(test_timings={"a": 0.42}), run_at=1.0)
         self.assertEqual(catalog["a"].duration_seconds, 0.42)
 
     def test_unknown_test_id_in_ran_list_is_ignored_not_raised(self):
+        """A ran test id with no matching catalog entry is skipped silently, never raises."""
         catalog = {"a": _make_case("a")}
         apply_result_to_catalog(catalog, ["a", "does-not-exist"], _Fake_Result(), run_at=1.0)
         self.assertEqual(catalog["a"].status, Unit_Test_Status.PASSED)

@@ -56,6 +56,7 @@ class _Base(unittest.TestCase):
 class Test_Mesh_Reads(_Base):
 
     def test_builtin_and_custom_reads(self):
+        """A declaration mixing builtin mesh reads and a custom face attribute read must produce a valid result."""
         obj = create_test_mesh_object()
         add_named_attribute(obj, "test_f", "FACE", "INT", [7])
 
@@ -86,6 +87,7 @@ class Test_Mesh_Reads(_Base):
         self.assertEqual(op_types["FACE.test_f"], "INT")
 
     def test_missing_attribute_fails_only_that_op(self):
+        """Reading a non-existent custom attribute must fail only that one op, not the whole action."""
         obj = create_test_mesh_object()
         declaration = Geometry_Actions_Declaration(
             declaration_id = "test.missing",
@@ -107,6 +109,7 @@ class Test_Mesh_Reads(_Base):
 class Test_Callbacks_And_Writes(_Base):
 
     def test_computed_callback_and_write_back(self):
+        """A callback computing a derived value and writing it back must persist as a real mesh attribute."""
         obj = create_test_mesh_object()
         attr = MET.FACE.CUSTOM_ATTRIBUTE("face_center", data_type="FLOAT_VECTOR")
 
@@ -134,6 +137,7 @@ class Test_Callbacks_And_Writes(_Base):
         )
 
     def test_raising_callback_is_recorded_not_raised(self):
+        """A callback that raises must be caught, logged, and recorded as a failed op — never propagated."""
         obj = create_test_mesh_object()
 
         def _boom(instance, action, context):
@@ -165,6 +169,7 @@ class Test_Callbacks_And_Writes(_Base):
 class Test_Storage_And_Grouping(_Base):
 
     def test_same_id_replaces_previous_run_and_keeps_new_run_number(self):
+        """Re-running the same declaration_id must replace the stored result, not add a second one."""
         obj = create_test_mesh_object()
         declaration = Geometry_Actions_Declaration(
             declaration_id="test.replace",
@@ -178,6 +183,7 @@ class Test_Storage_And_Grouping(_Base):
         self.assertGreater(second.last_action.action_uid, first.last_action.action_uid)
 
     def test_different_ids_are_all_stored(self):
+        """Two distinct declaration_ids on the same object must both be stored, in call order."""
         obj = create_test_mesh_object()
         for declaration_id in ("test.one", "test.two"):
             W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
@@ -191,6 +197,7 @@ class Test_Storage_And_Grouping(_Base):
         )
 
     def test_replacing_result_does_not_change_first_call_order(self):
+        """Re-running an existing declaration_id must not move its position in the stored results order."""
         obj = create_test_mesh_object()
         first = Geometry_Actions_Declaration(
             declaration_id="test.order.first", read_source=Enum_Read_Source.ORIGINAL,
@@ -207,6 +214,7 @@ class Test_Storage_And_Grouping(_Base):
         )
 
     def test_clipboard_payload_contains_full_domain_and_derived_values(self):
+        """The clipboard string payload must include full domain and derived data, not a truncated summary."""
         from ..helpers_actions import result_payload_to_string
 
         obj = create_test_mesh_object()
@@ -232,6 +240,7 @@ class Test_Storage_And_Grouping(_Base):
         self.assertNotIn("...", text)
 
     def test_same_id_is_stored_separately_for_each_object(self):
+        """The same declaration_id run against two different objects must produce two independent results."""
         first_obj = create_test_mesh_object("identity_a")
         second_obj = create_test_mesh_object("identity_b")
         declaration = Geometry_Actions_Declaration(
@@ -244,6 +253,7 @@ class Test_Storage_And_Grouping(_Base):
         self.assertNotEqual(first.storage_key, second.storage_key)
 
     def test_grouped_run_inherits_data_and_new_read_replaces_slot(self):
+        """A grouped run must inherit derived data from an earlier run in the same group, while re-reading fresh geometry."""
         obj = create_test_mesh_object()
         first_declaration = Geometry_Actions_Declaration(
             declaration_id="test.group.first",
@@ -268,6 +278,7 @@ class Test_Storage_And_Grouping(_Base):
         np.testing.assert_array_equal(first.vertex.co, first_coords)
 
     def test_grouped_payload_is_deep_copied(self):
+        """Inherited derived data in a grouped run must be deep-copied — mutating it must not affect the earlier run's result."""
         obj = create_test_mesh_object()
 
         def _seed(instance, _action, _context):
@@ -289,6 +300,7 @@ class Test_Storage_And_Grouping(_Base):
         self.assertEqual(int(second.derived["values"][0]), 99)
 
     def test_grouping_is_isolated_by_object(self):
+        """The same grouping_id used on two different objects must not leak derived data between them."""
         first_obj = create_test_mesh_object("group_a")
         second_obj = create_test_mesh_object("group_b")
 
@@ -313,6 +325,7 @@ class Test_Storage_And_Grouping(_Base):
 class Test_Curves(_Base):
 
     def test_native_curve_reads(self):
+        """Native curve-point and curve-count reads must produce a valid CURVES-type result."""
         obj = create_test_curve_object()
         if obj is None:
             self.skipTest("This Blender build has no Curves object support.")
@@ -334,6 +347,7 @@ class Test_Curves(_Base):
         self.assertEqual(result.point.position.shape, (3, 3))
 
     def test_curve_custom_attribute_round_trip(self):
+        """A custom curve-point attribute written via a callback must be readable back with the same values."""
         obj = create_test_curve_object()
         if obj is None:
             self.skipTest("This Blender build has no Curves object support.")
@@ -365,6 +379,7 @@ class Test_Curves(_Base):
 class Test_Serialization(_Base):
 
     def test_mesh_round_trip_with_custom_attribute(self):
+        """Serializing a mesh with a custom attribute and applying it to another object must reproduce the geometry and attribute."""
         source = create_test_mesh_object("src")
         add_named_attribute(source, "test_f", "FACE", "INT", [42])
         target = create_test_mesh_object("dst")
@@ -382,6 +397,7 @@ class Test_Serialization(_Base):
         self.assertEqual(target.data.attributes["test_f"].data[0].value, 42)
 
     def test_serialize_callback_stores_in_derived(self):
+        """The built-in serialize callback must store its payload under the documented derived key."""
         obj = create_test_mesh_object()
         declaration = Geometry_Actions_Declaration(
             declaration_id = "test.serialize",
@@ -393,6 +409,7 @@ class Test_Serialization(_Base):
         self.assertTrue(result.derived[DERIVED_KEY_SERIALIZED])
 
     def test_malformed_payload_raises(self):
+        """Applying a malformed/non-payload string to an object must raise, not silently no-op."""
         obj = create_test_mesh_object()
         with self.assertRaises(Exception):
             W.apply_serialized_geometry_to_object(obj, "not-a-payload")

@@ -31,16 +31,19 @@ def _make_minimal_decl(
 
 class Test_Shader_Declaration_Validation(unittest.TestCase):
     def test_duplicate_uid_is_rejected(self):
+        """Two Shader_Declarations sharing the same shader_uid must be rejected."""
         decls = [_make_minimal_decl("A"), _make_minimal_decl("A")]
         with self.assertRaises(ValueError):
             _validate_shader_definitions(decls)
 
     def test_exactly_one_of_builtin_or_custom_is_required(self):
+        """A declaration with neither builtin_shader_name nor custom_shader_class set must be rejected."""
         decl = _make_minimal_decl("A", builtin_shader_name=None, custom_shader_class=None)
         with self.assertRaises(ValueError):
             _validate_shader_definitions([decl])
 
     def test_both_builtin_and_custom_set_is_rejected(self):
+        """A declaration with both builtin_shader_name and custom_shader_class set must be rejected."""
         decl = _make_minimal_decl(
             "A", builtin_shader_name=Builtin_Shader_Names.UNIFORM_COLOR, custom_shader_class=Stripe_Shader
         )
@@ -48,12 +51,13 @@ class Test_Shader_Declaration_Validation(unittest.TestCase):
             _validate_shader_definitions([decl])
 
     def test_unknown_builtin_shader_name_is_rejected(self):
+        """A builtin_shader_name absent from the compatibility map must be rejected."""
         decl = _make_minimal_decl("A", builtin_shader_name="NOT_A_REAL_BUILTIN")
         with self.assertRaises(ValueError):
             _validate_shader_definitions([decl])
 
     def test_builtin_shader_type_incompatibility_is_rejected(self):
-        # POLYLINE_UNIFORM_COLOR is only compatible with LINES, not POINTS.
+        """POLYLINE_UNIFORM_COLOR only supports LINES — declaring it with shader_type POINTS must be rejected."""
         decl = _make_minimal_decl(
             "A", builtin_shader_name=Builtin_Shader_Names.POLYLINE_UNIFORM_COLOR, shader_type=Shader_Types.POINTS
         )
@@ -61,27 +65,31 @@ class Test_Shader_Declaration_Validation(unittest.TestCase):
             _validate_shader_definitions([decl])
 
     def test_valid_builtin_declaration_passes(self):
+        """A builtin shader declared with a type it's actually compatible with must pass validation."""
         decl = _make_minimal_decl(
             "A", builtin_shader_name=Builtin_Shader_Names.POLYLINE_UNIFORM_COLOR, shader_type=Shader_Types.LINES
         )
         _validate_shader_definitions([decl])  # must not raise
 
     def test_valid_custom_declaration_passes(self):
+        """A declaration using custom_shader_class instead of a builtin must pass validation."""
         decl = _make_minimal_decl("A", builtin_shader_name=None, custom_shader_class=Stripe_Shader)
         _validate_shader_definitions([decl])  # must not raise
 
 
 class Test_Custom_Shader_Compiles(unittest.TestCase):
     """
-    Tier 1: --background still binds a real GL context (Blender needs one for EEVEE/Cycles
-    background renders) — there's just no viewport/region. So the actual GPUShaderCreateInfo
-    built by a custom Shader_Instance subclass's _shader_init() can be compiled/linked without
-    drawing anything. Stripe_Shader is the representative case here — its _shader_init is fully
-    self-contained (no geometry/image/font dependency), unlike Billboard/Textbox which need real
-    asset data to construct; those could get the same treatment as a follow-up.
+    Tier 1: the actual GPUShaderCreateInfo built by a custom Shader_Instance subclass's
+    _shader_init() can be compiled/linked without drawing anything, on a runner that has a
+    usable GPU context — headless --background does not (see Unit_Testing_Framework.md §11),
+    so this always skips there, and only actually executes interactively. Stripe_Shader is the
+    representative case here — its _shader_init is fully self-contained (no geometry/image/font
+    dependency), unlike Billboard/Textbox which need real asset data to construct; those could
+    get the same treatment as a follow-up.
     """
 
     def test_stripe_shader_compiles(self):
+        """Stripe_Shader's hand-written GLSL must actually compile and link on a real GPU context."""
         instance = Stripe_Shader(shader_type=Shader_Types.LINES, shader_uid="DGB_TEST_stripe", src_block_id="test")
         try:
             instance._shader_init()

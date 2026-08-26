@@ -38,6 +38,7 @@ class Unit_Test_Case_Info:
     suite_label: str
     suite_group: str = DEFAULT_SUITE_GROUP_LABEL
     cold_start_only: bool = False   # inherited from the owning Unit_Test_Suite_Declaration
+    docstring: Optional[str] = None # the test method's own __doc__, read via inspect.getdoc()
 
     status: Unit_Test_Status = Unit_Test_Status.NOT_RUN
     duration_seconds: float = 0.0

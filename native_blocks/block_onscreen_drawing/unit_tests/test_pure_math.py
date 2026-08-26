@@ -15,14 +15,17 @@ from ..builtin_shaders_and_effects.polyline_geometry_utils import segment_quad_c
 
 class Test_Segment_Quad_Indices(unittest.TestCase):
     def test_zero_offset(self):
+        """With no offset, a segment quad's two triangles use the base (0,1,2)/(2,1,3) indices."""
         self.assertEqual(segment_quad_indices(0), ((0, 1, 2), (2, 1, 3)))
 
     def test_nonzero_offset_shifts_every_index(self):
+        """A non-zero offset must shift every index in both triangles by exactly that amount."""
         self.assertEqual(segment_quad_indices(8), ((8, 9, 10), (10, 9, 11)))
 
 
 class Test_Segment_Quad_Corner_Attrs(unittest.TestCase):
     def test_all_four_corners_match_the_documented_layout(self):
+        """The 4 corner indices must map to the (end_flag, side) pairs documented in SEGMENT_CORNERS."""
         expected = [(0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0)]
         actual = [segment_quad_corner_attrs(None, None, i) for i in range(4)]
         self.assertEqual(actual, expected)
@@ -30,19 +33,24 @@ class Test_Segment_Quad_Corner_Attrs(unittest.TestCase):
 
 class Test_Lerp(unittest.TestCase):
     def test_halfway_scalar(self):
+        """Interpolating two scalars at t=0.5 must return their midpoint."""
         self.assertAlmostEqual(_lerp(0.0, 10.0, 0.5), 5.0, places=5)
 
     def test_t_zero_returns_start(self):
+        """t=0.0 must return the start value unchanged."""
         self.assertAlmostEqual(_lerp(2.0, 8.0, 0.0), 2.0, places=5)
 
     def test_t_one_returns_end(self):
+        """t=1.0 must return the end value unchanged."""
         self.assertAlmostEqual(_lerp(2.0, 8.0, 1.0), 8.0, places=5)
 
     def test_vector_interpolation(self):
+        """Interpolation must work element-wise on vector (tuple/array) operands, not just scalars."""
         result = _lerp((0.0, 0.0, 0.0), (2.0, 4.0, 6.0), 0.5)
         np.testing.assert_allclose(result, (1.0, 2.0, 3.0), atol=1e-5)
 
     def test_falls_back_to_end_on_unconvertible_input_when_t_is_high(self):
+        """Operands that can't convert to a float32 array must fall back to returning `end` when t >= 1.0."""
         self.assertEqual(_lerp("bad", "also bad", 1.0), "also bad")
 
 

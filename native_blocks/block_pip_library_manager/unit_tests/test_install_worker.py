@@ -44,6 +44,7 @@ def _events(operation: RTC_Library_Operation):
 
 class Test_Pip_Install_Worker(unittest.TestCase):
     def test_staged_install_preserves_existing_files_and_promotes(self):
+        """A staged install must preserve pre-existing files in the target and promote the new install on success."""
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             operation = _make_operation(root)
@@ -69,6 +70,7 @@ class Test_Pip_Install_Worker(unittest.TestCase):
             self.assertFalse(staging.exists())
 
     def test_wrong_version_is_rejected_without_replacing_target(self):
+        """An installed version that doesn't match the requirement must be rejected, leaving the target untouched."""
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             operation = _make_operation(root)
@@ -92,6 +94,7 @@ class Test_Pip_Install_Worker(unittest.TestCase):
             self.assertEqual((target / "marker.txt").read_text(encoding="utf-8"), "old")
 
     def test_deferred_activation_creates_pending_environment(self):
+        """A deferred-activation install must stage into a '.pending' environment rather than the live target."""
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             operation = _make_operation(root)
@@ -114,6 +117,7 @@ class Test_Pip_Install_Worker(unittest.TestCase):
             self.assertFalse(target.exists())
 
     def test_unpinned_install_accepts_and_reports_resolved_version(self):
+        """An install with no pinned version must accept whatever version was actually installed and report it."""
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             operation = _make_operation(root, suffix="-latest")

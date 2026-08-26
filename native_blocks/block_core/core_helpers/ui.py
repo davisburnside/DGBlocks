@@ -285,15 +285,19 @@ def _uilist_unit_tests_draw_row(context, container, uillist_config_instance, BL_
 
 
 def _uilist_unit_tests_draw_test_row(container, case):
-    """One label + 'Run' button row for a single test; failed/errored tests get an extra red line below."""
+    """One label + [?] + 'Run' button row for a single test; failed/errored tests get an extra red line below."""
     row = container.row(align = True)
-    split = row.split(factor = 0.7)
+    split = row.split(factor = 0.6)
     label_text = case.short_label
     if case.cold_start_only:
         label_text += "  (headless only)"
     split.label(text = label_text, icon = _UNIT_TEST_STATUS_ICONS.get(case.status, "RADIOBUT_OFF"))
 
-    button_area = split.row()
+    controls = split.row(align = True)
+    doc_op = controls.operator("dgblocks.show_unit_test_docstring", text = "", icon = "QUESTION")
+    doc_op.test_id = case.test_id
+
+    button_area = controls.row()
     # Greyed out rather than hidden: a cold_start_only test only makes sense as part of a
     # genuinely fresh process (see Unit_Test_Suite_Declaration.cold_start_only) — clicking
     # Run on it inside this already-live session would either no-op or be meaningless.

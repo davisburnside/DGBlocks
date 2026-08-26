@@ -68,36 +68,41 @@ class Test_Plan_Sync_Round_Trip(unittest.TestCase):
         return actions
 
     def test_identical_lists_are_all_noop(self):
+        """Source and target already match by key and data -> every action is a Noop."""
         source = [_Row("a", 1), _Row("b", 2)]
         target = [_Row("a", 1), _Row("b", 2)]
         actions = self._assert_reconciles(source, target)
         self.assertTrue(all(isinstance(a, Noop) for a in actions))
 
     def test_empty_target_is_all_creates(self):
+        """An empty target reconciled against a populated source produces only Create actions."""
         source = [_Row("a", 1), _Row("b", 2)]
         actions = self._assert_reconciles(source, target=[])
         self.assertTrue(all(isinstance(a, Create) for a in actions))
         self.assertEqual(len(actions), 2)
 
     def test_empty_source_is_all_removes(self):
+        """An empty source reconciled against a populated target produces only Remove actions."""
         target = [_Row("a", 1), _Row("b", 2)]
         actions = self._assert_reconciles(source=[], target=target)
         self.assertTrue(all(isinstance(a, Remove) for a in actions))
         self.assertEqual(len(actions), 2)
 
     def test_removes_are_descending_by_from_idx(self):
-        # Removing ascending would invalidate later from_idx values against a live list.
+        """Removes must be emitted highest-index-first, so each from_idx stays valid against a live list."""
         target = [_Row("a", 1), _Row("b", 2), _Row("c", 3)]
         actions = plan_dataclasses_to_match_collectionprop([], target, KEY_FIELDS, DATA_FIELDS)
         from_idxs = [a.from_idx for a in actions]
         self.assertEqual(from_idxs, sorted(from_idxs, reverse=True))
 
     def test_reorder_only(self):
+        """Same keys and data, different order -> reconciles to source's order."""
         source = [_Row("b", 2), _Row("a", 1)]
         target = [_Row("a", 1), _Row("b", 2)]
         self._assert_reconciles(source, target)
 
     def test_data_change_same_position_is_edit(self):
+        """Same key at the same position but a changed data field -> a single Edit action."""
         source = [_Row("a", 99)]
         target = [_Row("a", 1)]
         actions = self._assert_reconciles(source, target)
@@ -105,26 +110,31 @@ class Test_Plan_Sync_Round_Trip(unittest.TestCase):
         self.assertIsInstance(actions[0], Edit)
 
     def test_reorder_and_edit_combined(self):
+        """An item both moves position and changes data in the same plan -> still reconciles."""
         source = [_Row("b", 20), _Row("a", 1)]
         target = [_Row("a", 1), _Row("b", 2)]
         self._assert_reconciles(source, target)
 
     def test_mixed_create_remove_and_reorder(self):
+        """One item added, one removed, remainder reordered, all in a single plan -> still reconciles."""
         source = [_Row("c", 3), _Row("a", 1), _Row("d", 4)]
         target = [_Row("a", 1), _Row("b", 2), _Row("c", 3)]
         self._assert_reconciles(source, target)
 
     def test_duplicate_key_in_source_raises(self):
+        """Two source items sharing the same key is an input error, not a valid diff to compute."""
         source = [_Row("a", 1), _Row("a", 2)]
         with self.assertRaises(ValueError):
             plan_dataclasses_to_match_collectionprop(source, [], KEY_FIELDS, DATA_FIELDS)
 
     def test_duplicate_key_in_target_raises(self):
+        """Two target items sharing the same key is an input error, not a valid diff to compute."""
         target = [_Row("a", 1), _Row("a", 2)]
         with self.assertRaises(ValueError):
             plan_dataclasses_to_match_collectionprop([], target, KEY_FIELDS, DATA_FIELDS)
 
     def test_unsupported_key_type_raises(self):
+        """Key fields must be str/bool/int — a float key field must be rejected, not silently accepted."""
         @dataclass
         class _Float_Keyed:
             uid: float
