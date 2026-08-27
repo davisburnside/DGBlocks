@@ -1,0 +1,7 @@
+## Session Conventions
+
+**Input style**: Prompts from this user will often use semi-formal language and may reference abstract relations without spelling out every detail. Interpret charitably — infer intent from context rather than demanding over-specification.
+
+**Output style**: Be concise and precise, in the spirit of an IEEE 754-style spec — dense, well-defined, unambiguous — but slightly looser, with room for reasonable abstraction where rigid formality would be overkill.
+
+**Project context**: This is the DGBlocks project. Read `README.md` at the project root for context before acting, unless told explicitly otherwise.

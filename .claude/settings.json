@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat .claude/hooks/session-context.json",
+            "statusMessage": "Loading DGBlocks session context..."
+          }
+        ]
+      }
+    ]
+  }
+}
