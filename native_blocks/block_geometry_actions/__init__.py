@@ -26,7 +26,7 @@ from .data_structures import (  # noqa: F401 — public re-exports for downstrea
 )
 from .feature_geometry_actions import Wrapper_Geometry_Actions
 from .helpers_actions import get_all_results, get_result_by_key, result_payload_to_string
-from .ui import ui_draw_geometry_action_results
+from .ui import ui_draw_geometry_action_explanation, ui_draw_geometry_action_results
 
 def hook_get_unit_test_declarations():
     from .unit_tests.run_tests import (
@@ -90,6 +90,30 @@ class DGBLOCKS_OT_Geometry_Actions_Copy_Result(bpy.types.Operator):
 # UI
 # ==============================================================================================================================
 
+class DGBLOCKS_OT_Geometry_Actions_Explain_Action(bpy.types.Operator):
+    """Explain what this geometry action's summary-line fields mean"""
+    bl_idname  = "dgblocks.geometry_actions_explain_action"
+    bl_label   = "Geometry Action Details"
+    bl_options = {"INTERNAL"}
+
+    geometry_type:   bpy.props.StringProperty()  # type: ignore
+    geometry_target: bpy.props.StringProperty()  # type: ignore
+    read_source:     bpy.props.StringProperty()  # type: ignore
+    object_mode:     bpy.props.StringProperty()  # type: ignore
+
+    def execute(self, context):
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=380)
+
+    def draw(self, context):
+        ui_draw_geometry_action_explanation(
+            self.layout, self.geometry_type, self.geometry_target,
+            self.read_source, self.object_mode,
+        )
+
+
 class DGBLOCKS_PT_Geometry_Actions_Panel(bpy.types.Panel):
     """
     Debug helper panel. It only exists while this block's `debug_mode_enabled` flag is set
@@ -142,6 +166,7 @@ _BLOCK_DECLARATION = Block_Declaration(
     block_bpy_classes             = [
         DGBLOCKS_OT_Geometry_Actions_Clear,
         DGBLOCKS_OT_Geometry_Actions_Copy_Result,
+        DGBLOCKS_OT_Geometry_Actions_Explain_Action,
         DGBLOCKS_PT_Geometry_Actions_Panel,
     ],
     block_feature_wrapper_classes = [Wrapper_Geometry_Actions],

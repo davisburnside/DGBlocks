@@ -2,7 +2,7 @@
 
 import time
 
-from ...addon_helpers.ui.helpers import ui_draw_subpanel
+from ...addon_helpers.ui.helpers import ui_draw_subpanel, wrap_text_to_lines
 from .data_structures import Enum_Op_Type
 
 
@@ -10,6 +10,104 @@ _OP_ICONS = {
     Enum_Op_Type.READ:     "IMPORT",
     Enum_Op_Type.CALLBACK: "SCRIPTPLUGINS",
 }
+
+# Plain-language meaning of each summary-line field, keyed by its raw enum string.
+# Drawn on-demand by the [?] popup so the always-visible line can stay terse.
+_GEOMETRY_TYPE_INFO = {
+    "MESH": (
+        "This GeoAction ran against Mesh data — vertices, edges, faces, and face "
+        "corners — instead of a Curves object's points and splines."
+    ),
+    "CURVES": (
+        "This GeoAction ran against Curves data — points and splines — instead of "
+        "a Mesh object's vertices, edges, and faces."
+    ),
+    "UNKNOWN": (
+        "DGBlocks could not resolve a supported geometry type (neither Mesh nor "
+        "Curves) for the target object."
+    ),
+}
+
+_GEOMETRY_TARGET_INFO = {
+    "AUTO": (
+        "The declaration let DGBlocks pick automatically: NATIVE_DATA for Mesh, "
+        "Curve, and Curves objects, or MESH_EVALUATED (post-modifier mesh) for "
+        "everything else — Metaball, Font, Surface, Point Cloud, etc."
+    ),
+    "MESH_EVALUATED": (
+        "Data came from the object's evaluated, post-modifier mesh via to_mesh() — "
+        "always mesh domains, even for non-mesh source objects. Index space may not "
+        "match the original object, so this is read-only, not write-back safe."
+    ),
+    "NATIVE_DATA": (
+        "Data came from the object's own native datablock — mesh domains for Mesh "
+        "objects, curve domains (point/curve) for Curve and Curves objects."
+    ),
+}
+
+_READ_SOURCE_INFO = {
+    "EVALUATED": (
+        "Read through evaluated_get(depsgraph) — post-modifier data. Index space "
+        "may not match the original object, so it is not safe to write these "
+        "results back."
+    ),
+    "ORIGINAL": (
+        "Read from the editable base datablock — Object Mode reads object.data "
+        "directly, Edit Mode reads it after update_from_editmode(). Index space "
+        "matches the original object, so it is safe to write back."
+    ),
+}
+
+_OBJECT_MODE_INFO = {
+    "OBJECT":        "The object was in Object Mode — data reflects its stored state, with no in-progress edit-mode changes.",
+    "EDIT":          "The object was in Edit Mode — data may include unsaved edits not yet committed to the base datablock.",
+    "SCULPT":        "The object was in Sculpt Mode.",
+    "VERTEX_PAINT":  "The object was in Vertex Paint Mode.",
+    "WEIGHT_PAINT":  "The object was in Weight Paint Mode.",
+    "TEXTURE_PAINT": "The object was in Texture Paint Mode.",
+    "PARTICLE_EDIT": "The object was in Particle Edit Mode.",
+    "POSE":          "The object's armature was in Pose Mode.",
+}
+
+
+def _object_mode_description(object_mode: str) -> str:
+    if not object_mode:
+        return "No object mode was recorded for this action."
+    return _OBJECT_MODE_INFO.get(
+        object_mode, f"The object was in {object_mode.title()} mode when this action ran."
+    )
+
+
+def ui_draw_geometry_action_explanation(
+    layout, geometry_type: str, geometry_target: str, read_source: str, object_mode: str
+) -> None:
+    """Popup body for the [?] button: plain-language meaning of one action's
+    geometry_type / geometry_target / read_source / object_mode values."""
+    sections = (
+        ("Geometry Type", geometry_type, _GEOMETRY_TYPE_INFO.get(
+            geometry_type, f"Unrecognized geometry type '{geometry_type}'."
+        )),
+        ("Geometry Target", geometry_target, _GEOMETRY_TARGET_INFO.get(
+            geometry_target, f"Unrecognized geometry target '{geometry_target}'."
+        )),
+        ("Read Source", read_source, _READ_SOURCE_INFO.get(
+            read_source, f"Unrecognized read source '{read_source}'."
+        )),
+        ("Object Mode", object_mode or "-", _object_mode_description(object_mode)),
+    )
+    for index, (title, value, description) in enumerate(sections):
+        if index > 0:
+            layout.separator(factor=0.5)
+        box = layout.box()
+        box.label(text=f"{title} — {value}", icon="DOT")
+        # Blender labels have no bold/brightness toggle short of `alert` (which reads as
+        # an error state). Dimming the body instead gives the header the same visual lift
+        # by contrast, without borrowing the alert color.
+        body = box.column()
+        body.enabled = False
+        for line in wrap_text_to_lines(description, max_width_px=340):
+            body.label(text=line)
+
 
 def _pad_width_for(values, min_width: int = 0) -> int:
     """Widest rendered length among `values`, so every row's text pads to a shared column
@@ -22,13 +120,35 @@ def _clock_str(timestamp: float) -> str:
 
 
 def _draw_action_body(context, container, action) -> None:
+    # `info` is left at the default EXPAND alignment on purpose: non-EXPAND alignment
+    # (LEFT/CENTER/RIGHT) sizes a label from a rough character estimate rather than its
+    # real rendered width, which is fine for short fixed-length text (the timestamp
+    # below) but was silently truncating this row's long metadata string. help_btn is an
+    # icon-only operator so it stays naturally small regardless; timestamp is pinned to a
+    # fixed width since "Run at HH:MM:SS" is always short — that leaves text_row, the only
+    # other EXPAND-flagged child, free to claim the rest of the row's real width.
     info = container.row()
-    info.enabled = False
-    info.label(
-        text=f"{action.geometry_type} · {action.geometry_target} · {action.read_source} · "
-             f"{action.object_mode} · {action.read_count}R / {action.callback_count}C"
+
+    help_btn = info.operator(
+        "dgblocks.geometry_actions_explain_action", text="", icon="QUESTION"
     )
-    info.label(text=f"Run at {_clock_str(action.timestamp_start)}")
+    help_btn.geometry_type = str(action.geometry_type)
+    help_btn.geometry_target = str(action.geometry_target)
+    help_btn.read_source = str(action.read_source)
+    help_btn.object_mode = str(action.object_mode)
+
+    text_row = info.row()
+    text_row.enabled = False
+    text_row.label(
+        text=f"{action.geometry_type} | {action.geometry_target} | "
+             f"{action.read_source} | {action.object_mode}"
+    )
+
+    timestamp = info.row()
+    timestamp.enabled = False
+    timestamp.alignment = "RIGHT"
+    timestamp.ui_units_x = 6.5
+    timestamp.label(text=f"Run at {_clock_str(action.timestamp_start)}")
 
     if action.error_str:
         error_box = container.box()
@@ -109,10 +229,15 @@ def ui_draw_geometry_action_results(context, layout, results: dict) -> None:
         info = panel_header.row(align=True)
         info.alignment = "LEFT"
         info.label(text=f"{action.duration_ms:>{duration_width}.3f} ms")
-        info.separator()
+        info.label(text="|")
         info.label(text=f"{action.action_uid:0{run_count_width}d} runs")
 
-        panel_header.label(text=f"{action.label} · {result.object_name}")
+        # CENTER (rather than the default EXPAND) still claims the full remaining span
+        # between `info` and the right-pinned buttons, but centers the text within it
+        # instead of hugging its left edge.
+        desc = panel_header.row()
+        desc.alignment = "CENTER"
+        desc.label(text=f"{action.label} · {result.object_name}")
 
         buttons = panel_header.row(align=True)
         buttons.alignment = "RIGHT"
