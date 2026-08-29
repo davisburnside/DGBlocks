@@ -200,7 +200,9 @@ def _ui_draw_shader_examples_subpanel(context, container):
 
     col = container.column()
     col.enabled = drawing_props.enable_drawing
-    
+
+    col.prop(drawing_props.debug_props, "builtin_animation_easing")
+
     row = col.row()
     row.alignment = "CENTER"
     row.label(text = "Demonstrations of UI Shaders and Animations")

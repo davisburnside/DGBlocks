@@ -236,6 +236,37 @@ Inherit `Shader_Instance` and override `_shader_init()` to create the GPU shader
 Builtin shaders call `_builtin_shader_before_draw()` / `_builtin_shader_after_draw()` around
 the draw; these can be monkeypatched via `Shader_Declaration.builtin_shader_before_draw`.
 
+### Custom shader inputs — `push_constant` vs. UBO
+
+The standard is **array vs. not**, not "how many inputs":
+
+- **Any fixed/scalar or fixed-vector knob — always `push_constant`, no matter how many.**
+  `shader_info.push_constant("VEC3", "foo")` per value, read back via `set_uniform()`. This
+  is what every shader in `builtin_shaders_and_effects/` uses today (`Stripe_Shader` alone
+  has five). Cheap, simple, no packing rules — keep using it for anything that isn't a list.
+- **Any array / variable-length input — always a UBO (`gpu.types.GPUUniformBuf`), never a
+  giant `push_constant` block.** Push constants are backed by a small, fixed-size block
+  (kept small deliberately for cross-backend/Metal compatibility) — an array of more than a
+  handful of vectors will blow it, and Blender's error for this is a compile-time "exceeds
+  the maximum push constant size" style failure, not a soft warning.
+
+**What a UBO costs you that `push_constant` doesn't**, so budget for it before reaching for
+one on a whim:
+
+1. A GLSL struct declared via `shader_info.typedef_source("struct Foo { vec4 x[N]; };")`,
+   then bound with `shader_info.uniform_buf(slot, "Foo", "block_name")` — two pieces that
+   must stay in sync by hand; Blender does not validate the Python-side layout against the
+   GLSL struct for you.
+2. GLSL arrays are statically sized, so a variable-count input needs a chosen `MAX_N` baked
+   into the struct plus a separate `int count` uniform telling the shader how much of the
+   array is real. Decide the max up front — that's a per-shader design choice a UBO forces
+   that `push_constant` never does.
+3. **std140 packing**, by hand, every time the data changes: each array element pads to a
+   16-byte stride regardless of its actual type, so a `vec3` array must be stored as `vec4`
+   (waste the fourth component, or use it for a per-element weight/flag). Get this wrong and
+   the shader reads garbage silently — no exception, just wrong pixels. Prefer
+   `GPUUniformBuf.update(data)` over reallocating a new buffer when the data changes often.
+
 ## Downstream Block Integration Example
 
 ```python
@@ -418,6 +449,7 @@ shader.set_animation(Animation_Declaration(
     end_state     = colors_dim,
     duration      = 1.2,
     framerate     = 30,
+    easing        = ANIM_EASE_EASE_OUT_BOUNCE, # see ANIM_VALID_EASINGS (constants.py) for the full list
     loop_mode     = ANIM_LOOP_PING_PONG,    # ONCE | REPEAT | PING_PONG
     loop_count    = 0,                      # 0 = infinite
 ))
@@ -431,6 +463,13 @@ shader.set_animation(Animation_Declaration(
    default it lands on `end_state`; set `revert_on_finish=True` to snap back.
 4. One `bpy.app.timer` per unique framerate, shared across all animations at that rate.
    The tick loop disables a timer once nothing is left running at its framerate.
+5. `easing` (`ANIM_EASE_LINEAR` default, or one of the `ease_out_*` curves in
+   `ANIM_VALID_EASINGS` — one "Out" variant per easings.net family, plus `ease_out_bounce`)
+   transforms only the interpolated value — the raw linear time fraction still drives
+   `completion_factor`, loop boundaries and `callback_after_loop`/`callback_after_finish`
+   timing untouched. The "Shader Examples" debug subpanel exposes a single scene property
+   (`debug_props.builtin_animation_easing`) that drives the easing of every builtin demo
+   animation.
 
 ## Loggers
 

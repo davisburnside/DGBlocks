@@ -42,6 +42,7 @@ class Animatable_Mixin:
             delay_start      = decl.delay_start,
             duration         = decl.duration,
             framerate        = decl.framerate,
+            easing           = decl.easing,
             loop_mode        = decl.loop_mode,
             loop_count       = decl.loop_count,
             revert_on_finish = decl.revert_on_finish,
@@ -159,6 +160,7 @@ class Animatable_Mixin:
         existing.end_state        = declaration.end_state
         existing.duration         = declaration.duration
         existing.framerate        = declaration.framerate
+        existing.easing           = declaration.easing
         existing.loop_mode        = declaration.loop_mode
         existing.loop_count       = declaration.loop_count
         existing.revert_on_finish = declaration.revert_on_finish

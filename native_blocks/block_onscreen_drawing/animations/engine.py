@@ -19,8 +19,20 @@ from ..common_declarations import Block_Loggers, Block_RTC_Members
 from .constants import (
     ANIM_DATA_TYPE_BATCH,
     ANIM_DATA_TYPE_UNIFORMS,
+    ANIM_EASE_EASE_OUT_BACK,
+    ANIM_EASE_EASE_OUT_BOUNCE,
+    ANIM_EASE_EASE_OUT_CIRC,
+    ANIM_EASE_EASE_OUT_CUBIC,
+    ANIM_EASE_EASE_OUT_ELASTIC,
+    ANIM_EASE_EASE_OUT_EXPO,
+    ANIM_EASE_EASE_OUT_QUAD,
+    ANIM_EASE_EASE_OUT_QUART,
+    ANIM_EASE_EASE_OUT_QUINT,
+    ANIM_EASE_EASE_OUT_SINE,
+    ANIM_EASE_LINEAR,
     ANIM_FORBIDDEN_DATA_NAME,
     ANIM_LOOP_PING_PONG,
+    ANIM_VALID_EASINGS,
     ANIM_VALID_LOOP_MODES,
 )
 from .data_structures import Animation_Instance
@@ -48,6 +60,13 @@ def validate_animation_declaration(decl, logger) -> bool:
         logger.error(
             f"'{ANIM_FORBIDDEN_DATA_NAME}' cannot be animated "
             f"(requested by '{decl.animation_uid}'), skipping"
+        )
+        return False
+
+    if decl.easing not in ANIM_VALID_EASINGS:
+        logger.error(
+            f"invalid easing '{decl.easing}' for '{decl.animation_uid}' — "
+            f"expected one of {ANIM_VALID_EASINGS}, skipping"
         )
         return False
 
@@ -102,6 +121,64 @@ def _lerp(start: Any, end: Any, t: float) -> Any:
         return end if t >= 1.0 else start
 
 # ==============================================================================================================================
+# EASING — transforms the raw linear time fraction (t) before it reaches _lerp
+# ==============================================================================================================================
+
+def _ease_out_bounce(t: float) -> float:
+    """Standard 'ease out bounce': overshoots into a series of decaying bounces that land
+    exactly on 1.0 at t=1.0. Input/output both in [0, 1]."""
+    n1, d1 = 7.5625, 2.75
+    if t < 1.0 / d1:
+        return n1 * t * t
+    if t < 2.0 / d1:
+        t -= 1.5 / d1
+        return n1 * t * t + 0.75
+    if t < 2.5 / d1:
+        t -= 2.25 / d1
+        return n1 * t * t + 0.9375
+    t -= 2.625 / d1
+    return n1 * t * t + 0.984375
+
+
+def _ease_out_back(t: float) -> float:
+    c1 = 1.70158
+    c3 = c1 + 1.0
+    t -= 1.0
+    return 1.0 + c3 * t ** 3 + c1 * t ** 2
+
+
+def _ease_out_elastic(t: float) -> float:
+    if t <= 0.0:
+        return 0.0
+    if t >= 1.0:
+        return 1.0
+    c4 = (2.0 * np.pi) / 3.0
+    return 2.0 ** (-10.0 * t) * np.sin((t * 10.0 - 0.75) * c4) + 1.0
+
+
+# One "Out" curve per easings.net family — the "essentials" subset (Out reads best for UI
+# motion). Formulas per https://easings.net/.
+_EASING_FUNCS = {
+    ANIM_EASE_LINEAR:           lambda t: t,
+    ANIM_EASE_EASE_OUT_SINE:    lambda t: np.sin((t * np.pi) / 2.0),
+    ANIM_EASE_EASE_OUT_QUAD:    lambda t: 1.0 - (1.0 - t) ** 2,
+    ANIM_EASE_EASE_OUT_CUBIC:   lambda t: 1.0 - (1.0 - t) ** 3,
+    ANIM_EASE_EASE_OUT_QUART:   lambda t: 1.0 - (1.0 - t) ** 4,
+    ANIM_EASE_EASE_OUT_QUINT:   lambda t: 1.0 - (1.0 - t) ** 5,
+    ANIM_EASE_EASE_OUT_EXPO:    lambda t: 1.0 if t >= 1.0 else 1.0 - 2.0 ** (-10.0 * t),
+    ANIM_EASE_EASE_OUT_CIRC:    lambda t: np.sqrt(1.0 - (t - 1.0) ** 2),
+    ANIM_EASE_EASE_OUT_BACK:    _ease_out_back,
+    ANIM_EASE_EASE_OUT_ELASTIC: _ease_out_elastic,
+    ANIM_EASE_EASE_OUT_BOUNCE:  _ease_out_bounce,
+}
+
+
+def _apply_easing(easing: str, t: float) -> float:
+    """Maps the raw linear t (0..1) through the named easing curve. Unknown names fall back
+    to linear — validate_animation_declaration() is what actually rejects those upfront."""
+    return _EASING_FUNCS.get(easing, _EASING_FUNCS[ANIM_EASE_LINEAR])(t)
+
+# ==============================================================================================================================
 # SHADER STATE READ / WRITE
 # ==============================================================================================================================
 
@@ -138,7 +215,7 @@ def _apply_lerp_to_shader(anim: Animation_Instance, shader) -> None:
     uniforms_data -> shader.set_uniform() (also caches value in shader._uniforms)
     """
     t = min(anim._elapsed_time / anim.duration, 1.0) if anim.duration > 0 else 1.0
-    lerped = _lerp(anim._start_state, anim.end_state, t)
+    lerped = _lerp(anim._start_state, anim.end_state, _apply_easing(anim.easing, t))
 
     if anim.data_type == ANIM_DATA_TYPE_BATCH:
         setattr(shader, anim.data_name, lerped)

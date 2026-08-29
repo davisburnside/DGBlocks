@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from .constants import ANIM_LOOP_ONCE, ANIM_LOOP_PING_PONG, ANIM_LOOP_REPEAT
+from .constants import ANIM_EASE_LINEAR, ANIM_LOOP_ONCE, ANIM_LOOP_PING_PONG, ANIM_LOOP_REPEAT
 
 # ==============================================================================================================================
 # DECLARATIVE CONFIG DATACLASSES
@@ -44,6 +44,10 @@ class Animation_Declaration:
     duration            Seconds for the full lerp from start to end (default 1.0).
     framerate           Ticks per second. Animations that share a framerate share one timer.
     enabled             If False the animation is not created (default True).
+    easing              ANIM_EASE_LINEAR (default) or ANIM_EASE_EASE_OUT_BOUNCE. Applied to t
+                        (0..1, post loop-boundary handling) before the lerp — the raw linear
+                        time fraction is untouched, so completion_factor / loop timing are
+                        unaffected by easing, only the interpolated value is.
     loop_mode           ANIM_LOOP_ONCE (default), ANIM_LOOP_REPEAT or ANIM_LOOP_PING_PONG.
                         REPEAT    -> on reaching end_state, jump back to start_state and replay.
                         PING_PONG -> on reaching end_state, swap start/end and play back.
@@ -81,6 +85,7 @@ class Animation_Declaration:
     duration:          float = 1.0
     framerate:         float = 60.0
     enabled:           bool  = True
+    easing:            str   = ANIM_EASE_LINEAR
     loop_mode:         str   = ANIM_LOOP_ONCE
     loop_count:        int   = 0      # 0 = infinite
     revert_on_finish:  bool  = False
@@ -107,7 +112,8 @@ class Animation_Instance:
     duration:          float
     framerate:         float
 
-    # Loop behaviour (mirrored from declaration)
+    # Easing + loop behaviour (mirrored from declaration)
+    easing:           str  = ANIM_EASE_LINEAR
     loop_mode:        str  = ANIM_LOOP_ONCE
     loop_count:       int  = 0        # 0 = infinite
     revert_on_finish: bool = False

@@ -49,7 +49,7 @@ _BLOCK_PACKAGES = [
     block_geometry_actions,
     block_modal_events,
     block_pip_library_manager,
-    block_flatypus_modes_manager,
+    # block_flatypus_modes_manager,
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,
     # _block_usecase_02B_basic,

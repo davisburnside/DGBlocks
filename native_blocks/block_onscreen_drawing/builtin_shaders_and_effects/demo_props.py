@@ -37,7 +37,7 @@ from ...block_timers.feature_timer_manager import Wrapper_Timer_Manager
 from ..common_declarations import Block_Loggers, Block_RTC_Members
 from ..data_structures import Shader_Declaration
 from ..helpers import _mouse_is_over_current_region, _rebuild_all_shaders
-from ..animations.constants import ANIM_DATA_TYPE_BATCH, ANIM_LOOP_PING_PONG, ANIM_LOOP_REPEAT
+from ..animations.constants import ANIM_DATA_TYPE_BATCH, ANIM_EASE_LINEAR, ANIM_EASING_UI_ITEMS, ANIM_LOOP_PING_PONG, ANIM_LOOP_REPEAT
 from ..animations.data_structures import Animation_Declaration
 from ..animations.engine import suppress_timer_rebuilds
 from ..BL_drawing_structures import Builtin_Shader_Names, Draw_Phase_type, Draw_Region_Type, Draw_Space_Types, Shader_Types
@@ -283,6 +283,19 @@ def _cb_demo_fps_changed(self, context):
     if props.enable_drawing and self.is_animating:
         sync_demo_animation(self, context)
 
+
+def _cb_builtin_animation_easing_changed(self, context):
+    """
+    Re-apply every currently-running demo animation so the new global timing function takes
+    effect immediately. set_animation() upserts in place, preserving each animation's phase.
+    """
+    props = context.scene.dgblocks_onscreen_drawing_props
+    if not props.enable_drawing:
+        return
+    for row in props.demo_settings:
+        if row.is_animating:
+            sync_demo_animation(row, context)
+
 # ==============================================================================================================================
 # PROPERTY GROUPS
 # ==============================================================================================================================
@@ -356,6 +369,16 @@ class DGBLOCKS_PG_Demo_Shader_Common(bpy.types.PropertyGroup):
 
 class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
 
+    # Global timing function applied to every builtin/demo animation (task: single scene
+    # property controlling the easing of all builtin animations).
+    builtin_animation_easing: bpy.props.EnumProperty(  # type: ignore
+        name="Timing Function",
+        description="Easing curve applied to every builtin demo animation",
+        items=[(value, label, desc) for value, label, desc in ANIM_EASING_UI_ITEMS],
+        default=ANIM_EASE_LINEAR,
+        update=_cb_builtin_animation_easing_changed,
+    )
+
     # 2D image billboard example
     show_img_2Dbillboard: bpy.props.PointerProperty(name="Billboard Image", type=bpy.types.Image, update=_cb_demo_props_changed)  # type: ignore
     billboard_count: bpy.props.IntProperty(name="Count", default=12, min=0, max=500, update=_cb_demo_props_changed)  # type: ignore
@@ -425,19 +448,21 @@ def _resolve_demo_shader_uid(demo_id, props):
     return None
 
 
-def _activate_demo_animation(demo_id, common_row, shader) -> None:
+def _activate_demo_animation(demo_id, common_row, shader, easing) -> None:
     """
     Attach the demo's infinite-loop animation(s) to the live Shader_Instance. Uses
     set_animation() (upsert, preserves phase) so it is idempotent across rebuilds.
+    `easing` is the scene-wide timing function (debug_props.builtin_animation_easing),
+    applied to every declaration below.
     """
-    
+
     def _handle_demo_dashed_line():
         # phase scroll (batch attr `_phase`, read as a uniform in _shader_draw)
         shader.set_animation(Animation_Declaration(
             animation_uid="DEMO_DASH_PHASE",
             data_type=ANIM_DATA_TYPE_BATCH, data_name="_phase",
             start_state=0.0, end_state=1.0,
-            duration=1.5, framerate=fps,
+            duration=1.5, framerate=fps, easing=easing,
             loop_mode=ANIM_LOOP_REPEAT, loop_count=0,
         ))
         # color pulse toward a dimmed variant of the current dash color
@@ -448,7 +473,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             animation_uid="DEMO_DASH_COLOR",
             data_type=ANIM_DATA_TYPE_BATCH, data_name="_color",
             start_state=start_col, end_state=end_col,
-            duration=1.0, framerate=fps,
+            duration=1.0, framerate=fps, easing=easing,
             loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
         ))
         # geometry "reform" — gentle pulse of the polyline points
@@ -458,7 +483,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             shader.set_animation(Animation_Declaration(
                 animation_uid="DEMO_DASH_POINTS",
                 data_type=ANIM_DATA_TYPE_BATCH, data_name="_points",
-                end_state=end_pts, duration=1.2, framerate=fps,
+                end_state=end_pts, duration=1.2, framerate=fps, easing=easing,
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
     
@@ -471,7 +496,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             shader.set_animation(Animation_Declaration(
                 animation_uid="DEMO_BB_COLOR",
                 data_type=ANIM_DATA_TYPE_BATCH, data_name="_colors",
-                end_state=end_colors, duration=1.0, framerate=fps,
+                end_state=end_colors, duration=1.0, framerate=fps, easing=easing,
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
         pts = getattr(shader, "_points", None)
@@ -480,7 +505,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             shader.set_animation(Animation_Declaration(
                 animation_uid="DEMO_BB_POINTS",
                 data_type=ANIM_DATA_TYPE_BATCH, data_name="_points",
-                end_state=end_pts, duration=1.5, framerate=fps,
+                end_state=end_pts, duration=1.5, framerate=fps, easing=easing,
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
         sizes = getattr(shader, "_sizes", None)
@@ -489,7 +514,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             shader.set_animation(Animation_Declaration(
                 animation_uid="DEMO_BB_SIZE",
                 data_type=ANIM_DATA_TYPE_BATCH, data_name="_sizes",
-                end_state=end_sizes, duration=1.0, framerate=fps,
+                end_state=end_sizes, duration=1.0, framerate=fps, easing=easing,
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
                         
@@ -500,7 +525,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             animation_uid="DEMO_STRIPE_PHASE",
             data_type=ANIM_DATA_TYPE_BATCH, data_name="_phase",
             start_state=0.0, end_state=1.0,
-            duration=2.0, framerate=fps,
+            duration=2.0, framerate=fps, easing=easing,
             loop_mode=ANIM_LOOP_REPEAT, loop_count=0,
         ))
 
@@ -512,7 +537,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             shader.set_animation(Animation_Declaration(
                 animation_uid="DEMO_ANN_POINTS",
                 data_type=ANIM_DATA_TYPE_BATCH, data_name="_points",
-                end_state=end_pts, duration=1.5, framerate=fps,
+                end_state=end_pts, duration=1.5, framerate=fps, easing=easing,
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
         # Colors: pulse toward a dimmer variant
@@ -523,7 +548,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             shader.set_animation(Animation_Declaration(
                 animation_uid="DEMO_ANN_COLORS",
                 data_type=ANIM_DATA_TYPE_BATCH, data_name="_colors",
-                end_state=end_colors, duration=1.0, framerate=fps,
+                end_state=end_colors, duration=1.0, framerate=fps, easing=easing,
                 loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
             ))
         # viewport_z_boost: oscillates so lines pop over / sink behind the mesh
@@ -532,7 +557,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             animation_uid="DEMO_ANN_Z_BOOST",
             data_type=ANIM_DATA_TYPE_BATCH, data_name="_viewport_z_boost",
             start_state=z_start, end_state=z_start + 0.003,
-            duration=2.0, framerate=fps,
+            duration=2.0, framerate=fps, easing=easing,
             loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
         ))
         # arrow_length_px: oscillates between current value and 0 (arrows fade)
@@ -541,7 +566,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             animation_uid="DEMO_ANN_ARROW_LENGTH",
             data_type=ANIM_DATA_TYPE_BATCH, data_name="_arrow_length_px",
             start_state=al_start, end_state=0.0,
-            duration=1.5, framerate=fps,
+            duration=1.5, framerate=fps, easing=easing,
             loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
         ))
         # arrow_angle: oscillates 15 deg <-> 45 deg
@@ -549,7 +574,7 @@ def _activate_demo_animation(demo_id, common_row, shader) -> None:
             animation_uid="DEMO_ANN_ARROW_ANGLE",
             data_type=ANIM_DATA_TYPE_BATCH, data_name="_arrow_angle",
             start_state=15.0, end_state=45.0,
-            duration=3.0, framerate=fps,
+            duration=3.0, framerate=fps, easing=easing,
             loop_mode=ANIM_LOOP_PING_PONG, loop_count=0,
         ))
 
@@ -592,7 +617,7 @@ def sync_demo_animation(common_row, context) -> None:
     if shader is None:
         return
     if common_row.is_animating:
-        _activate_demo_animation(demo_id, common_row, shader)
+        _activate_demo_animation(demo_id, common_row, shader, props.debug_props.builtin_animation_easing)
     else:
         _cancel_demo_animation(demo_id, shader)
 
