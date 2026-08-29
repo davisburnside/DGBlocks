@@ -11,6 +11,11 @@ _OP_ICONS = {
     Enum_Op_Type.CALLBACK: "SCRIPTPLUGINS",
 }
 
+def _pad_width_for(values, min_width: int = 0) -> int:
+    """Widest rendered length among `values`, so every row's text pads to a shared column
+    width without guessing a pixel-per-character conversion for ui_units_x."""
+    return max([min_width, *(len(str(value)) for value in values)])
+
 
 def _clock_str(timestamp: float) -> str:
     return time.strftime("%H:%M:%S", time.localtime(timestamp))
@@ -70,10 +75,22 @@ def ui_draw_geometry_action_results(context, layout, results: dict) -> None:
         layout.label(text="No stored geometry actions", icon="INFO")
         return
 
-    for result_key, result in results.items():
+    visible = [(key, r) for key, r in results.items() if r.last_action is not None]
+    if not visible:
+        return
+
+    # Right/zero-pad the numbers themselves to a shared width instead of guessing a
+    # ui_units_x cell size — the label then shrink-wraps to that fixed-length text, so
+    # every row lines up without over-allocating space the content doesn't need.
+    duration_width = _pad_width_for(
+        (f"{r.last_action.duration_ms:.3f}" for _, r in visible)
+    )
+    run_count_width = _pad_width_for(
+        (r.last_action.action_uid for _, r in visible), min_width=3
+    )
+
+    for result_key, result in visible:
         action = result.last_action
-        if action is None:
-            continue
 
         panel_uid = f"geometry_action_{result.declaration_id}_{result.object_session_uid}"
         panel_header, _panel_body = ui_draw_subpanel(
@@ -84,20 +101,28 @@ def ui_draw_geometry_action_results(context, layout, results: dict) -> None:
         status.alert = not action.is_valid
         status.label(text="", icon="CHECKMARK" if action.is_valid else "ERROR")
 
-        left = panel_header.row(align=True)
-        left.alignment = "LEFT"
-        left.label(text=f"Duration: {action.duration_ms:.3f} ms")
-        left.label(text=f"Run Count: {action.action_uid}")
-        left.label(text=f"{action.label} · {result.object_name}")
+        # A bare label() defaults to EXPAND alignment, so sibling labels dropped straight
+        # on panel_header would fight over the header's width instead of sizing to their
+        # own content. Grouping runtime+run-count in one LEFT-aligned row makes that row
+        # shrink-wrap to its text, leaving the desc row (left at default EXPAND) everything
+        # else, right up to the RIGHT-pinned buttons.
+        info = panel_header.row(align=True)
+        info.alignment = "LEFT"
+        info.label(text=f"{action.duration_ms:>{duration_width}.3f} ms")
+        info.separator()
+        info.label(text=f"{action.action_uid:0{run_count_width}d} runs")
 
-        right = panel_header.row(align=True)
-        right.alignment = "RIGHT"
-        clear = right.operator(
-            "dgblocks.geometry_actions_clear", text="", icon="TRASH", emboss=False
+        panel_header.label(text=f"{action.label} · {result.object_name}")
+
+        buttons = panel_header.row(align=True)
+        buttons.alignment = "RIGHT"
+        buttons.ui_units_x = 3.2
+        clear = buttons.operator(
+            "dgblocks.geometry_actions_clear", text="", icon="TRASH"
         )
         clear.declaration_id = result.declaration_id
         clear.object_name = result.object_name
-        copy = right.operator(
-            "dgblocks.geometry_actions_copy_result", text="", icon="COPYDOWN", emboss=False
+        copy = buttons.operator(
+            "dgblocks.geometry_actions_copy_result", text="", icon="COPYDOWN"
         )
         copy.result_key = result_key
