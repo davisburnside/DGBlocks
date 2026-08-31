@@ -4,6 +4,7 @@ from enum import Enum
 import logging
 import time
 from typing import Optional
+import blf
 import bpy
 
 from ..generic_tools import get_Wrapper_Runtime_Cache
@@ -82,7 +83,6 @@ def wrap_text_to_lines(text: str, max_width_px: float, font_id: int = 0, font_si
     A single word wider than max_width_px on its own is still emitted as its own line rather
     than split mid-word.
     """
-    import blf
     ui_scale = bpy.context.preferences.system.ui_scale if bpy.context.preferences else 1.0
     blf.size(font_id, max(1, int(font_size * ui_scale)))
 
@@ -103,7 +103,6 @@ def wrap_text_to_lines(text: str, max_width_px: float, font_id: int = 0, font_si
 
 def measure_text_width_px(text: str, font_id: int = 0, font_size: int = 11) -> float:
     """The rendered pixel width of `text` at approximately Blender's default UI font size."""
-    import blf
     ui_scale = bpy.context.preferences.system.ui_scale if bpy.context.preferences else 1.0
     blf.size(font_id, max(1, int(font_size * ui_scale)))
     return blf.dimensions(font_id, text)[0]

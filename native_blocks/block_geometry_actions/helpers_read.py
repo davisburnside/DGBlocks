@@ -405,7 +405,16 @@ def read_attr(data, attr: Attr_Declaration, geometry_type: str) -> Optional[np.n
 
     # ---- Named attribute (data.attributes[...]) ------------------------------
     bl_attr = resolve_named_attribute(data, attr.name)
-    if bl_attr is None:
+
+    # A pre-existing generic Attribute layer can briefly disagree with
+    # mesh.polygons/edges/vertices while in Edit Mode: object.update_from_editmode()
+    # (helpers_read.py's ORIGINAL/EDIT branch, above) guarantees the topology
+    # collections domain_element_count() reads from are in sync, but not that every
+    # generic attribute layer's own length has caught up in the same pass — bl_attr.data
+    # can still report 0 (or another stale count) for one read cycle. foreach_get()
+    # hard-raises on any length mismatch, so treat that exactly like "not present on
+    # this geometry" (same as bl_attr is None below) rather than crashing the whole step.
+    if bl_attr is None or len(bl_attr.data) != n:
 
         if attr.name in _ZERO_FILL_IF_ABSENT:
             return np.zeros(
