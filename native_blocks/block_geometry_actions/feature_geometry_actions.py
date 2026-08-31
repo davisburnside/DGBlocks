@@ -10,6 +10,8 @@ from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Run
 
 from .common_declarations import Block_Loggers, Block_RTC_Members
 from .data_structures import (
+    Enum_Geometry_Target,
+    Enum_Read_Source,
     Geometry_Actions_Declaration,
     Geometry_Actions_Result_Instance,
 )
@@ -20,6 +22,7 @@ from .helpers_actions import (
     run_geometry_action,
 )
 from .helpers_diff import _diff_instances
+from .helpers_read import Geometry_Handle, acquire_geometry_for_read, release_geometry_handle
 from .helpers_serialize import (
     DERIVED_KEY_SERIALIZED,
     apply_serialized_geometry,
@@ -52,6 +55,7 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
         object:            bpy.types.Object,
         declaration:       Geometry_Actions_Declaration,
         depsgraph:         Optional[bpy.types.Depsgraph] = None,
+        geometry_handle:   Optional[Geometry_Handle] = None,
     ) -> Geometry_Actions_Result_Instance:
         """
         Run one declaration (reads → callbacks) against one object.
@@ -62,8 +66,35 @@ class Wrapper_Geometry_Actions(Abstract_Feature_Wrapper):
 
         A declaration with a grouping ID inherits a deep copy of data from the latest run
         in that group on the same object. Its reads replace inherited attribute slots.
+
+        geometry_handle: share an already-acquired handle (see acquire_geometry_handle)
+        instead of letting this call do its own acquire/release. For EVALUATED reads that
+        skips `to_mesh()` — use this when several declarations are known to run back-to-back
+        against the same object at the same depsgraph state with nothing in between that
+        could change the result, so they don't each pay for their own mesh snapshot.
         """
-        return run_geometry_action(object, declaration, depsgraph)
+        return run_geometry_action(object, declaration, depsgraph, geometry_handle=geometry_handle)
+
+    @classmethod
+    def acquire_geometry_handle(
+        cls,
+        object:          bpy.types.Object,
+        depsgraph:       Optional[bpy.types.Depsgraph] = None,
+        read_source:     str = Enum_Read_Source.EVALUATED,
+        geometry_target: str = Enum_Geometry_Target.AUTO,
+    ) -> Geometry_Handle:
+        """
+        Acquire geometry once, to share across several run_geometry_action_for_object calls
+        via their geometry_handle= parameter. Always release with release_geometry_handle(),
+        even when handle.is_valid is False (release is a no-op for non-temporary handles, but
+        the caller shouldn't have to know which case it acquired).
+        """
+        return acquire_geometry_for_read(object, depsgraph, str(read_source), str(geometry_target))
+
+    @classmethod
+    def release_geometry_handle(cls, handle: Geometry_Handle) -> None:
+        """Release a handle acquired via acquire_geometry_handle()."""
+        release_geometry_handle(handle)
 
     @classmethod
     def run_geometry_actions_for_object(

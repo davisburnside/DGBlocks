@@ -36,6 +36,7 @@ from .data_structures import (
     get_step_kind,
 )
 from .helpers_read import (
+    Geometry_Handle,
     acquire_geometry_for_read,
     all_domain_counts,
     read_attr,
@@ -251,10 +252,20 @@ def run_geometry_action(
     object:            bpy.types.Object,
     declaration:       Geometry_Actions_Declaration,
     depsgraph:         Optional[bpy.types.Depsgraph] = None,
+    geometry_handle:   Optional[Geometry_Handle] = None,
 ) -> Geometry_Actions_Result_Instance:
     """
     Run one declaration's step list against one object. Always returns the result instance,
     valid or not; inspect instance.last_action for the outcome of this specific call.
+
+    geometry_handle: pass an already-acquired handle (see acquire_geometry_for_read) to
+    skip this call's own acquire/release entirely and read that handle's data instead.
+    For an EVALUATED read this bypasses `to_mesh()` — the single most expensive call in the
+    whole framework — so it exists for callers that already know several declarations will
+    run back-to-back against the same object at the same depsgraph state with nothing in
+    between that could change the result (e.g. a read-only canary step immediately followed
+    by the compute step it gates). The caller owns the handle's lifetime in that case: this
+    function will neither acquire nor release it.
     """
     logger = get_logger(Block_Loggers.GEOMETRY_ACTIONS_EVENTS)
     total_start = time.perf_counter()
@@ -303,8 +314,10 @@ def run_geometry_action(
         store_result(instance)
         return instance
 
-    # ---- Acquire the geometry ONCE for the whole step list ----------------------
-    handle = acquire_geometry_for_read(
+    # ---- Acquire the geometry ONCE for the whole step list -----------------------
+    # (unless the caller already acquired one for us to share -- see geometry_handle above)
+    owns_handle = geometry_handle is None
+    handle = geometry_handle if geometry_handle is not None else acquire_geometry_for_read(
         object, depsgraph, str(declaration.read_source), str(declaration.geometry_target)
     )
     action.geometry_target = str(handle.geometry_target)
@@ -439,6 +452,7 @@ def run_geometry_action(
                 geometry_context.finalize()
             except Exception:
                 pass
-        release_geometry_handle(handle)
+        if owns_handle:
+            release_geometry_handle(handle)
 
     return _finish(None)
