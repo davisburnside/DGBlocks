@@ -204,3 +204,50 @@ def _uilist_draw_selection_details(context, container, uillist_config_instance, 
         context, container, "onscreen_shader_details",
         "Shader Details", _body,
     )
+
+# ==============================================================================================================================
+# TEXT BOXES DEMO — LINES UILIST HELPERS
+# ==============================================================================================================================
+# Pure-BL list (RTC_key=None): each row is one user-authored Textbox_Demo_Shader line, with no
+# associated runtime instance of its own. Lives here (rather than demo_ui.py) so
+# common_declarations.py can import these callbacks without a circular import — demo_ui.py
+# already imports FROM common_declarations.
+
+def _uilist_draw_textbox_line_row(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
+    col_widths = uillist_config_instance.col_widths
+    header = container.row()
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[0]
+    sub.label(text = BL_item.text if BL_item.text.strip() else "(empty)")
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[1]
+    sub.label(text = BL_item.alignment)
+
+    sub = header.row()
+    sub.ui_units_x = col_widths[2]
+    sub.label(text = str(BL_item.font_size))
+
+
+def _uilist_draw_textbox_line_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+
+    if BL_item is None:
+        return
+
+    def _body(context, cont):
+        cont.prop(BL_item, "text")
+        grid = cont.grid_flow(row_major=True, columns=0, even_columns=True, align=True)
+        grid.prop(BL_item, "font_size")
+        grid.prop(BL_item, "alignment")
+        grid.prop(BL_item, "max_char_count")
+        grid.prop(BL_item, "padding")
+        grid.prop(BL_item, "text_color")
+
+    # Shared idname (not suffixed with list_idx) so the panel's open/closed state persists
+    # when the selected row changes, matching the Shader Details sub-subpanel above.
+    ui_draw_subpanel(
+        context, container, "onscreen_textbox_line_details",
+        "Text Line Details", _body,
+    )

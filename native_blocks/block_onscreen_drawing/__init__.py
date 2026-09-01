@@ -11,9 +11,9 @@ from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_L
 from .data_structures import DGBLOCKS_PG_Shader_Mirror_Row
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .hook_subs import _hook_before_first_draw, _hook_get_shader_declarations, _hook_get_timer_definitions, _hook_post_startup
-from .helpers import _clear_all_shaders, _rebuild_all_shaders
-from .builtin_shaders_and_effects.demo_ui import DGBLOCKS_OT_Toggle_Demo_Animation, _ui_draw_shader_examples_subpanel
-from .builtin_shaders_and_effects.demo_props import DGBLOCKS_PG_Debug_Shader_Example_Props, DGBLOCKS_PG_Demo_Shader_Attribute, DGBLOCKS_PG_Demo_Shader_Common, DGBLOCKS_PG_Debug_Shader_Region_Toggles
+from .helpers import _clear_all_shaders, _rebuild_all_shaders, _hook_get_modal_listener_definitions
+from .builtin_shaders_and_effects.demo_ui import DGBLOCKS_OT_Toggle_Demo_Animation, DGBLOCKS_OT_Toggle_Textbox_Mouse_Capture, DGBLOCKS_OT_Textbox_Line_Add, DGBLOCKS_OT_Textbox_Line_Remove, _ui_draw_shader_examples_subpanel
+from .builtin_shaders_and_effects.demo_props import DGBLOCKS_PG_Debug_Shader_Example_Props, DGBLOCKS_PG_Demo_Shader_Attribute, DGBLOCKS_PG_Demo_Shader_Common, DGBLOCKS_PG_Debug_Shader_Region_Toggles, DGBLOCKS_PG_Textbox_Line_Row
 from .ui import DGBLOCKS_OT_Control_Animation
 
 # ==============================================================================================================================
@@ -47,10 +47,15 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
     # Seeded by ensure_demo_rows().
     demo_settings: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Demo_Shader_Common)  # type: ignore
     
-    # Unlike most mirrors, this contains no actual BL -> RTC sync logic. 
+    # Unlike most mirrors, this contains no actual BL -> RTC sync logic.
     # RTC is always SoT, and is repopulated every Wrapper_Shader_Manager.repoll()
     shader_mirror: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Shader_Mirror_Row)  # type: ignore
     shader_mirror_selected_idx: bpy.props.IntProperty()  # type: ignore
+
+    # Text Boxes demo: user-authored lines, pushed into Textbox_Demo_Shader via add_line()
+    # from hook_before_first_draw. Pure BL data — no RTC mirror needed.
+    textbox_lines: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Textbox_Line_Row)  # type: ignore
+    textbox_lines_selected_idx: bpy.props.IntProperty()  # type: ignore
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
@@ -65,6 +70,16 @@ def hook_get_shader_declarations():
 
 def hook_get_timer_definitions():
     return _hook_get_timer_definitions()
+
+
+def hook_get_modal_listener_definitions():
+    """
+    Subscribed by function-name convention to block_modal_events' hook (see helpers.py for why
+    this is safe without a declared block_dependency). Only ever contributes a listener while
+    the textbox demo's mouse-capture toggle is on; a no-op otherwise, including when
+    block_modal_events isn't active at all.
+    """
+    return _hook_get_modal_listener_definitions()
 
 
 def hook_post_startup():
@@ -165,10 +180,14 @@ _BLOCK_DECLARATION = Block_Declaration(
         DGBLOCKS_PG_Demo_Shader_Common,
         DGBLOCKS_PG_Debug_Shader_Region_Toggles,
         DGBLOCKS_PG_Shader_Mirror_Row,
+        DGBLOCKS_PG_Textbox_Line_Row,
         DGBLOCKS_PG_Debug_Shader_Example_Props,
         DGBLOCKS_PG_Onscreen_Drawing_Props,
         DGBLOCKS_OT_Toggle_Shader,
         DGBLOCKS_OT_Toggle_Demo_Animation,
+        DGBLOCKS_OT_Toggle_Textbox_Mouse_Capture,
+        DGBLOCKS_OT_Textbox_Line_Add,
+        DGBLOCKS_OT_Textbox_Line_Remove,
         DGBLOCKS_OT_Control_Animation,
         DGBLOCKS_PT_Debug_Drawing_Panel,
     ],

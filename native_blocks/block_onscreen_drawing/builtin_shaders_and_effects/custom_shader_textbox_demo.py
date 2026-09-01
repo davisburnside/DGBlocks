@@ -134,6 +134,7 @@ class Textbox_Demo_Shader(Shader_Instance):
         alignment: str = DEFAULT_ALIGNMENT,
         max_char_count: int = DEFAULT_MAX_CHAR_COUNT,
         min_padding=DEFAULT_PADDING,
+        text_color: Tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
         bg_color_top: Optional[Tuple[float, float, float, float]] = None,
         bg_color_bottom: Optional[Tuple[float, float, float, float]] = None,
     ) -> None:
@@ -145,6 +146,7 @@ class Textbox_Demo_Shader(Shader_Instance):
             alignment: One of 'left', 'center', 'right', 'left-soft', 'right-soft'.
             max_char_count: Max chars before word-wrap (default 80).
             min_padding: Padding value(s) — see PADDING SYSTEM in simple_textbox.py.
+            text_color: BLF draw color for this line (default opaque white).
             bg_color_top: Top gradient color for the SHARED background quad.
             bg_color_bottom: Bottom gradient color for the SHARED background quad.
                 The last add_line() providing these wins; if none do, no background is drawn.
@@ -158,6 +160,7 @@ class Textbox_Demo_Shader(Shader_Instance):
             "alignment": str(alignment),
             "max_char_count": int(max_char_count),
             "min_padding": min_padding,
+            "text_color": tuple(text_color),
         })
 
         # Shared background colours — last write wins.
@@ -200,27 +203,44 @@ class Textbox_Demo_Shader(Shader_Instance):
 
     def _resolve_origin(self, region, box_width, box_height):
         """Top-left anchor (x, y) in region space for the SINGLE shared box,
-        plus the user x_offset / y_offset."""
+        plus the user x_offset / y_offset.
+
+        `box_y` is always the BOTTOM edge of the box (vertices go from box_y to
+        box_y + box_height), so a TOP-anchored spawn point must subtract box_height to
+        keep its top edge pinned at the margin — omitting that shifts the whole box
+        above the region and off-screen.
+
+        The offset sign is corner-relative, not absolute: a positive x/y_offset always
+        pushes the box AWAY from its anchor corner and toward the region's center, so
+        the same "increase offset" gesture reads consistently regardless of which
+        corner the box is anchored to (e.g. positive X moves a left-anchored box right,
+        but a right-anchored box left).
+        """
         w, h = region.width, region.height
         sp = self.spawn_point
 
         if sp == SPAWN_MOUSE:
             mouse_xy = self._resolve_mouse_xy(region)
             if mouse_xy is None:
-                x, y = (_MARGIN, h - _MARGIN)
+                x, y = (_MARGIN, h - _MARGIN - box_height)
             else:
                 x = mouse_xy[0] - box_width / 2.0
                 y = mouse_xy[1] - box_height / 2.0
+            x_sign, y_sign = 1.0, 1.0
         elif sp == SPAWN_TOP_LEFT:
-            x, y = (_MARGIN, h - _MARGIN)
+            x, y = (_MARGIN, h - _MARGIN - box_height)
+            x_sign, y_sign = 1.0, -1.0
         elif sp == SPAWN_TOP_RIGHT:
-            x, y = (w - _MARGIN - box_width, h - _MARGIN)
+            x, y = (w - _MARGIN - box_width, h - _MARGIN - box_height)
+            x_sign, y_sign = -1.0, -1.0
         elif sp == SPAWN_BOTTOM_LEFT:
             x, y = (_MARGIN, _MARGIN)
+            x_sign, y_sign = 1.0, 1.0
         else:  # SPAWN_BOTTOM_RIGHT
             x, y = (w - _MARGIN - box_width, _MARGIN)
+            x_sign, y_sign = -1.0, 1.0
 
-        return (x + self._x_offset, y + self._y_offset)
+        return (x + x_sign * self._x_offset, y + y_sign * self._y_offset)
 
     # ----------------------------------------------------------
     # Private API — overriding parent class lifecycle methods
@@ -249,6 +269,7 @@ class Textbox_Demo_Shader(Shader_Instance):
         font_sizes_list = [ln["font_size"] for ln in self._lines]
         alignments_list = [ln["alignment"] for ln in self._lines]
         max_char_counts_list = [ln["max_char_count"] for ln in self._lines]
+        text_colors_list = [ln["text_color"] for ln in self._lines]
 
         # --- Normalize per-line parameters (same as draw_text_box) ---
         font_sizes = _normalize_parameter(
@@ -271,6 +292,7 @@ class Textbox_Demo_Shader(Shader_Instance):
             alignment = alignments[orig_idx]
             max_char = max_char_counts[orig_idx]
             padding = line_paddings[orig_idx]
+            text_color = text_colors_list[orig_idx]
 
             wrapped = _wrap_text_line(text, font_id, font_size, max_char)
             for wrapped_text in wrapped:
@@ -283,6 +305,7 @@ class Textbox_Demo_Shader(Shader_Instance):
                     "width": width,
                     "height": height,
                     "original_index": orig_idx,
+                    "text_color": text_color,
                 })
 
         if not line_infos:
@@ -342,6 +365,7 @@ class Textbox_Demo_Shader(Shader_Instance):
                 y_positions[i],
                 info["font_size"],
                 info["text"],
+                info["text_color"],
             ))
 
     def _shader_draw(self):
@@ -354,8 +378,8 @@ class Textbox_Demo_Shader(Shader_Instance):
 
         # --- Draw text via BLF (pre-computed positions, zero per-frame cost) ---
         font_id = 0
-        for x, y, font_size, text in self._text_draw_entries:
+        for x, y, font_size, text, text_color in self._text_draw_entries:
             blf.size(font_id, font_size)
             blf.position(font_id, x, y, 0.0)
-            blf.color(font_id, 1, 1, 1, 1)
+            blf.color(font_id, *text_color)
             blf.draw(font_id, text)

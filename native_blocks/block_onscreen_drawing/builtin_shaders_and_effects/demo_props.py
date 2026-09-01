@@ -367,6 +367,44 @@ class DGBLOCKS_PG_Demo_Shader_Common(bpy.types.PropertyGroup):
         return None
 
 
+class DGBLOCKS_PG_Textbox_Line_Row(bpy.types.PropertyGroup):
+    """
+    One user-authored line for the Text Boxes demo. Rows are drawn in order via
+    Textbox_Demo_Shader.add_line() from _hook_before_first_draw — this PropertyGroup owns
+    every add_line() parameter that is feasible to expose as a UI control.
+    """
+    text: bpy.props.StringProperty(  # type: ignore
+        name="Text", default="Text", update=_cb_demo_props_changed,
+    )
+    font_size: bpy.props.IntProperty(  # type: ignore
+        name="Font Size", default=14, min=6, max=200, update=_cb_demo_props_changed,
+    )
+    alignment: bpy.props.EnumProperty(  # type: ignore
+        name="Alignment",
+        items=[
+            ("left",       "Left",       ""),
+            ("center",     "Center",     ""),
+            ("right",      "Right",      ""),
+            ("left-soft",  "Left Soft",  "Aligns with the previous line's content start"),
+            ("right-soft", "Right Soft", "Aligns with the previous line's content end"),
+        ],
+        default="left",
+        update=_cb_demo_props_changed,
+    )
+    max_char_count: bpy.props.IntProperty(  # type: ignore
+        name="Wrap Width", description="Max characters before word-wrap (0 = never wrap)",
+        default=80, min=0, max=500, update=_cb_demo_props_changed,
+    )
+    padding: bpy.props.FloatProperty(  # type: ignore
+        name="Padding", description="Minimum padding on every side of this line",
+        default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed,
+    )
+    text_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="Text Color", subtype="COLOR", size=4,
+        default=(1.0, 1.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed,
+    )
+
+
 class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
 
     # Global timing function applied to every builtin/demo animation (task: single scene
@@ -395,7 +433,6 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
     linedash_color2: bpy.props.FloatVectorProperty(name="Gap Color", subtype="COLOR", size=4, default=(0.0, 0.0, 0.0, 0.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
 
     # Multi Text box example
-    show_textbox_count: bpy.props.IntProperty(name="Text Boxes", default=0, min=0, max=20, update=_cb_demo_props_changed)  # type: ignore
     textbox_spawn_point: bpy.props.EnumProperty(  # type: ignore
         name="Spawn Point",
         description="Which region corner the text boxes anchor to (or the mouse, if a block_modal_event instance is active)",
@@ -409,8 +446,16 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
         default="TOP_LEFT",
         update=_cb_demo_props_changed,
     )
-    textbox_x_offset: bpy.props.FloatProperty(name="X Offset", description="Pixels to shift the boxes along X from the spawn anchor", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
-    textbox_y_offset: bpy.props.FloatProperty(name="Y Offset", description="Pixels to shift the boxes along Y from the spawn anchor", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_x_offset: bpy.props.FloatProperty(name="X Offset", description="Pixels to shift the boxes from the spawn anchor, away from its corner", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_y_offset: bpy.props.FloatProperty(name="Y Offset", description="Pixels to shift the boxes from the spawn anchor, away from its corner", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_mouse_capture_active: bpy.props.BoolProperty(  # type: ignore
+        name="Textbox Mouse Capture Active", default=False,
+        description="Whether block_onscreen_drawing currently owns a lightweight block_modal_event "
+                     "listener, kept alive only to populate a live cursor position for 'At Mouse'",
+    )
+    textbox_bg_enabled: bpy.props.BoolProperty(name="Background", default=False, update=_cb_demo_props_changed)  # type: ignore
+    textbox_bg_color_top: bpy.props.FloatVectorProperty(name="Background Top", subtype="COLOR", size=4, default=(0.0, 0.0, 0.0, 0.7), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_bg_color_bottom: bpy.props.FloatVectorProperty(name="Background Bottom", subtype="COLOR", size=4, default=(0.2, 0.2, 0.2, 0.7), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
 
     # Stripe holdout example (screen-locked 2D stripe pattern rendered over 3D TRIs)
     stripe_angle: bpy.props.FloatProperty(name="Stripe Angle", default=0.0, min=0.0, max=360.0, soft_min=0.0, soft_max=360.0, update=_cb_demo_props_changed)  # type: ignore

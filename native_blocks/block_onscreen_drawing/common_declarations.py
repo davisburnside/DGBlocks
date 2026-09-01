@@ -1,7 +1,7 @@
 
 
 from ...addon_helpers.data_structures import Hook_Source_Declaration, Logger_Declaration, RTC_Member_Declaration, RTC_Member_Data_Mirror_Declaration, Shared_UIList_Declaration, String_Comparable_Mixin
-from ..block_onscreen_drawing.ui import _uilist_draw_selection_details, _uilist_draw_uilist_row
+from ..block_onscreen_drawing.ui import _uilist_draw_selection_details, _uilist_draw_uilist_row, _uilist_draw_textbox_line_details, _uilist_draw_textbox_line_row
 
 # ==============================================================================================================================
 # MAIN BLOCK COMPONENTS
@@ -45,4 +45,14 @@ class Block_UIList_Configs(String_Comparable_Mixin):
         RTC_key = Block_RTC_Members.SHADERS,
         callback_draw_row =_uilist_draw_uilist_row,
         callback_draw_details_section = _uilist_draw_selection_details,
+    )
+    TEXTBOX_LINES_UILIST = Shared_UIList_Declaration(
+        col_names = ["Text", "Align", "Size"],
+        col_widths = [5, 2, 2],
+        scene_parent_path = "dgblocks_onscreen_drawing_props",
+        scene_colprop_path = "textbox_lines",
+        scene_colprop_path_UIList_selection_idx_path = "textbox_lines_selected_idx",
+        # No RTC_key: each row is pure BL data with no associated runtime instance.
+        callback_draw_row = _uilist_draw_textbox_line_row,
+        callback_draw_details_section = _uilist_draw_textbox_line_details,
     )

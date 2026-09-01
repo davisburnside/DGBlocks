@@ -61,7 +61,7 @@ def _hook_get_shader_declarations():
             )
         )
 
-    if _demo_shown(props, DEMO_ID_TEXTBOX) and debug_props.show_textbox_count > 0:
+    if _demo_shown(props, DEMO_ID_TEXTBOX) and len(props.textbox_lines) > 0:
         shader_defs.append(
             Shader_Declaration(
                 shader_uid=_EXAMPLE_TEXTBOX_UID,
@@ -184,13 +184,25 @@ def _hook_before_first_draw():
             if phase_attr is not None:
                 shader.set_phase(phase_attr.get_value())
 
-    # --- Text boxes : count + spawn point ---
-    if debug_props.show_textbox_count > 0:
+    # --- Text boxes: user-authored lines + spawn point ---
+    if props.textbox_lines:
         shader = Wrapper_Shader_Manager.get_shader(_EXAMPLE_TEXTBOX_UID)
         if shader is not None:
+            bg_top = tuple(debug_props.textbox_bg_color_top) if debug_props.textbox_bg_enabled else None
+            bg_bottom = tuple(debug_props.textbox_bg_color_bottom) if debug_props.textbox_bg_enabled else None
+
             shader.clear_lines()
-            for i in range(debug_props.show_textbox_count):
-                shader.add_line(f"Text Box #{i + 1}")
+            for line in props.textbox_lines:
+                shader.add_line(
+                    line.text,
+                    font_size=line.font_size,
+                    alignment=line.alignment,
+                    max_char_count=line.max_char_count,
+                    min_padding=line.padding,
+                    text_color=tuple(line.text_color),
+                    bg_color_top=bg_top,
+                    bg_color_bottom=bg_bottom,
+                )
             shader.set_spawn_point(debug_props.textbox_spawn_point)
             shader.set_textbox_offsets(debug_props.textbox_x_offset, debug_props.textbox_y_offset)
 
