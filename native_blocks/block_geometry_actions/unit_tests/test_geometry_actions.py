@@ -25,6 +25,8 @@ from ..data_structures import (
     Callback_Step,
     Enum_Geometry_Target,
     Enum_Geometry_Type,
+    Enum_Inherit_Mode,
+    Enum_Op_Type,
     Enum_Read_Source,
     Geometry_Actions_Declaration,
     Read_Step,
@@ -319,6 +321,123 @@ class Test_Storage_And_Grouping(_Base):
 
 
 # ==============================================================================================================================
+# INHERIT_MODE (Enum_Inherit_Mode.REFERENCE)
+# ==============================================================================================================================
+
+class Test_Reference_Inherit_Mode(_Base):
+
+    def test_reference_mode_inherits_data_via_wholesale_reassignment(self):
+        """REFERENCE mode must inherit derived data the same way COPY does, provided the
+        seeding callback replaces the slot wholesale rather than mutating it in place."""
+        obj = create_test_mesh_object()
+
+        def _seed(instance, _action, _context):
+            instance.derived["values"] = np.array([1, 2, 3], dtype=np.int32)
+
+        W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.inherit.first", grouping_id="test.ref.inherit",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+            steps=(Callback_Step(_seed),),
+        ))
+        second = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.inherit.second", grouping_id="test.ref.inherit",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+        ))
+        self.assertIn("values", second.derived)
+        np.testing.assert_array_equal(second.derived["values"], [1, 2, 3])
+
+    def test_reference_mode_wholesale_replace_does_not_corrupt_prior_stored_result(self):
+        """A REFERENCE-mode run that replaces a derived slot wholesale (the pattern every
+        real caller of REFERENCE mode is required to follow) must not change the value the
+        earlier stored result still reports for that same key."""
+        obj = create_test_mesh_object()
+
+        def _seed(instance, _action, _context):
+            instance.derived["values"] = np.array([1, 2, 3], dtype=np.int32)
+
+        first = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.wholesale.first", grouping_id="test.ref.wholesale",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+            steps=(Callback_Step(_seed),),
+        ))
+
+        def _replace(instance, _action, _context):
+            instance.derived["values"] = np.array([9, 9, 9], dtype=np.int32)
+
+        second = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.wholesale.second", grouping_id="test.ref.wholesale",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+            steps=(Callback_Step(_replace),),
+        ))
+        np.testing.assert_array_equal(first.derived["values"], [1, 2, 3])
+        np.testing.assert_array_equal(second.derived["values"], [9, 9, 9])
+
+    def test_reference_mode_does_not_corrupt_prior_stored_identity(self):
+        """A later REFERENCE-mode run in the same group must not change the declaration_id
+        or action history that an earlier run's OWN stored result reports -- REFERENCE must
+        give each run fresh identity fields even though it shares the payload containers."""
+        obj = create_test_mesh_object()
+
+        first = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.identity.first", grouping_id="test.ref.identity",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+        ))
+        first_action_uid = first.last_action.action_uid
+
+        W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.identity.second", grouping_id="test.ref.identity",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+        ))
+
+        stale = W.get_result("test.ref.identity.first", obj.name, require_valid=False)
+        self.assertEqual(stale.declaration_id, "test.ref.identity.first")
+        self.assertEqual(stale.last_action.action_uid, first_action_uid)
+
+    def test_reference_mode_does_not_inherit_across_read_source_mismatch(self):
+        """A grouped REFERENCE run must not inherit data from a sibling declaration that
+        read a different read_source -- EVALUATED and ORIGINAL are different index spaces,
+        so crossing them would hand one declaration data indexed for the wrong snapshot."""
+        obj = create_test_mesh_object()
+
+        def _seed(instance, _action, _context):
+            instance.derived["marker"] = "should-not-cross"
+
+        W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.source.original", grouping_id="test.ref.source",
+            read_source=Enum_Read_Source.ORIGINAL,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+            steps=(Callback_Step(_seed),),
+        ))
+        evaluated = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.source.evaluated", grouping_id="test.ref.source",
+            read_source=Enum_Read_Source.EVALUATED,
+            inherit_mode=Enum_Inherit_Mode.REFERENCE,
+        ))
+        self.assertNotIn("marker", evaluated.derived)
+
+    def test_setup_op_is_recorded_and_included_in_total_duration(self):
+        """Every run must record a SETUP op (inherit + acquire + counts), and the header
+        duration must not be smaller than that one op's own duration -- otherwise a caller
+        summing action.ops would overcount, not just undercount."""
+        obj = create_test_mesh_object()
+        result = W.run_geometry_action_for_object(obj, Geometry_Actions_Declaration(
+            declaration_id="test.ref.setup_op",
+            read_source=Enum_Read_Source.ORIGINAL,
+            steps=(Read_Step(MET.VERTEX.CO),),
+        ))
+        setup_ops = [op for op in result.last_action.ops if op.op_type == Enum_Op_Type.SETUP]
+        self.assertEqual(len(setup_ops), 1)
+        self.assertEqual(result.last_action.ops[0].op_type, Enum_Op_Type.SETUP)
+        self.assertGreaterEqual(result.last_action.duration_ms, setup_ops[0].duration_ms)
+
+
+# ==============================================================================================================================
 # CURVES
 # ==============================================================================================================================
 
@@ -426,6 +545,7 @@ def build_suite() -> unittest.TestSuite:
         Test_Mesh_Reads,
         Test_Callbacks_And_Writes,
         Test_Storage_And_Grouping,
+        Test_Reference_Inherit_Mode,
         Test_Curves,
         Test_Serialization,
     ):

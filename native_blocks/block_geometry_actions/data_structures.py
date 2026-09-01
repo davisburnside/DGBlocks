@@ -90,6 +90,28 @@ class Enum_Op_Type(StrEnum):
     READ     = "READ"
     CALLBACK = "CALLBACK"
     WRITE    = "WRITE"
+    SETUP    = "SETUP"    # inherit/clone + geometry acquire + domain counts + hazard scan
+
+
+class Enum_Inherit_Mode(StrEnum):
+    """
+    How a grouped declaration's starting instance is built from the latest stored result
+    sharing its (grouping_id, object, read_source) — see run_geometry_action's docstring.
+
+    COPY      : deepcopy the inherited instance. Full isolation -- mutating the new
+                instance can never affect the stored one it came from. The safe default,
+                and required whenever the caller still holds/compares against the OLD
+                stored instance after this run (e.g. a before/after diff).
+    REFERENCE : shallow-clone the inherited instance -- fresh identity fields (declaration_id,
+                actions, timestamps) and fresh per-domain `.custom` dicts / `derived` dict,
+                but the arrays and entity objects INSIDE them are shared by reference, not
+                copied. Cheap (O(key count), not O(data size)) and safe PROVIDED every
+                callback that builds on inherited data replaces dict/array slots wholesale
+                rather than mutating them in place -- copy the value first if a callback
+                ever needs to mutate something it did not just create.
+    """
+    COPY      = "COPY"
+    REFERENCE = "REFERENCE"
 
 
 class Enum_Step_Kind(StrEnum):
@@ -690,13 +712,19 @@ class Geometry_Actions_Declaration:
 
     declaration_id  : REQUIRED unique identity for this action. The latest result is stored
                       per (declaration_id, object session uid).
-    grouping_id     : optional data-pipeline identity. A run starts with a deep copy of the
-                      latest result for this grouping_id and object; new reads replace the
-                      inherited value in their attribute slot.
+    grouping_id     : optional data-pipeline identity. A run starts from the latest result
+                      sharing this grouping_id, THIS object, and THIS read_source (a group
+                      never inherits across a read_source mismatch — EVALUATED and ORIGINAL
+                      data live in different index spaces). How that starting instance is
+                      built is inherit_mode's job; new reads replace the inherited value in
+                      their attribute slot either way.
     label           : display-only name for the panel / logs (defaults to declaration_id)
     steps           : ordered tuple of Read_Step / Callback_Step
     read_source     : EVALUATED (post-modifier) or ORIGINAL (write-back safe indices)
     geometry_target : AUTO / MESH_EVALUATED / NATIVE_DATA — see Enum_Geometry_Target
+    inherit_mode    : COPY (default, full deepcopy isolation) or REFERENCE (cheap shallow
+                      clone) — see Enum_Inherit_Mode. Only consulted when grouping_id is
+                      set and a prior grouped result exists to inherit from.
     """
     declaration_id:        str
     grouping_id:           Optional[str] = None
@@ -705,6 +733,7 @@ class Geometry_Actions_Declaration:
 
     read_source:           str  = Enum_Read_Source.EVALUATED
     geometry_target:       str  = Enum_Geometry_Target.AUTO
+    inherit_mode:          str  = Enum_Inherit_Mode.COPY
 
     def __post_init__(self):
         if not self.declaration_id:

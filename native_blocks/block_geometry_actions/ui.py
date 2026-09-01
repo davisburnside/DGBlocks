@@ -9,6 +9,7 @@ from .data_structures import Enum_Op_Type
 _OP_ICONS = {
     Enum_Op_Type.READ:     "IMPORT",
     Enum_Op_Type.CALLBACK: "SCRIPTPLUGINS",
+    Enum_Op_Type.SETUP:    "TIME",
 }
 
 # Plain-language meaning of each summary-line field, keyed by its raw enum string.

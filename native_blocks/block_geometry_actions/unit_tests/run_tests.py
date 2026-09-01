@@ -64,6 +64,11 @@ def build_suite_storage_and_grouping() -> unittest.TestSuite:
     return _group_suite("Test_Storage_And_Grouping")
 
 
+def build_suite_reference_inherit_mode() -> unittest.TestSuite:
+    _ensure_test_runtime()
+    return _group_suite("Test_Reference_Inherit_Mode")
+
+
 def build_suite_curves() -> unittest.TestSuite:
     _ensure_test_runtime()
     return _group_suite("Test_Curves")

@@ -12,7 +12,7 @@ finalized after each Callback_Step.
 
 import time
 from copy import deepcopy
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from pathlib import Path
 from pprint import pformat
 from typing import Optional
@@ -29,6 +29,7 @@ from .data_structures import (
     Action_Op_Record,
     Action_Record,
     Enum_Geometry_Type,
+    Enum_Inherit_Mode,
     Enum_Op_Type,
     Enum_Step_Kind,
     Geometry_Actions_Declaration,
@@ -82,15 +83,62 @@ def store_result(instance: Geometry_Actions_Result_Instance) -> None:
     _set_all_results(results)
 
 
-def _latest_group_result(grouping_id: Optional[str], object_session_uid: int):
+def _latest_group_result(grouping_id: Optional[str], object_session_uid: int, read_source: str):
+    """The most recent stored result sharing (grouping_id, object, read_source).
+
+    read_source is part of the identity, not just a filter of convenience: EVALUATED and
+    ORIGINAL data live in different index spaces (see Enum_Read_Source), so inheriting
+    across a read_source mismatch would hand one declaration data indexed for a completely
+    different mesh snapshot. A result with no recorded action (nothing ever stored via
+    store_result) cannot be compared and is skipped rather than crashing on `last_action`.
+    """
     if not grouping_id:
         return None
     matches = [
         result for result in get_all_results().values()
         if result.grouping_id == grouping_id
         and result.object_session_uid == object_session_uid
+        and result.last_action is not None
+        and result.last_action.read_source == str(read_source)
     ]
     return max(matches, key=lambda result: result.timestamp_last_action) if matches else None
+
+
+def _reference_clone(
+    inherited: Geometry_Actions_Result_Instance,
+    declaration_id: str,
+    object_name: str,
+    grouping_id: Optional[str],
+    timestamp_start: float,
+) -> Geometry_Actions_Result_Instance:
+    """Cheap alternative to `deepcopy(inherited)` for Enum_Inherit_Mode.REFERENCE.
+
+    Gives the new instance its own identity (declaration_id, actions, timestamps) and its
+    own per-domain `.custom` dicts / `derived` dict, so this run's bookkeeping can never
+    leak into the stored result it started from and vice versa. Everything INSIDE those
+    containers -- arrays, entity objects -- is shared by reference, not copied: O(key
+    count) instead of O(data size). Safe only if every caller that builds on inherited data
+    replaces dict/array slots wholesale rather than mutating them in place (see
+    Enum_Inherit_Mode.REFERENCE's docstring).
+    """
+    return replace(
+        inherited,
+        declaration_id=declaration_id,
+        object_name=object_name,
+        grouping_id=grouping_id,
+        timestamp_start=timestamp_start,
+        timestamp_end=0.0,
+        actions=[],
+        is_valid=False,
+        error_str=None,
+        vertex=replace(inherited.vertex, custom=dict(inherited.vertex.custom)),
+        edge=replace(inherited.edge, custom=dict(inherited.edge.custom)),
+        face=replace(inherited.face, custom=dict(inherited.face.custom)),
+        corner=replace(inherited.corner, custom=dict(inherited.corner.custom)),
+        point=replace(inherited.point, custom=dict(inherited.point.custom)),
+        curve=replace(inherited.curve, custom=dict(inherited.curve.custom)),
+        derived=dict(inherited.derived),
+    )
 
 
 def clear_results(declaration_id: Optional[str] = None, object_name: Optional[str] = None) -> int:
@@ -285,13 +333,20 @@ def run_geometry_action(
         object_mode     = str(object_mode),
     )
 
-    inherited = _latest_group_result(declaration.grouping_id, object_session_uid)
+    inherited = _latest_group_result(
+        declaration.grouping_id, object_session_uid, str(declaration.read_source),
+    )
     if inherited is None:
         instance = Geometry_Actions_Result_Instance(
             declaration_id  = declaration.declaration_id,
             object_name     = object_name,
             grouping_id     = declaration.grouping_id,
             timestamp_start = action.timestamp_start,
+        )
+    elif str(declaration.inherit_mode) == Enum_Inherit_Mode.REFERENCE:
+        instance = _reference_clone(
+            inherited, declaration.declaration_id, object_name,
+            declaration.grouping_id, action.timestamp_start,
         )
     else:
         instance = deepcopy(inherited)
@@ -324,6 +379,11 @@ def run_geometry_action(
     action.geometry_type   = str(handle.geometry_type)
     instance.geometry_type = str(handle.geometry_type)
     if not handle.is_valid:
+        action.ops.append(Action_Op_Record(
+            op_type=Enum_Op_Type.SETUP, label="setup (inherit + acquire)", is_valid=False,
+            duration_ms=(time.perf_counter() - total_start) * 1000.0,
+            error_str=handle.error_str,
+        ))
         return _finish(handle.error_str)
 
     data = handle.data
@@ -341,6 +401,17 @@ def run_geometry_action(
                 action.ops.append(Action_Op_Record(
                     op_type=Enum_Op_Type.CALLBACK, label="hazard", error_str=warning,
                 ))
+
+        # Everything above this point -- inherit lookup, clone/deepcopy, geometry acquire
+        # (when this call owns it), domain counts, hazard scan -- has no per-item Action_Op
+        # of its own, so it used to vanish into the gap between the header total and the
+        # sum of listed rows. Recorded as one op, inserted first, so the panel actually
+        # sums to the header duration and this cost is directly comparable across runs
+        # (e.g. to confirm inherit_mode=REFERENCE actually cut it, not just guessed at).
+        action.ops.insert(0, Action_Op_Record(
+            op_type=Enum_Op_Type.SETUP, label="setup (inherit + acquire + counts)",
+            duration_ms=(time.perf_counter() - total_start) * 1000.0,
+        ))
 
         # ---- RUN THE STEP LIST ------------------------------------------------
         for step in declaration.steps or ():
