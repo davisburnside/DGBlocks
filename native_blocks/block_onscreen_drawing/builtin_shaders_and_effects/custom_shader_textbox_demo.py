@@ -135,6 +135,10 @@ class Textbox_Demo_Shader(Shader_Instance):
         max_char_count: int = DEFAULT_MAX_CHAR_COUNT,
         min_padding=DEFAULT_PADDING,
         text_color: Tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0),
+        outline_enabled: bool = False,
+        outline_color: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
+        outline_spread: int = 5,
+        outline_offset: Tuple[int, int] = (0, 0),
         bg_color_top: Optional[Tuple[float, float, float, float]] = None,
         bg_color_bottom: Optional[Tuple[float, float, float, float]] = None,
     ) -> None:
@@ -147,6 +151,13 @@ class Textbox_Demo_Shader(Shader_Instance):
             max_char_count: Max chars before word-wrap (default 80).
             min_padding: Padding value(s) — see PADDING SYSTEM in simple_textbox.py.
             text_color: BLF draw color for this line (default opaque white).
+            outline_enabled: Draw a soft BLF shadow behind the glyphs, approximating a text
+                outline (cheap: no extra draw passes, just blf.shadow*()).
+            outline_color: Color of that soft outline/shadow.
+            outline_spread: blf.shadow()'s blur kernel — Blender only supports 0 (sharp), 3, or
+                5 (widest).
+            outline_offset: (x, y) pixel offset. (0, 0) reads as a symmetric outline; non-zero
+                reads as a drop-shadow.
             bg_color_top: Top gradient color for the SHARED background quad.
             bg_color_bottom: Bottom gradient color for the SHARED background quad.
                 The last add_line() providing these wins; if none do, no background is drawn.
@@ -161,6 +172,10 @@ class Textbox_Demo_Shader(Shader_Instance):
             "max_char_count": int(max_char_count),
             "min_padding": min_padding,
             "text_color": tuple(text_color),
+            "outline_enabled": bool(outline_enabled),
+            "outline_color": tuple(outline_color),
+            "outline_spread": int(outline_spread),
+            "outline_offset": tuple(outline_offset),
         })
 
         # Shared background colours — last write wins.
@@ -270,6 +285,10 @@ class Textbox_Demo_Shader(Shader_Instance):
         alignments_list = [ln["alignment"] for ln in self._lines]
         max_char_counts_list = [ln["max_char_count"] for ln in self._lines]
         text_colors_list = [ln["text_color"] for ln in self._lines]
+        outline_enabled_list = [ln["outline_enabled"] for ln in self._lines]
+        outline_colors_list = [ln["outline_color"] for ln in self._lines]
+        outline_spreads_list = [ln["outline_spread"] for ln in self._lines]
+        outline_offsets_list = [ln["outline_offset"] for ln in self._lines]
 
         # --- Normalize per-line parameters (same as draw_text_box) ---
         font_sizes = _normalize_parameter(
@@ -293,6 +312,10 @@ class Textbox_Demo_Shader(Shader_Instance):
             max_char = max_char_counts[orig_idx]
             padding = line_paddings[orig_idx]
             text_color = text_colors_list[orig_idx]
+            outline_enabled = outline_enabled_list[orig_idx]
+            outline_color = outline_colors_list[orig_idx]
+            outline_spread = outline_spreads_list[orig_idx]
+            outline_offset = outline_offsets_list[orig_idx]
 
             wrapped = _wrap_text_line(text, font_id, font_size, max_char)
             for wrapped_text in wrapped:
@@ -306,6 +329,10 @@ class Textbox_Demo_Shader(Shader_Instance):
                     "height": height,
                     "original_index": orig_idx,
                     "text_color": text_color,
+                    "outline_enabled": outline_enabled,
+                    "outline_color": outline_color,
+                    "outline_spread": outline_spread,
+                    "outline_offset": outline_offset,
                 })
 
         if not line_infos:
@@ -366,6 +393,10 @@ class Textbox_Demo_Shader(Shader_Instance):
                 info["font_size"],
                 info["text"],
                 info["text_color"],
+                info["outline_enabled"],
+                info["outline_color"],
+                info["outline_spread"],
+                info["outline_offset"],
             ))
 
     def _shader_draw(self):
@@ -378,8 +409,20 @@ class Textbox_Demo_Shader(Shader_Instance):
 
         # --- Draw text via BLF (pre-computed positions, zero per-frame cost) ---
         font_id = 0
-        for x, y, font_size, text, text_color in self._text_draw_entries:
+        for (x, y, font_size, text, text_color, outline_enabled, outline_color,
+             outline_spread, outline_offset) in self._text_draw_entries:
             blf.size(font_id, font_size)
             blf.position(font_id, x, y, 0.0)
             blf.color(font_id, *text_color)
+            if outline_enabled:
+                # outline_spread is blf.shadow()'s blur kernel (0/3/5 only); outline_offset of
+                # (0, 0) makes the "shadow" radiate symmetrically behind the glyphs — a cheap
+                # outline approximation with no extra draw passes. A non-zero offset instead
+                # reads as an ordinary drop-shadow.
+                blf.enable(font_id, blf.SHADOW)
+                blf.shadow(font_id, outline_spread, *outline_color)
+                blf.shadow_offset(font_id, *outline_offset)
+            else:
+                blf.disable(font_id, blf.SHADOW)
             blf.draw(font_id, text)
+        blf.disable(font_id, blf.SHADOW)  # never leak shadow state to other BLF users of font_id 0

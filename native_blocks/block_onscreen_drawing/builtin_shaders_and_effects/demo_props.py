@@ -137,6 +137,38 @@ def get_demo_row(props, demo_id):
     return None
 
 
+# Seeded once, ever (guarded by props.textbox_lines_seeded), so deleting them all later doesn't
+# bring them back — this is a first-run example, not a managed default set like _DEMO_DEFS.
+_DEFAULT_TEXTBOX_LINES = [
+    {"text": "This is a row with small text", "font_size": 12},
+    {"text": "Another row, much much much much longer, with limited row chars, so you can see word-wrap in action",
+     "max_char_count": 40},
+    {"text": "Center-aligned, larger, colored title", "font_size": 20, "alignment": "center",
+     "text_color": (0.35, 0.7, 1.0, 1.0)},
+    {"text": "Right-aligned, with an outline", "alignment": "right",
+     "outline_enabled": True, "outline_color": (0.0, 0.0, 0.0, 1.0)},
+]
+
+
+def ensure_default_textbox_lines(props) -> None:
+    """Seed a few example rows into textbox_lines exactly once (first run only)."""
+    if props.textbox_lines_seeded:
+        return
+    props.textbox_lines_seeded = True
+    for line_def in _DEFAULT_TEXTBOX_LINES:
+        row = props.textbox_lines.add()
+        row.text = line_def["text"]
+        row.font_size = line_def.get("font_size", 14)
+        row.alignment = line_def.get("alignment", "left")
+        row.max_char_count = line_def.get("max_char_count", 80)
+        if "text_color" in line_def:
+            row.text_color = line_def["text_color"]
+        if "outline_enabled" in line_def:
+            row.outline_enabled = line_def["outline_enabled"]
+        if "outline_color" in line_def:
+            row.outline_color = line_def["outline_color"]
+
+
 def _debug_region_before_draw(shader_instance):
     region = bpy.context.region
     if region is None:
@@ -395,14 +427,67 @@ class DGBLOCKS_PG_Textbox_Line_Row(bpy.types.PropertyGroup):
         name="Wrap Width", description="Max characters before word-wrap (0 = never wrap)",
         default=80, min=0, max=500, update=_cb_demo_props_changed,
     )
-    padding: bpy.props.FloatProperty(  # type: ignore
-        name="Padding", description="Minimum padding on every side of this line",
-        default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed,
+    padding_mode: bpy.props.EnumProperty(  # type: ignore
+        name="Padding",
+        description="How many independent padding values this line's padding is split into",
+        items=[
+            ("SIMPLE", "Simple",              "One value, applied to every side"),
+            ("XY",     "Horizontal / Vertical", "Separate horizontal and vertical values"),
+            ("ALL",    "Top / Right / Bottom / Left", "Independent value per side"),
+        ],
+        default="SIMPLE",
+        update=_cb_demo_props_changed,
     )
+    padding_simple: bpy.props.FloatProperty(name="All Sides", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
+    padding_horizontal: bpy.props.FloatProperty(name="Horizontal", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
+    padding_vertical: bpy.props.FloatProperty(name="Vertical", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
+    padding_top: bpy.props.FloatProperty(name="Top", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
+    padding_right: bpy.props.FloatProperty(name="Right", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
+    padding_bottom: bpy.props.FloatProperty(name="Bottom", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
+    padding_left: bpy.props.FloatProperty(name="Left", default=5.0, min=0.0, max=100.0, update=_cb_demo_props_changed)  # type: ignore
     text_color: bpy.props.FloatVectorProperty(  # type: ignore
         name="Text Color", subtype="COLOR", size=4,
         default=(1.0, 1.0, 1.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed,
     )
+    outline_enabled: bpy.props.BoolProperty(  # type: ignore
+        name="Outline", default=False, update=_cb_demo_props_changed,
+        description="Soft BLF shadow approximating a text outline (or a drop-shadow, via the offset controls)",
+    )
+    outline_color: bpy.props.FloatVectorProperty(  # type: ignore
+        name="Outline Color", subtype="COLOR", size=4,
+        default=(0.0, 0.0, 0.0, 1.0), min=0.0, max=1.0, update=_cb_demo_props_changed,
+    )
+    outline_spread: bpy.props.EnumProperty(  # type: ignore
+        name="Spread",
+        description="blf.shadow()'s blur kernel — Blender only supports these 3 fixed sizes",
+        items=[
+            ("0", "Sharp", "No blur — a crisp 1px shadow"),
+            ("3", "Soft",  "3x3 blur"),
+            ("5", "Wide",  "5x5 blur"),
+        ],
+        default="5",
+        update=_cb_demo_props_changed,
+    )
+    outline_offset_x: bpy.props.IntProperty(  # type: ignore
+        name="Offset X", description="0 = symmetric outline; non-zero reads as a drop-shadow",
+        default=0, min=-20, max=20, update=_cb_demo_props_changed,
+    )
+    outline_offset_y: bpy.props.IntProperty(  # type: ignore
+        name="Offset Y", description="0 = symmetric outline; non-zero reads as a drop-shadow",
+        default=0, min=-20, max=20, update=_cb_demo_props_changed,
+    )
+
+    def get_padding_value(self):
+        """
+        The value shape simple_textbox._normalize_padding_value() expects: a scalar, a
+        (vertical, horizontal) 2-tuple, or a (top, right, bottom, left) 4-tuple — selected by
+        padding_mode.
+        """
+        if self.padding_mode == "XY":
+            return (self.padding_vertical, self.padding_horizontal)
+        if self.padding_mode == "ALL":
+            return (self.padding_top, self.padding_right, self.padding_bottom, self.padding_left)
+        return self.padding_simple
 
 
 class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):

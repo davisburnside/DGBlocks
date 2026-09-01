@@ -27,8 +27,9 @@ from .builtin_shaders_and_effects.demo_props import (
     _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
     _create_region_boundary_shader_declarations,
     _polyline_from_ring, _radial_ring,
-    _resolve_demo_shader_uid, _activate_demo_animation, ensure_demo_rows, 
-    get_demo_row, demo_is_animatable, 
+    _resolve_demo_shader_uid, _activate_demo_animation, ensure_demo_rows,
+    ensure_default_textbox_lines,
+    get_demo_row, demo_is_animatable,
 )
 
 
@@ -198,8 +199,12 @@ def _hook_before_first_draw():
                     font_size=line.font_size,
                     alignment=line.alignment,
                     max_char_count=line.max_char_count,
-                    min_padding=line.padding,
+                    min_padding=line.get_padding_value(),
                     text_color=tuple(line.text_color),
+                    outline_enabled=line.outline_enabled,
+                    outline_color=tuple(line.outline_color),
+                    outline_spread=int(line.outline_spread),
+                    outline_offset=(line.outline_offset_x, line.outline_offset_y),
                     bg_color_top=bg_top,
                     bg_color_bottom=bg_bottom,
                 )
@@ -290,4 +295,6 @@ def _hook_get_timer_definitions():
 
 # Called from block_core
 def _hook_post_startup():
-    ensure_demo_rows(bpy.context.scene.dgblocks_onscreen_drawing_props)
+    props = bpy.context.scene.dgblocks_onscreen_drawing_props
+    ensure_demo_rows(props)
+    ensure_default_textbox_lines(props)

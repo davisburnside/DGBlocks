@@ -231,23 +231,59 @@ def _uilist_draw_textbox_line_row(context, container, uillist_config_instance, B
     sub.label(text = str(BL_item.font_size))
 
 
-def _uilist_draw_textbox_line_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+_PADDING_MODE_FIELDS = {
+    "SIMPLE": [("padding_simple", "All Sides")],
+    "XY":     [("padding_horizontal", "Horizontal"), ("padding_vertical", "Vertical")],
+    "ALL":    [("padding_top", "Top"), ("padding_right", "Right"),
+               ("padding_bottom", "Bottom"), ("padding_left", "Left")],
+}
 
+
+def _ui_draw_textbox_line_padding_values(container, BL_item):
+    """
+    Vertical stack of sliders for whichever padding_mode is active, one row per value —
+    label on the LEFT, slider on the RIGHT (matches every other prop() row in this panel).
+    """
+    stack = container.column(align=True)
+    for prop_name, label in _PADDING_MODE_FIELDS[BL_item.padding_mode]:
+        row = stack.row(align=True)
+        row.label(text=label)
+        row.prop(BL_item, prop_name, text="", slider=True)
+
+
+def _uilist_draw_textbox_line_details(context, container, uillist_config_instance, BL_item, RTC_item, list_idx):
+    """
+    Always-visible (no collapsible subpanel — the selected row's settings should never be
+    hidden behind a click) detail section for the selected textbox_lines row.
+    """
     if BL_item is None:
         return
 
-    def _body(context, cont):
-        cont.prop(BL_item, "text")
-        grid = cont.grid_flow(row_major=True, columns=0, even_columns=True, align=True)
-        grid.prop(BL_item, "font_size")
-        grid.prop(BL_item, "alignment")
-        grid.prop(BL_item, "max_char_count")
-        grid.prop(BL_item, "padding")
-        grid.prop(BL_item, "text_color")
+    box = container.box()
+    box.label(text="Text Line Details")
 
-    # Shared idname (not suffixed with list_idx) so the panel's open/closed state persists
-    # when the selected row changes, matching the Shader Details sub-subpanel above.
-    ui_draw_subpanel(
-        context, container, "onscreen_textbox_line_details",
-        "Text Line Details", _body,
-    )
+    box.prop(BL_item, "text")
+
+    size_row = box.row(align=True)
+    size_row.prop(BL_item, "font_size")
+    size_row.prop(BL_item, "max_char_count")
+
+    align_color_row = box.row(align=True)
+    align_color_row.prop(BL_item, "alignment")
+    align_color_row.label(text="Color:")
+    align_color_row.prop(BL_item, "text_color", text="")
+
+    box.prop(BL_item, "padding_mode")
+    _ui_draw_textbox_line_padding_values(box, BL_item)
+
+    outline_row = box.row(align=True)
+    outline_row.prop(BL_item, "outline_enabled", text="Outline")
+    outline_color = outline_row.row(align=True)
+    outline_color.enabled = BL_item.outline_enabled
+    outline_color.prop(BL_item, "outline_color", text="")
+
+    outline_extra = box.row(align=True)
+    outline_extra.enabled = BL_item.outline_enabled
+    outline_extra.prop(BL_item, "outline_spread", text="")
+    outline_extra.prop(BL_item, "outline_offset_x")
+    outline_extra.prop(BL_item, "outline_offset_y")

@@ -56,6 +56,9 @@ class DGBLOCKS_PG_Onscreen_Drawing_Props(bpy.types.PropertyGroup):
     # from hook_before_first_draw. Pure BL data — no RTC mirror needed.
     textbox_lines: bpy.props.CollectionProperty(type=DGBLOCKS_PG_Textbox_Line_Row)  # type: ignore
     textbox_lines_selected_idx: bpy.props.IntProperty()  # type: ignore
+    # Guards ensure_default_textbox_lines() so the seeded example rows never come back after
+    # the user deletes them all — unlike demo_settings, these rows are freely user-managed.
+    textbox_lines_seeded: bpy.props.BoolProperty(default=False)  # type: ignore
 
 # ==============================================================================================================================
 # HOOK SUBSCRIBERS
