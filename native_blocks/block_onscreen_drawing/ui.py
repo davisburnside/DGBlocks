@@ -32,10 +32,14 @@ def _uilist_draw_uilist_row(context, container, uillist_config_instance, BL_item
     sub.ui_units_x = col_widths[3]
     sub.label(text = str(RTC_item.batch_count_of_shader))
 
+    sub = header.row()
+    sub.ui_units_x = col_widths[4]
+    sub.label(text = str(RTC_item.draw_count_of_batch))
+
     # is_enabled lives on the RTC instance, not BL. Draw an operator (no undo-stack entry)
     # that toggles it by uid. The eye icon reflects the live RTC state.
     sub = header.row()
-    sub.ui_units_x = col_widths[4]
+    sub.ui_units_x = col_widths[5]
     eye_icon = "HIDE_OFF" if RTC_item.is_enabled else "HIDE_ON"
     op = sub.operator("dgblocks.toggle_shader", text = "", icon = eye_icon, emboss = False)
     op.shader_uid = RTC_item.shader_uid
@@ -193,8 +197,10 @@ def _uilist_draw_selection_details(context, container, uillist_config_instance, 
         ui_draw_generic_instance_data(context, cont, RTC_item, ui_structure_for_custom_shader_instance)
         _ui_draw_animations_box(context, cont, RTC_item)
 
-    # The whole details section is a collapsible sub-subpanel (defaults closed).
+    # The whole details section is a collapsible sub-subpanel (defaults closed). The idname is
+    # intentionally shared across all shaders (not suffixed with shader_uid) so Blender's
+    # panel open/closed state persists when the selected row changes.
     ui_draw_subpanel(
-        context, container, f"onscreen_shader_details_{RTC_item.shader_uid}",
+        context, container, "onscreen_shader_details",
         "Shader Details", _body,
     )
