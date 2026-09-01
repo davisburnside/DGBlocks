@@ -21,6 +21,7 @@ in `_DEMO_DEFS` plus an animation recipe in `_activate_demo_animation`.
 """
 
 import bpy
+import gpu
 import numpy as np
 
 
@@ -57,6 +58,7 @@ DEMO_ID_ANNOTATED = "annotated_lines"
 
 _EXAMPLE_LINEDASH_UID = "EXAMPLE_POLYLINE_DASH"
 _EXAMPLE_TEXTBOX_UID = "EXAMPLE_TEXTBOX_DEMO"
+_EXAMPLE_TEXTBOX_POINT_UID = "EXAMPLE_TEXTBOX_DEMO_3D_POINT"
 _EXAMPLE_STRIPE_UID = "EXAMPLE_STRIPE_PATTERN"
 _EXAMPLE_ANNOTATED_UID = "EXAMPLE_ANNOTATED_LINES"
 
@@ -167,6 +169,26 @@ def ensure_default_textbox_lines(props) -> None:
             row.outline_enabled = line_def["outline_enabled"]
         if "outline_color" in line_def:
             row.outline_color = line_def["outline_color"]
+
+
+_TEXTBOX_POINT_MARKER_COLOR = (1.0, 0.9, 0.1, 1.0)
+_TEXTBOX_POINT_MARKER_SIZE_PX = 8
+
+
+def _textbox_point_before_draw(shader_instance):
+    """
+    Marks the literal 3D point the textbox demo's 3D-mode anchor projects from — a plain
+    builtin POINTS shader, entirely separate from Textbox_Demo_Shader (which only ever draws
+    BLF/POST_PIXEL geometry). set_points() only runs when the point actually moved, since it
+    triggers a batch rebuild same as any other Shader_Instance.
+    """
+    props = bpy.context.scene.dgblocks_onscreen_drawing_props.debug_props
+    point = (props.textbox_3d_x, props.textbox_3d_y, props.textbox_3d_z)
+    if getattr(shader_instance, "_last_point", None) != point:
+        shader_instance.set_points([point])
+        shader_instance._last_point = point
+    shader_instance.set_uniform("color", _TEXTBOX_POINT_MARKER_COLOR)
+    gpu.state.point_size_set(_TEXTBOX_POINT_MARKER_SIZE_PX)
 
 
 def _debug_region_before_draw(shader_instance):
@@ -518,26 +540,58 @@ class DGBLOCKS_PG_Debug_Shader_Example_Props(bpy.types.PropertyGroup):
     linedash_color2: bpy.props.FloatVectorProperty(name="Gap Color", subtype="COLOR", size=4, default=(0.0, 0.0, 0.0, 0.0), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
 
     # Multi Text box example
+    textbox_draw_mode: bpy.props.EnumProperty(  # type: ignore
+        name="Draw In",
+        description="2D: a screen-space HUD overlay anchored to a region corner/center. "
+                     "3D: anchored to a literal 3D point in the scene (always faces the viewer, "
+                     "since the text itself is still a flat BLF screen overlay)",
+        items=[
+            ("2D", "2D", ""),
+            ("3D", "3D", ""),
+        ],
+        default="2D",
+        update=_cb_demo_props_changed,
+    )
     textbox_spawn_point: bpy.props.EnumProperty(  # type: ignore
         name="Spawn Point",
-        description="Which region corner the text boxes anchor to (or the mouse, if a block_modal_event instance is active)",
+        description="Which region corner (or the center) the text boxes anchor to. 2D mode only",
         items=[
             ("TOP_LEFT",     "Top Left",     ""),
             ("TOP_RIGHT",    "Top Right",    ""),
             ("BOTTOM_LEFT",  "Bottom Left",  ""),
             ("BOTTOM_RIGHT", "Bottom Right", ""),
-            ("MOUSE",        "At Mouse",     ""),
+            ("CENTER",       "Centered",     ""),
         ],
         default="TOP_LEFT",
         update=_cb_demo_props_changed,
     )
-    textbox_x_offset: bpy.props.FloatProperty(name="X Offset", description="Pixels to shift the boxes from the spawn anchor, away from its corner", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
-    textbox_y_offset: bpy.props.FloatProperty(name="Y Offset", description="Pixels to shift the boxes from the spawn anchor, away from its corner", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
-    textbox_mouse_capture_active: bpy.props.BoolProperty(  # type: ignore
-        name="Textbox Mouse Capture Active", default=False,
-        description="Whether block_onscreen_drawing currently owns a lightweight block_modal_event "
-                     "listener, kept alive only to populate a live cursor position for 'At Mouse'",
+    textbox_x_offset: bpy.props.FloatProperty(name="X Offset", description="Pixels to shift the boxes from the spawn anchor, away from its corner. 2D mode only", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_y_offset: bpy.props.FloatProperty(name="Y Offset", description="Pixels to shift the boxes from the spawn anchor, away from its corner. 2D mode only", default=0.0, min=-500.0, max=500.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_anchor_x: bpy.props.EnumProperty(  # type: ignore
+        name="Anchor X",
+        description="Where the 3D point sits on the box horizontally. 3D mode only",
+        items=[
+            ("START",  "Start",  "3D point sits at the box's left edge"),
+            ("MIDDLE", "Middle", "3D point sits at the box's horizontal center"),
+            ("END",    "End",    "3D point sits at the box's right edge"),
+        ],
+        default="START",
+        update=_cb_demo_props_changed,
     )
+    textbox_anchor_y: bpy.props.EnumProperty(  # type: ignore
+        name="Anchor Y",
+        description="Where the 3D point sits on the box vertically. 3D mode only",
+        items=[
+            ("START",  "Start",  "3D point sits at the box's top edge"),
+            ("MIDDLE", "Middle", "3D point sits at the box's vertical center"),
+            ("END",    "End",    "3D point sits at the box's bottom edge"),
+        ],
+        default="START",
+        update=_cb_demo_props_changed,
+    )
+    textbox_3d_x: bpy.props.FloatProperty(name="X", description="3D mode only", default=0.0, soft_min=-20.0, soft_max=20.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_3d_y: bpy.props.FloatProperty(name="Y", description="3D mode only", default=0.0, soft_min=-20.0, soft_max=20.0, update=_cb_demo_props_changed)  # type: ignore
+    textbox_3d_z: bpy.props.FloatProperty(name="Z", description="3D mode only", default=0.0, soft_min=-20.0, soft_max=20.0, update=_cb_demo_props_changed)  # type: ignore
     textbox_bg_enabled: bpy.props.BoolProperty(name="Background", default=False, update=_cb_demo_props_changed)  # type: ignore
     textbox_bg_color_top: bpy.props.FloatVectorProperty(name="Background Top", subtype="COLOR", size=4, default=(0.0, 0.0, 0.0, 0.7), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore
     textbox_bg_color_bottom: bpy.props.FloatVectorProperty(name="Background Bottom", subtype="COLOR", size=4, default=(0.2, 0.2, 0.2, 0.7), min=0.0, max=1.0, update=_cb_demo_props_changed)  # type: ignore

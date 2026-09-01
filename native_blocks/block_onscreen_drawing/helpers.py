@@ -431,20 +431,6 @@ def _apply_declared_animations(shader_definitions: list, shader_instances: list,
         Wrapper_Timer_Manager.request_timer_rebuild(Enum_Sync_Events.PROPERTY_UPDATE)
 
 
-def _mouse_capture_available() -> bool:
-    """
-    True when the optional foreign USER_INPUT_CAPTURE RTC member reports a live mouse position
-    (task 8). Used to enable/disable the text-box 'At Mouse' spawn option. Never raises: returns
-    False when block_modal_events is absent or its modal router is idle.
-    """
-    capture = Wrapper_Runtime_Cache.get_cache(_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE)
-    if capture is None:
-        return False
-    mx = getattr(capture, "mouse_x", None)
-    my = getattr(capture, "mouse_y", None)
-    return bool(mx) and bool(my)
-
-
 def _mouse_is_over_current_region() -> bool:
     """
     True if the optional foreign USER_INPUT_CAPTURE RTC member reports a mouse position
@@ -476,53 +462,6 @@ def _mouse_is_over_current_region() -> bool:
     return (region.x <= mouse_x <= region.x + region.width
             and region.y <= mouse_y <= region.y + region.height)
 
-
-def _modal_events_block_available() -> bool:
-    """
-    True when block_modal_events is registered/active — i.e. its USER_INPUT_CAPTURE RTC
-    member exists — regardless of whether its modal router is currently running. Checked via
-    RTC key presence only (never an import), same as the rest of this "foreign key" pattern,
-    so this stays true even before any listener (from us or anyone else) has ever run.
-    Used to gate the textbox demo's 'At Mouse' option and its mouse-capture toggle button.
-    """
-    return _FOREIGN_RTC_KEY_USER_INPUT_CAPTURE in Wrapper_Runtime_Cache.get_all_cache_keys()
-
-
-def _textbox_mouse_capture_on_event(listener_instance, context, event):
-    """
-    Inert on_event for our optional, self-owned block_modal_events listener. Its only purpose
-    is to keep the modal router alive so USER_INPUT_CAPTURE keeps populating for the textbox
-    demo's 'At Mouse' spawn option — it never consumes an event.
-    """
-    return None
-
-
-def _hook_get_modal_listener_definitions():
-    """
-    Optional soft integration with block_modal_events, subscribed to its
-    hook_get_modal_listener_definitions purely by function-name convention (the standard
-    DGBlocks hook dispatch — see Wrapper_Hooks.rebuild_hook_subs_cache) and NOT a declared
-    block_dependency. The import below is local and guarded so this block still registers and
-    runs fine with block_modal_events absent; it is only ever reached at all when that block
-    IS active, since it owns the hook this subscribes to.
-
-    Contributes exactly one inert listener while the user has 'Start Mouse Capture' toggled on
-    for the textbox demo (debug_props.textbox_mouse_capture_active) — otherwise [].
-    """
-    try:
-        from ..block_modal_events.data_structures import Modal_Listener_Definition
-    except ImportError:
-        return []
-
-    scene = bpy.context.scene
-    props = getattr(scene, "dgblocks_onscreen_drawing_props", None)
-    if props is None or not props.debug_props.textbox_mouse_capture_active:
-        return []
-
-    return [Modal_Listener_Definition(
-        priority=100,  # low priority; this listener never consumes an event
-        on_event=_textbox_mouse_capture_on_event,
-    )]
 
 
 

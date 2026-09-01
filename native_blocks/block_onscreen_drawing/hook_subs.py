@@ -11,7 +11,7 @@ from ..block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Run
 from .common_declarations import Block_RTC_Members
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .data_structures import Shader_Declaration
-from .BL_drawing_structures import Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Shader_Types
+from .BL_drawing_structures import Builtin_Shader_Names, Draw_Space_Types, Draw_Region_Type, Draw_Phase_type, Shader_Types
 from .animations.engine import get_timer_definitions_from_animations
 from .helpers import set_draw_geometry_occluded
 from .builtin_shaders_and_effects.custom_shader_billboard2D import Billboard_Shader, _billboard_uid_for_image
@@ -24,11 +24,11 @@ from .builtin_shaders_and_effects.demo_props import (
     DEMO_ID_BILLBOARD, DEMO_ID_DASHED, DEMO_ID_TEXTBOX, DEMO_ID_STRIPE, DEMO_ID_REGION_BOUNDS,
     DEMO_ID_ANNOTATED,
     ATTR_DASHED_PHASE, ATTR_DASHED_COUNT, ATTR_STRIPE_PHASE,
-    _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_STRIPE_UID,
+    _EXAMPLE_LINEDASH_UID, _EXAMPLE_TEXTBOX_UID, _EXAMPLE_TEXTBOX_POINT_UID, _EXAMPLE_STRIPE_UID,
     _create_region_boundary_shader_declarations,
     _polyline_from_ring, _radial_ring,
     _resolve_demo_shader_uid, _activate_demo_animation, ensure_demo_rows,
-    ensure_default_textbox_lines,
+    ensure_default_textbox_lines, _textbox_point_before_draw,
     get_demo_row, demo_is_animatable,
 )
 
@@ -73,6 +73,21 @@ def _hook_get_shader_declarations():
                 custom_shader_class=Textbox_Demo_Shader,
             )
         )
+        # 3D mode: a plain builtin POINTS shader marking the literal 3D anchor the box
+        # projects from. Only declared while 3D mode is active — pull-based reconcile removes
+        # it automatically the moment the mode switches back to 2D.
+        if debug_props.textbox_draw_mode == "3D":
+            shader_defs.append(
+                Shader_Declaration(
+                    shader_uid=_EXAMPLE_TEXTBOX_POINT_UID,
+                    shader_type=Shader_Types.POINTS,
+                    space=Draw_Space_Types.VIEW_3D,
+                    region=Draw_Region_Type.WINDOW,
+                    phase=Draw_Phase_type.POST_VIEW,
+                    builtin_shader_name=Builtin_Shader_Names.POINT_UNIFORM_COLOR,
+                    builtin_shader_before_draw=_textbox_point_before_draw,
+                )
+            )
 
     # Stripe holdout: 3D TRIs rendered at viewport points, but with a screen-locked 2D stripe
     # pattern computed in the fragment shader from window-space pixels (gl_FragCoord).
@@ -208,8 +223,11 @@ def _hook_before_first_draw():
                     bg_color_top=bg_top,
                     bg_color_bottom=bg_bottom,
                 )
+            shader.set_draw_mode(debug_props.textbox_draw_mode)
             shader.set_spawn_point(debug_props.textbox_spawn_point)
             shader.set_textbox_offsets(debug_props.textbox_x_offset, debug_props.textbox_y_offset)
+            shader.set_3d_point(debug_props.textbox_3d_x, debug_props.textbox_3d_y, debug_props.textbox_3d_z)
+            shader.set_anchor(debug_props.textbox_anchor_x, debug_props.textbox_anchor_y)
 
     # --- Stripe holdout: a unit cube of TRIs whose stripe pattern stays screen-locked ---
     if _demo_shown(props, DEMO_ID_STRIPE):

@@ -11,8 +11,8 @@ from .common_declarations import Block_Data_Mirrors, Block_Hook_Sources, Block_L
 from .data_structures import DGBLOCKS_PG_Shader_Mirror_Row
 from .feature_shader_manager import Wrapper_Shader_Manager
 from .hook_subs import _hook_before_first_draw, _hook_get_shader_declarations, _hook_get_timer_definitions, _hook_post_startup
-from .helpers import _clear_all_shaders, _rebuild_all_shaders, _hook_get_modal_listener_definitions
-from .builtin_shaders_and_effects.demo_ui import DGBLOCKS_OT_Toggle_Demo_Animation, DGBLOCKS_OT_Toggle_Textbox_Mouse_Capture, DGBLOCKS_OT_Textbox_Line_Add, DGBLOCKS_OT_Textbox_Line_Remove, _ui_draw_shader_examples_subpanel
+from .helpers import _clear_all_shaders, _rebuild_all_shaders
+from .builtin_shaders_and_effects.demo_ui import DGBLOCKS_OT_Toggle_Demo_Animation, DGBLOCKS_OT_Textbox_Line_Add, DGBLOCKS_OT_Textbox_Line_Remove, _ui_draw_shader_examples_subpanel
 from .builtin_shaders_and_effects.demo_props import DGBLOCKS_PG_Debug_Shader_Example_Props, DGBLOCKS_PG_Demo_Shader_Attribute, DGBLOCKS_PG_Demo_Shader_Common, DGBLOCKS_PG_Debug_Shader_Region_Toggles, DGBLOCKS_PG_Textbox_Line_Row
 from .ui import DGBLOCKS_OT_Control_Animation
 
@@ -73,16 +73,6 @@ def hook_get_shader_declarations():
 
 def hook_get_timer_definitions():
     return _hook_get_timer_definitions()
-
-
-def hook_get_modal_listener_definitions():
-    """
-    Subscribed by function-name convention to block_modal_events' hook (see helpers.py for why
-    this is safe without a declared block_dependency). Only ever contributes a listener while
-    the textbox demo's mouse-capture toggle is on; a no-op otherwise, including when
-    block_modal_events isn't active at all.
-    """
-    return _hook_get_modal_listener_definitions()
 
 
 def hook_post_startup():
@@ -188,7 +178,6 @@ _BLOCK_DECLARATION = Block_Declaration(
         DGBLOCKS_PG_Onscreen_Drawing_Props,
         DGBLOCKS_OT_Toggle_Shader,
         DGBLOCKS_OT_Toggle_Demo_Animation,
-        DGBLOCKS_OT_Toggle_Textbox_Mouse_Capture,
         DGBLOCKS_OT_Textbox_Line_Add,
         DGBLOCKS_OT_Textbox_Line_Remove,
         DGBLOCKS_OT_Control_Animation,

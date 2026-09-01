@@ -10,10 +10,31 @@ Stripe_Shader), this shader now:
 
 - Exposes a **clear_lines() / add_line()** API that stores raw text + formatting parameters.
 - Overrides **set_points() / set_colors()** to raise Exception — callers must use add_line().
-- Moves ALL expensive computation (word wrapping, BLF measurement, box sizing, background
-  TRI vertex generation) into **_shader_update_batch()**, which runs only when properties change.
-- **_shader_draw()** is lightweight: it draws the pre-built GPU background batch (SMOOTH_COLOR
-  builtin) then blits pre-computed BLF text positions — zero recomputation per frame.
+- Moves ALL expensive computation (word wrapping, BLF measurement, box sizing) into
+  **_shader_update_batch()**, which runs only when properties change.
+- **_shader_draw()** blits pre-computed BLF text positions — in 2D mode this is zero
+  recomputation per frame; in 3D mode (see below) it re-resolves just the box POSITION every
+  frame, reusing the cached word-wrap/measurement work.
+
+TWO DRAW MODES
+---------------
+**2D** (default): the box anchors to a region corner or the center (`spawn_point` +
+`_x_offset`/`_y_offset`), exactly like a HUD overlay. The anchor only depends on region size,
+so it's resolved once in `_shader_update_batch()` and cached until a property changes.
+
+**3D**: the box anchors to a literal 3D world-space point (`_point_3d`), projected to a 2D
+screen position via `bpy_extras.view3d_utils.location_3d_to_region_2d()`. That projection
+changes every frame as the camera orbits/pans/zooms — a property-change event — so position
+resolution can NOT be cached the way 2D mode's can. `_shader_draw()` calls
+`_reposition_for_3d_frame()` on every frame, which reuses the cached, already-wrapped/measured
+`_line_infos` (the expensive part) and only redoes cheap position arithmetic + one small GPU
+batch rebuild for the background quad. The text itself is still drawn via BLF in POST_PIXEL
+screen space, so it is inherently always facing the viewer ("billboarded") with no extra
+orientation math — only its ANCHOR point is 3D, not the glyphs themselves. Lines always stack
+vertically (same top-to-bottom layout as 2D mode) — there is no flow-direction control.
+
+`anchor_x` / `anchor_y` (START/MIDDLE/END, independent per axis) place the 3D point on the
+box's bounding rectangle — a 3x3 anchor grid.
 
 BACKGROUND QUAD
 ---------------
@@ -22,7 +43,8 @@ via the last add_line() call that supplies bg_color_top/bg_color_bottom. If no c
 background colors, the background quad is skipped.
 
 The background quad vertices (2 TRIs = 4 verts + 6 indices) are computed from the shared
-box dimensions and the resolved origin (spawn_point + offsets + region).
+box dimensions and the resolved origin (spawn_point + offsets + region, or the projected 3D
+anchor).
 
 Setup: 'shader_uid' is the only Shader_Declaration value you control. The rest must match:
 Shader_Declaration(
@@ -41,6 +63,7 @@ import numpy as np
 import bpy
 import blf
 import gpu
+from bpy_extras import view3d_utils
 from gpu_extras.batch import batch_for_shader
 
 from ....native_blocks.block_onscreen_drawing.data_structures import Shader_Instance
@@ -63,15 +86,22 @@ from .simple_textbox import (
     DEFAULT_PADDING,
 )
 
-# Optional foreign RTC member owned by block_modal_events (NOT a dependency). Read defensively.
-_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE = "USER_INPUT_CAPTURE"
-
-# Spawn-point identifiers (must match the EnumProperty items in __init__.py).
+# Spawn-point identifiers (must match the EnumProperty items in demo_props.py). 2D mode only.
 SPAWN_TOP_LEFT     = "TOP_LEFT"
 SPAWN_TOP_RIGHT    = "TOP_RIGHT"
 SPAWN_BOTTOM_LEFT  = "BOTTOM_LEFT"
 SPAWN_BOTTOM_RIGHT = "BOTTOM_RIGHT"
-SPAWN_MOUSE        = "MOUSE"
+SPAWN_CENTER       = "CENTER"
+
+# Draw mode identifiers (must match the EnumProperty items in demo_props.py).
+DRAW_MODE_2D = "2D"
+DRAW_MODE_3D = "3D"
+
+# Anchor identifiers, independent per axis. 3D mode only. START/END read in "reading order":
+# X START = left edge, END = right edge. Y START = top edge, END = bottom edge.
+ANCHOR_START  = "START"
+ANCHOR_MIDDLE = "MIDDLE"
+ANCHOR_END    = "END"
 
 _MARGIN = 20
 _LINE_HEIGHT = 34
@@ -84,18 +114,33 @@ class Textbox_Demo_Shader(Shader_Instance):
     # ----------------------------------------------------------
     # State — raw input (set via public API; triggers batch rebuild)
     # ----------------------------------------------------------
-    spawn_point: str = field(default=SPAWN_TOP_LEFT)
-    _x_offset: float = field(init=False, default=0.0)  # px offset from spawn anchor
-    _y_offset: float = field(init=False, default=0.0)
+    spawn_point: str = field(default=SPAWN_TOP_LEFT)               # 2D mode
+    _x_offset: float = field(init=False, default=0.0)              # 2D mode
+    _y_offset: float = field(init=False, default=0.0)              # 2D mode
+    draw_mode: str = field(init=False, default=DRAW_MODE_2D)
+    _point_3d: Tuple[float, float, float] = field(init=False, default=(0.0, 0.0, 0.0))  # 3D mode
+    anchor_x: str = field(init=False, default=ANCHOR_START)        # 3D mode
+    anchor_y: str = field(init=False, default=ANCHOR_START)        # 3D mode
     _lines: list = field(init=False, default_factory=list)  # list[dict] raw line configs
     _bg_color_top: Optional[Tuple[float, ...]] = field(init=False, default=None)
     _bg_color_bottom: Optional[Tuple[float, ...]] = field(init=False, default=None)
 
     # ----------------------------------------------------------
-    # Pre-computed draw data (populated by _shader_update_batch)
+    # Cached shape data (populated by _shader_update_batch; reused every frame in 3D mode)
+    # ----------------------------------------------------------
+    _line_infos: list = field(init=False, default_factory=list)
+    _box_width: float = field(init=False, default=0.0)
+    _box_height: float = field(init=False, default=0.0)
+    _max_line_width: float = field(init=False, default=0.0)
+    _box_padding: tuple = field(init=False, default=(0.0, 0.0, 0.0, 0.0))
+
+    # ----------------------------------------------------------
+    # Pre-computed draw data (populated by _shader_update_batch in 2D mode; rebuilt every
+    # frame by _reposition_for_3d_frame() in 3D mode)
     # ----------------------------------------------------------
     _text_draw_entries: list = field(init=False, default_factory=list)
-    # Each entry: (x: float, y: float, font_size: int, text: str)
+    # Each entry: (x, y, font_size, text, text_color, outline_enabled, outline_color,
+    #              outline_spread, outline_offset)
 
     # ----------------------------------------------------------
     # Override parent methods that should NOT be called directly
@@ -191,33 +236,38 @@ class Textbox_Demo_Shader(Shader_Instance):
     # ----------------------------------------------------------
 
     def set_spawn_point(self, value: str) -> None:
+        """2D mode only."""
         self.spawn_point = str(value)
         self._needs_new_batch = True
 
     def set_textbox_offsets(self, x_offset: float, y_offset: float) -> None:
-        """Pixel offset applied to the box's spawn anchor (moves the whole group)."""
+        """Pixel offset applied to the box's spawn anchor (moves the whole group). 2D mode only."""
         self._x_offset = float(x_offset)
         self._y_offset = float(y_offset)
         self._needs_new_batch = True
 
-    # ----------------------------------------------------------
-    # Private helpers
-    # ----------------------------------------------------------
+    def set_draw_mode(self, value: str) -> None:
+        """DRAW_MODE_2D or DRAW_MODE_3D."""
+        self.draw_mode = str(value)
+        self._needs_new_batch = True
 
-    def _resolve_mouse_xy(self, region):
-        """Window-space mouse -> region-space (x, y), or None when unavailable."""
-        from ...block_core.core_features.runtime_cache.feature_wrapper import Wrapper_Runtime_Cache
-        capture = Wrapper_Runtime_Cache.get_cache(_FOREIGN_RTC_KEY_USER_INPUT_CAPTURE)
-        if capture is None:
-            return None
-        mx = getattr(capture, "mouse_x", None)
-        my = getattr(capture, "mouse_y", None)
-        if not mx or not my:
-            return None
-        return (mx - region.x, my - region.y)
+    def set_3d_point(self, x: float, y: float, z: float) -> None:
+        """World-space anchor point. 3D mode only."""
+        self._point_3d = (float(x), float(y), float(z))
+        self._needs_new_batch = True
+
+    def set_anchor(self, anchor_x: str, anchor_y: str) -> None:
+        """Where the 3D point sits on the box's bounding rectangle (3x3 grid). 3D mode only."""
+        self.anchor_x = str(anchor_x)
+        self.anchor_y = str(anchor_y)
+        self._needs_new_batch = True
+
+    # ----------------------------------------------------------
+    # Private helpers — origin resolution
+    # ----------------------------------------------------------
 
     def _resolve_origin(self, region, box_width, box_height):
-        """Top-left anchor (x, y) in region space for the SINGLE shared box,
+        """2D mode. Top-left anchor (x, y) in region space for the SINGLE shared box,
         plus the user x_offset / y_offset.
 
         `box_y` is always the BOTTOM edge of the box (vertices go from box_y to
@@ -234,14 +284,9 @@ class Textbox_Demo_Shader(Shader_Instance):
         w, h = region.width, region.height
         sp = self.spawn_point
 
-        if sp == SPAWN_MOUSE:
-            mouse_xy = self._resolve_mouse_xy(region)
-            if mouse_xy is None:
-                x, y = (_MARGIN, h - _MARGIN - box_height)
-            else:
-                x = mouse_xy[0] - box_width / 2.0
-                y = mouse_xy[1] - box_height / 2.0
-            x_sign, y_sign = 1.0, 1.0
+        if sp == SPAWN_CENTER:
+            x, y = ((w - box_width) / 2.0, (h - box_height) / 2.0)
+            x_sign, y_sign = 1.0, 1.0  # no corner to be relative to — offset is absolute
         elif sp == SPAWN_TOP_LEFT:
             x, y = (_MARGIN, h - _MARGIN - box_height)
             x_sign, y_sign = 1.0, -1.0
@@ -257,24 +302,46 @@ class Textbox_Demo_Shader(Shader_Instance):
 
         return (x + x_sign * self._x_offset, y + y_sign * self._y_offset)
 
+    def _resolve_3d_box_origin(self, point_x, point_y, box_width, box_height):
+        """3D mode. (box_x, box_y) — box_y is the bottom edge, matching _resolve_origin's
+        convention — from a projected 2D anchor point plus the independent per-axis anchor."""
+        if self.anchor_x == ANCHOR_START:      # point sits at the box's LEFT edge
+            box_x = point_x
+        elif self.anchor_x == ANCHOR_END:      # point sits at the box's RIGHT edge
+            box_x = point_x - box_width
+        else:  # ANCHOR_MIDDLE
+            box_x = point_x - box_width / 2.0
+
+        if self.anchor_y == ANCHOR_START:      # point sits at the box's TOP edge
+            box_y = point_y - box_height
+        elif self.anchor_y == ANCHOR_END:      # point sits at the box's BOTTOM edge
+            box_y = point_y
+        else:  # ANCHOR_MIDDLE
+            box_y = point_y - box_height / 2.0
+
+        return box_x, box_y
+
     # ----------------------------------------------------------
     # Private API — overriding parent class lifecycle methods
     # ----------------------------------------------------------
 
-    def _shader_init(self, spawn_point = SPAWN_BOTTOM_LEFT):
+    def _shader_init(self, spawn_point=SPAWN_BOTTOM_LEFT):
         """Create the SMOOTH_COLOR builtin shader for the background gradient quad."""
         self.shader_actual = gpu.shader.from_builtin('SMOOTH_COLOR')
         self.spawn_point = spawn_point
 
     def _shader_update_batch(self):
-        """Rebuild the entire pre-computed draw state — word wrap, measurement,
-        box sizing, background quad vertices, and BLF draw positions."""
+        """Rebuild the cached shape data — word wrap, measurement, box sizing. In 2D mode this
+        also resolves the (static) origin and builds the final draw state, exactly like before.
+        In 3D mode, origin resolution is deferred to _reposition_for_3d_frame() (called every
+        frame from _shader_draw()) since the projected anchor moves with the camera."""
         self._needs_new_batch = False
-        self._text_draw_entries.clear()
 
         # --- Early-out: no lines ---
         if not self._lines:
             self._batch = None
+            self._text_draw_entries.clear()
+            self._line_infos = []
             return
 
         num_lines = len(self._lines)
@@ -337,18 +404,39 @@ class Textbox_Demo_Shader(Shader_Instance):
 
         if not line_infos:
             self._batch = None
+            self._text_draw_entries.clear()
+            self._line_infos = []
             return
 
         # --- Calculate shared box dimensions ---
-        box_width, box_height, max_line_width = _calculate_box_dimensions(
+        box_width, box_height, self._max_line_width = _calculate_box_dimensions(
             line_infos, box_padding)
 
-        # --- Resolve origin ---
+        self._line_infos = line_infos
+        self._box_width = box_width
+        self._box_height = box_height
+        self._box_padding = box_padding
+
+        if self.draw_mode == DRAW_MODE_3D:
+            # Position depends on the live camera view — resolved every frame instead, in
+            # _reposition_for_3d_frame(). Nothing more to do here.
+            self._batch = None
+            self._text_draw_entries.clear()
+            return
+
         region = bpy.context.region
         if region is None:
             self._batch = None
+            self._text_draw_entries.clear()
             return
         box_x, box_y = self._resolve_origin(region, box_width, box_height)
+        self._finalize_draw_state(box_x, box_y, box_width, box_height, box_padding, line_infos)
+
+    def _finalize_draw_state(self, box_x, box_y, box_width, box_height, box_padding, line_infos):
+        """Build the background quad batch + BLF text_draw_entries from a fully-resolved box
+        position. Shared by the 2D path (called once from _shader_update_batch, then cached)
+        and the 3D path (called every frame from _reposition_for_3d_frame)."""
+        self._text_draw_entries.clear()
 
         # --- Build background quad (2 TRIs = 4 verts + 6 indices) ---
         draw_bg = self._bg_color_top is not None or self._bg_color_bottom is not None
@@ -384,7 +472,7 @@ class Textbox_Demo_Shader(Shader_Instance):
         y_positions = _calculate_line_y_positions(
             line_infos, box_y, box_height, box_padding)
         x_positions = _calculate_text_x_positions(
-            line_infos, box_x, box_width, box_padding, max_line_width)
+            line_infos, box_x, box_width, box_padding, self._max_line_width)
 
         for i, info in enumerate(line_infos):
             self._text_draw_entries.append((
@@ -399,7 +487,38 @@ class Textbox_Demo_Shader(Shader_Instance):
                 info["outline_offset"],
             ))
 
+    def _reposition_for_3d_frame(self):
+        """
+        Re-resolves the box position from the current camera view every frame — the 3D point's
+        projected screen position changes continuously as the viewport orbits, unlike the 2D
+        corner/center anchors (which are static per region size). Cheap: reuses the cached,
+        already-wrapped/measured self._line_infos — only position math + one small GPU batch
+        rebuild (the background quad) run per frame here, not BLF measurement/word-wrap.
+        """
+        region = bpy.context.region
+        rv3d = bpy.context.region_data
+        if region is None or rv3d is None or not self._line_infos:
+            self._batch = None
+            self._text_draw_entries.clear()
+            return
+
+        projected = view3d_utils.location_3d_to_region_2d(region, rv3d, self._point_3d)
+        if projected is None:
+            # No valid 2D projection (e.g. the point is behind the camera) — skip this frame.
+            self._batch = None
+            self._text_draw_entries.clear()
+            return
+
+        box_x, box_y = self._resolve_3d_box_origin(
+            projected.x, projected.y, self._box_width, self._box_height)
+        self._finalize_draw_state(
+            box_x, box_y, self._box_width, self._box_height,
+            self._box_padding, self._line_infos)
+
     def _shader_draw(self):
+        if self.draw_mode == DRAW_MODE_3D:
+            self._reposition_for_3d_frame()
+
         gpu.state.blend_set('ALPHA')
 
         # --- Draw background quad (if any) ---
@@ -407,7 +526,7 @@ class Textbox_Demo_Shader(Shader_Instance):
             self.shader_actual.bind()
             self._batch.draw(self.shader_actual)
 
-        # --- Draw text via BLF (pre-computed positions, zero per-frame cost) ---
+        # --- Draw text via BLF ---
         font_id = 0
         for (x, y, font_size, text, text_color, outline_enabled, outline_color,
              outline_spread, outline_offset) in self._text_draw_entries:
