@@ -1,4 +1,8 @@
 {
     "editor.rename.enablePreview": false,
-    "workbench.editor.enablePreview": true
+    "workbench.editor.enablePreview": true,
+    "blender.environmentVariables": {
+        "BLENDER_USER_CONFIG": ".blender-profile/config",
+        "BLENDER_USER_SCRIPTS": ".blender-profile/scripts"
+    }
 }

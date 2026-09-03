@@ -2,10 +2,19 @@
 # Add an exception for the .gitignore file itself 
 !.gitignore
 
-# Only keep README.md from block repos folder
-external_blocks/
+# external_blocks/ holds only LINKS to sibling block repos (see devkit README).
+# Keep the package marker and README; ignore every linked block.
+external_blocks/*
+!external_blocks/__init__.py
+!external_blocks/README.md
 
-.vscode/
+# Per-checkout Blender profile (prefs + addon link), created on first 'Blender: Start'
+.blender-profile/
+
+# VS Code: the two committed files hold no machine-specific paths
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

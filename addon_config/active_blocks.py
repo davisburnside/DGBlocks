@@ -29,9 +29,26 @@ from ..native_blocks import (
 # from unfinished_blocks import <>
 
 # --------------------------------------------------------------
-# Your blocks, used in your addon
+# External blocks: every `block_*` package linked into external_blocks/ (see its README)
 # --------------------------------------------------------------
-from ..external_blocks.block_flatypus_modes_manager import block_flatypus_modes_manager
+import importlib
+import pkgutil
+from .. import external_blocks as _external_blocks_package
+
+# Names listed here register first, in this order; every other discovered block follows
+# alphabetically. Only needed when one external block depends on another.
+_EXTERNAL_BLOCK_ORDER: tuple = ()
+
+def _discover_external_blocks() -> list:
+    names = sorted(
+        info.name for info in pkgutil.iter_modules(_external_blocks_package.__path__)
+        if info.ispkg and info.name.startswith("block_")
+    )
+    ordered = [n for n in _EXTERNAL_BLOCK_ORDER if n in names]
+    ordered += [n for n in names if n not in _EXTERNAL_BLOCK_ORDER]
+    return [importlib.import_module(f"{_external_blocks_package.__name__}.{n}") for n in ordered]
+
+_EXTERNAL_BLOCK_PACKAGES = _discover_external_blocks()
 
 # ==============================================================================================================================
 # Blocks registered at startup
@@ -49,7 +66,7 @@ _BLOCK_PACKAGES = [
     block_geometry_actions,
     block_modal_events,
     block_pip_library_manager,
-    block_flatypus_modes_manager,
+    *_EXTERNAL_BLOCK_PACKAGES,   # linked consumer blocks, discovered above
     # _block_usecase_01_minimal,
     # _block_usecase_02_basic,
     # _block_usecase_02B_basic,

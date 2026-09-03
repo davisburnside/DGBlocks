@@ -7,4 +7,4 @@
 **Project context**: This VS Code window is rooted at DGBlocks, but requested work is almost always for one of two projects living in it. Unless told explicitly otherwise, determine which one applies and read the relevant file(s) before acting:
 
 - **DGBlocks** (this repo) — read `README.md` at the project root
-- **Flatypus** (a separate git repo vendored at `external_blocks/block_flatypus_modes_manager/block_flatypus_modes_manager/`) — read BOTH `external_blocks/block_flatypus_modes_manager/block_flatypus_modes_manager/documentation/CLAUDE.md` (entry point) AND `external_blocks/block_flatypus_modes_manager/block_flatypus_modes_manager/documentation/MODULE_MAP.md` (module map)
+- **Flatypus** (a separate git repo, a sibling checkout linked in at `external_blocks/block_flatypus_modes_manager/`) — read BOTH `external_blocks/block_flatypus_modes_manager/documentation/CLAUDE.md` (entry point) AND `external_blocks/block_flatypus_modes_manager/documentation/MODULE_MAP.md` (module map)

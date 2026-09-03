@@ -3,8 +3,10 @@
 DGBlocks is a modular block-based framework for Blender addons: each feature is a
 self-contained `block_<name>` folder (bpy classes, properties, runtime cache, hooks,
 loggers, registration) that plugs into a shared lifecycle manager. `external_blocks/`
-holds **Flatypus**, a separate addon built *on top of* DGBlocks — it has its own
-`CLAUDE.md`; don't assume its conventions from this file alone.
+holds only *links* to consumer block repos that live beside this checkout; today that is
+**Flatypus**, a separate addon built *on top of* DGBlocks with its own `CLAUDE.md` — don't
+assume its conventions from this file alone. Dev-environment setup (worktrees, links,
+Blender profiles) lives in the sibling `devkit/` folder, not in this repo.
 
 This file is a router, not a reference. Read only the doc(s) a task actually needs —
 don't preload the whole Developer/ tree.
@@ -18,7 +20,7 @@ addon_helpers/          generic utilities + ALL declaration dataclasses (data_st
                         never imports from a block
 native_blocks/          shipped blocks; block_core is required by every other block
 unfinished_blocks/      WIP/stub blocks — READ-ONLY reference unless told otherwise
-external_blocks/        Flatypus (separate addon, own CLAUDE.md — see below)
+external_blocks/        links to sibling block repos (Flatypus: own CLAUDE.md — see below)
 Developer/              docs (see routing table)
 ```
 
@@ -54,6 +56,7 @@ Every `block_<name>/` follows: `__init__.py` (`_BLOCK_DECLARATION`), `constants.
 | Writing or running tests for a block | `Developer/Structural_Standards/Unit_Testing_Framework.md` |
 | Backlog / requested cleanups not yet actioned | `Developer/Wants_and_Needs/*.txt` |
 | Working in `external_blocks/` (Flatypus) | its own `CLAUDE.md`, then its `MODULE_MAP.md` |
+| Setting up worktrees / Blender profiles / block links | `../devkit/README.md` (sibling folder, not in this repo) |
 
 `Developer/AI_Assist/README.md` has the full "fresh contributor" read order if you ever
 need the whole picture at once; the table above is the fast path for a single task.
