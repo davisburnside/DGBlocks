@@ -9,6 +9,6 @@ block repo that lives *beside* the DGBlocks checkout:
   block_<name>/                the block's own git repo
 ```
 
-`devkit/new_worktree.py link` creates the links; `addon_config/active_blocks.py` registers
+`Developer/setup/new_worktree.py link` creates the links; `addon_config/active_blocks.py` registers
 whatever it finds. Everything except `__init__.py` and this file is gitignored, so DGBlocks
-history never references a consumer block. See `<dev>/devkit/README.md` for the full setup.
+history never references a consumer block. See `Developer/setup/README.md` for the full setup.

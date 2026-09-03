@@ -6,7 +6,7 @@ loggers, registration) that plugs into a shared lifecycle manager. `external_blo
 holds only *links* to consumer block repos that live beside this checkout; today that is
 **Flatypus**, a separate addon built *on top of* DGBlocks with its own `CLAUDE.md` — don't
 assume its conventions from this file alone. Dev-environment setup (worktrees, links,
-Blender profiles) lives in the sibling `devkit/` folder, not in this repo.
+Blender profiles) lives in `Developer/setup/`.
 
 This file is a router, not a reference. Read only the doc(s) a task actually needs —
 don't preload the whole Developer/ tree.
@@ -56,7 +56,7 @@ Every `block_<name>/` follows: `__init__.py` (`_BLOCK_DECLARATION`), `constants.
 | Writing or running tests for a block | `Developer/Structural_Standards/Unit_Testing_Framework.md` |
 | Backlog / requested cleanups not yet actioned | `Developer/Wants_and_Needs/*.txt` |
 | Working in `external_blocks/` (Flatypus) | its own `CLAUDE.md`, then its `MODULE_MAP.md` |
-| Setting up worktrees / Blender profiles / block links | `../devkit/README.md` (sibling folder, not in this repo) |
+| Setting up worktrees / Blender profiles / block links | `Developer/setup/README.md` (then `custom_blocks.md`, `worktrees.md`, `teamwork.md`, `merging.md`, `os_notes.md` as needed) |
 
 `Developer/AI_Assist/README.md` has the full "fresh contributor" read order if you ever
 need the whole picture at once; the table above is the fast path for a single task.
